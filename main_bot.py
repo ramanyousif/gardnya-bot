@@ -466,6 +466,85 @@ def contains_link_or_spam(msg: dict, text: str) -> bool:
         return True
     return False
 
+def get_sticker_comment(sticker_obj: dict) -> str:
+    if not sticker_obj:
+        return ""
+    emoji = sticker_obj.get("emoji") or ""
+    set_name = (sticker_obj.get("set_name") or "").lower()
+    
+    # 🐱 Cats (پشیلە)
+    if any(c in emoji for c in ["🐱", "😸", "😻", "😽", "🐈", "🐾"]) or "cat" in set_name or "pishila" in set_name:
+        return random.choice([
+            "واو چەند پشیلەیەکی کیوت و نازدارە! 😻🐾🌸",
+            "چەند جوان و شیرینە ئەم پشیلەیە دەستت خۆش بێت! 🐱✨❤️",
+            "ئای چەند کیوت و جوانە، خۆم فیدای بم! 🐾🥰💐"
+        ])
+    
+    # 🐶 Dogs (سەگ)
+    if any(c in emoji for c in ["🐶", "🐕", "🦮", "🐩", "🐕‍🦺"]) or "dog" in set_name:
+        return random.choice([
+            "واو چەند سەگێکی کیوت و دڵسۆزە! 🐶❤️✨",
+            "دەستخۆش زۆر شیرین و نازدارە! 🐕🌸🥰"
+        ])
+        
+    # 😂 Laughing / Funny (پێکەنین)
+    if any(c in emoji for c in ["😂", "🤣", "😹", "😆", "😅"]):
+        return random.choice([
+            "ههههه هەمیشە دەمتان بە پێکەنین و شاد بێت گوڵم! 😂🌸❤️",
+            "هههه زۆر بەلەزەت و پێکەنیناوی بوو، هەمیشە بە کەیف بن! 🤣🎉✨",
+            "خوایە هەمیشە دڵتان پڕ لە پێکەنین و خۆشی بێت ههههه! 😊🥰💖"
+        ])
+        
+    # ❤️ Love / Hearts (خۆشەویستی)
+    if any(c in emoji for c in ["❤️", "💖", "💕", "💞", "💓", "😍", "🥰", "😘"]):
+        return random.choice([
+            "فیدای ئەو دڵە پاک و پڕ لە خۆشەویستییە بم گوڵم! ❤️🥰✨",
+            "چەند جوانە! هەمیشە پڕ بن لە خۆشەویستی و دڵخۆشی 💖🌸💐",
+            "قوربانی ئەو پەیام و ستیکەرە جوانەت بم! 🌸❤️🤗"
+        ])
+
+    # 🌸 Flowers (گوڵ)
+    if any(c in emoji for c in ["🌸", "🌹", "🌺", "🌻", "💐", "🌷"]):
+        return random.choice([
+            "گوڵ بۆ گوڵ! چەند دڵڕفێن و جوانە دەستت خۆش بێت 🌸💐✨",
+            "گوڵبەخش بیت گوڵم! زۆر زۆر جوانە 🌺❤️🥰"
+        ])
+        
+    # ☕ Coffee / Tea (چای و قاوە)
+    if any(c in emoji for c in ["☕", "🫖", "🍵"]):
+        return random.choice([
+            "نۆشی گیانتان بێت! عافیەتبێت قاوە و چایەکی بەتام ☕😋✨",
+            "عافیەتی گیانت بێت گوڵم! کاتێکی زۆر خۆش و ئارام 🫖🌸💖"
+        ])
+
+    # 🔥 Cool / Thumbs Up / Fire (شاز و بەهێز)
+    if any(c in emoji for c in ["👍", "🔥", "💪", "😎", "👑", "⚡"]):
+        return random.choice([
+            "دەستخۆش زۆر کەشخە و ناوازەیە! هەمیشە لە لوتکە بن 💪😎🔥",
+            "شازە براکەم! هەر بژین بە بەرزی و سەرکەوتوویی 👑✨🚀"
+        ])
+
+    # 🥺 Sad / Cry (خەمبار)
+    if any(c in emoji for c in ["😢", "😭", "🥺", "😞", "💔"]):
+        return random.choice([
+            "خەمت نەبێت گیانەکەم، هەموو شتێک بە باشترین شێوە چاک دەبێت! دڵت ئارام بێت 🥺🌸❤️",
+            "هەمیشە دەمت بە خەندە بێت و هیچ خەمێک لە دڵتدا نەمێنێت گیان! 💖🤗"
+        ])
+
+    # 🍰 Food / Drinks (خواردن)
+    if any(c in emoji for c in ["🍕", "🍔", "🎂", "🍫", "🍰", "🍩", "🍦", "🍎"]):
+        return random.choice([
+            "بە عافیەتی گیانتان بێت! زۆر بەلەزەت و شیرین دیارە 😋🍰🎉",
+            "نۆشی گیانت بێت گوڵم! هەمیشە سفرەتان ئاوەدان بێت 🍕✨🌸"
+        ])
+
+    # Default friendly cute response
+    return random.choice([
+        "ستیکەرێکی زۆر جوان و کیوتە! دەستت خۆش گوڵم 🌸✨🥰",
+        "واو چەند نازدار و تایبەتە! هەمیشە شاد بن 😊💖💐",
+        "زۆر شازە! هەمیشە دڵخۆش و دەم بە خەندە بن 🌺✨🎉"
+    ])
+
 def parse_duration_minutes(text: str) -> int:
     if not text:
         return 60
@@ -731,6 +810,23 @@ def handle_message(msg: dict):
                 send_message(chat_id, f"🚫 {display_name} بەهۆی دووبارەکردنەوەی سەرپێچی، بۆ ماوەی {AUTO_MUTE_MINUTES} خولەک لە چاتکردن بێدەنگ کرا! 🔇")
                 print(f"🚫 Muted {display_name} for {AUTO_MUTE_MINUTES} minutes")
             return
+
+    # 🎭 کاتێک ئەندامێک ستیکەری ئاسایی دەنێرێت (وەڵامدانەوەی شیرین و پەیوەندیدار)
+    if "sticker" in msg:
+        should_stk_reply = True
+        if "reply_to_message" in msg and msg["reply_to_message"]:
+            target_user = msg["reply_to_message"].get("from", {})
+            target_id = target_user.get("id", 0)
+            is_target_bot = target_user.get("is_bot", False)
+            if target_id != BOT_ID and not is_target_bot:
+                should_stk_reply = False
+
+        if should_stk_reply:
+            stk_reply = get_sticker_comment(msg["sticker"])
+            if stk_reply:
+                send_message(chat_id, stk_reply, msg_id)
+                print(f"🤖 Reacted to sticker from {display_name}: {stk_reply}")
+                return
 
     # 💬 وەڵامدانەوەی AI بە کوردییەکی زۆر ڕوخۆش و پڕ ئیمۆجی
     # مەرج: ئەگەر مرۆڤێک ڕیپڵای مرۆڤێکی تر بکات، بوتەکە بێدەنگ دەبێت و تەداخول ناکات
