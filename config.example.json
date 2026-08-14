@@ -1,0 +1,17 @@
+{
+  "token": "YOUR_TELEGRAM_BOT_TOKEN",
+  "botUsername": "gardny4_bot",
+  "groqApiKey": "YOUR_GROQ_API_KEY",
+  "groqModel": "llama-3.3-70b-versatile",
+  "aiEnabled": true,
+  "aiInPrivateChats": true,
+  "aiHistoryMessages": 10,
+  "blockNSFWStickers": true,
+  "blockNSFWGIFs": true,
+  "blockLinks": true,
+  "blockBadWords": true,
+  "enableMirrorHours": true,
+  "enablePrayerTimes": true,
+  "maxWarnings": 3,
+  "autoMuteMinutes": 60
+}

@@ -1,0 +1,785 @@
+# -*- coding: utf-8 -*-
+"""
+بوتی گاردنیا - Gardnya Telegram Security, Smart AI & Group Companion Bot
+"""
+
+import os
+import re
+import sys
+import json
+import time
+import random
+import threading
+import datetime
+import requests
+from pathlib import Path
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ڕێکخستنەکان (Credentials & Configuration)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+CONFIG_FILE = Path("config.json")
+config = {
+    "token": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
+    "botUsername": os.environ.get("BOT_USERNAME", "gardny4_bot"),
+    "groqApiKey": os.environ.get("GROQ_API_KEY", ""),
+    "groqModel": "llama-3.3-70b-versatile",
+    "aiEnabled": True,
+    "aiInPrivateChats": True,
+    "aiHistoryMessages": 10,
+    "blockNSFWStickers": True,
+    "blockNSFWGIFs": True,
+    "blockLinks": True,
+    "blockBadWords": True,
+    "enableMirrorHours": True,
+    "enablePrayerTimes": True,
+    "maxWarnings": 3,
+    "autoMuteMinutes": 60
+}
+
+if CONFIG_FILE.exists():
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            file_cfg = json.load(f)
+            config.update(file_cfg)
+    except Exception as e:
+        print(f"Warning: Failed to load config.json: {e}")
+
+BOT_TOKEN = config.get("token") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+GROQ_API_KEY = config.get("groqApiKey") or os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = config.get("groqModel", "llama-3.3-70b-versatile")
+MAX_WARNINGS = int(config.get("maxWarnings", 3))
+AUTO_MUTE_MINUTES = int(config.get("autoMuteMinutes", 60))
+
+API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+# Initialize Groq AI Client
+groq_client = None
+if GROQ_API_KEY:
+    try:
+        import groq
+        groq_client = groq.Groq(api_key=GROQ_API_KEY)
+    except Exception as e:
+        print(f"Groq Init Warning: {e}")
+
+STATE_FILE = Path("data/state.json")
+STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+if STATE_FILE.exists():
+    try:
+        with open(STATE_FILE, "r", encoding="utf-8") as f:
+            state_data = json.load(f)
+    except Exception:
+        state_data = {"warnings": {}, "rules": {}, "groups": [], "last_broadcasts": {}}
+else:
+    state_data = {"warnings": {}, "rules": {}, "groups": [], "last_broadcasts": {}}
+
+def save_state():
+    try:
+        with open(STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state_data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Failed to save state: {e}")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  سیستەمی ژیریی دەستکردی کوردیی زۆر ڕوخۆش و پڕ لە ئیمۆجی
+# ═══════════════════════════════════════════════════════════════════════════════
+
+AI_SYSTEM_PROMPT = """
+You are Gardnya (گاردنیا), a super friendly, witty, cheerful, and charming young Kurdish companion in a Telegram group chat.
+You speak ONLY in natural, sweet Sorani Kurdish (کوردیی سۆرانی ئاسایی چاتی ڕۆژانە).
+
+Personality & Rules:
+1. You are VERY joyful, kind, smiling, respectful, and humorous (زۆر ڕوخۆش و قسەخۆش).
+2. ALWAYS use lively, colorful emojis in EVERY response (🌸, ✨, ❤️, 😊, 🥰, 🌺, 🎉, 💖, 🤗, 💐, ☕).
+3. Use warm Kurdish everyday expressions: (گیانەکەم, بەسەرچاو, وەڵا, براکەم, عافیەتبیت, دەستت خۆش, قوربانت, ههههه).
+4. Answer ANY question asked by the user intelligently, helpfully, and cheerfully.
+5. NEVER sound like a cold machine or broken literal English translation. Sound like a true sweet Kurdish best friend in a group!
+"""
+
+WELCOME_MESSAGES = [
+    "🌸 سڵاو {name} گیان! زۆر زۆر بەخێر بێیت بۆ گروپەکەمان 🎉\n\nگەرمترین بەخێرهاتنت لێ دەکەین، هیواداریین کاتێکی زۆر خۆش و بەسوود لەگەڵمان بەسەر بەریت! ✨❤️🥰",
+    "👑 سڵاو لە {name} خۆشەویست! زۆر بەخێربێیت بۆ نێو خێزانە چاک و ئازیزەکەمان 🌟\n\nگروپ بە هاتنی تۆ گەشاوەتر بوو، بە هیوای کاتی زۆر خۆش و سەرکەوتووانە! 🌺💐💖",
+    "✨ سڵاو و دەرەکەت خۆش {name} گیان! بەخێربێیت بەسەر چاوانمان 💐\n\nزۆر دڵخۆشین بە بینینت لە نێوماندا! 🎉🌸🤗"
+]
+
+SMART_REPLIES = [
+    {
+        "patterns": ["سڵاو", "سلاو", "سلام", "هەڵۆ", "hello", "hi", "slaw"],
+        "replies": [
+            "سڵاو لە تۆی گوڵ و ئازیزیش گیانەکەم! چۆنیت؟ 🌸❤️",
+            "سڵاو و ڕێز و گوڵباران بۆ تۆی بەڕێز! بەخێربێیت گیان 😊✨",
+            "سڵاو لە چاوە گەشەکانت، هەمیشە بەخێر بێیت! 💖🌺",
+            "سڵاو گیان! هیوادارم ڕۆژێکی زۆر خۆشت هەبێت 🌸🥰"
+        ]
+    },
+    {
+        "patterns": ["چۆنیت", "چونیت", "چۆنی", "چاکیت", "باشیت", "چ هەواڵ", "choni", "bashit"],
+        "replies": [
+            "سوپاس بۆ خودا من زۆر باش و دڵخۆشم، تۆ بڵێ چۆنیت گوڵم؟ ✨❤️",
+            "زۆر باشم بە بینینی پەیامە جوانەکەت! هەواڵت چۆنە گیان؟ 😊🌸",
+            "سوپاس بۆ خوا من زۆر چاکم، هیوادارم تۆش لە لوتکەی باشیدا بیت! 💖💐"
+        ]
+    },
+    {
+        "patterns": ["دەستت خۆش", "دەست خۆش", "دەستت کەڵەک پێ بێت", "dast xosh", "dastxosh"],
+        "replies": [
+            "عافیەتبیت گیانەکەم! شایەنی هیچی تر نییە 🌸❤️",
+            "سەرکەوتوو و تەندروست بیت، دەستی تۆش خۆش بێت براکەم! ✨💖",
+            "سەرچاوم گیانی گاردنیا! هەمیشە لە خزمەتتام 🥰💐"
+        ]
+    },
+    {
+        "patterns": ["سوپاس", "سوپاست دەکەم", "دەستت خۆش بیت", "spas", "supas"],
+        "replies": [
+            "شایەنی نییە گیانەکەم! هەموو کات لە خزمەتتدام ❤️🌸",
+            "سوپاس بۆ تۆش بۆ ئەو دڵە پاک و جوانەت! ✨💖",
+            "سەرچاوم بەڕێزم! هەمیشە شاد بیت 🤗💐"
+        ]
+    },
+    {
+        "patterns": ["ناوی تۆ چییە", "ناوت چییە", "تۆ کێیت", "کێیت", "nawt chya"],
+        "replies": [
+            "من ناوم گاردنیایە! بوتی پاراستنی گروپ و هاوڕێی زیرەک و دڵسۆزتان 🤖🌸❤️",
+            "من گاردنیام! بوتی ئاسایش و ژیریی دەستکردی کوردی، خزمەتکاری ئێوەی گوڵ 🌺✨"
+        ]
+    },
+    {
+        "patterns": ["گاردنیا", "gardnya", "بووت", "بوت"],
+        "replies": [
+            "گیانی گاردنیا، فەرموو سەرچاوم لە خزمەتتام! 🌸🥰",
+            "بەڵێ گوڵم! چۆن دەتوانم یارمەتیت بدەم ئەمڕۆ؟ ✨❤️",
+            "گیانەکەم فەرموو، بە دڵ گوێم لێتە! 💖💐"
+        ]
+    }
+]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  وتەی کاتژمێرە یەکسانەکان (Mirror Hours Quotes)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+MIRROR_HOURS_QUOTES = {
+    "00:00": "❝ کاتژمێری سفر! دەستپێکی ڕۆژێکی نوێ و دەرفەتێکی نوێ بۆ سەرکەوتن و ژیانێکی باشتر. ❞\nشەوێکی ئارام و بەیانییەکی زێڕین بۆ هەمووتان 🕛✨🌸",
+    "01:01": "❝ هەمیشە هیوات بە خودا هەبێت، دەرگایەکت لێ دابخرێت هەزار دەرگات بۆ دەکرێتەوە. ❞\nبە هیوای شەوێکی پڕ لە ئارامی بۆ هەمووتان 🌙🌸❤️",
+    "02:02": "❝ دڵە پاکەکان هەمیشە ئارام دەژین، چونکە هیچ خراپەیەک لە دڵیاندا جێگەی نابێتەوە. ❞\nشەوتان شاد و پڕ لە ئارامی و دڵنیایی ✨❤️😴",
+    "03:03": "❝ هیچ شتێک مەحاڵ نییە کاتێک باوەڕت بە خۆت و پشتیوانیی پەروەردگار هەبێت. ❞\nکاتێکی ئارام بۆ ئێوەی ئازیز 🌟🕊️🌸",
+    "04:04": "❝ سەحر و بەیانی نوێ، دەرفەتێکی زێڕینە بۆ دەستپێکردنەوە و گەیشتن بە ئامانجەکانت. ❞\nبەیانیتان پڕ لە خێر و بەرەکەت بێت ☀️💐✨",
+    "05:05": "❝ ژیان بە دڵخۆشی و خەندە جوانە، هەمیشە خەندە بکە چونکە تۆ شایەنی باشترینیت. ❞\nبەیانیت باش و ڕۆژت پڕ لە خۆشی 🌸✨🥰",
+    "06:06": "❝ ڕۆژێکی نوێ، هیوایەکی نوێ، سەرەتایەکی پڕ لە خێر و سەرکەوتن بۆ هەمووان. ❞\nڕۆژێکی پڕ لە وزەی ئەرێنی و شادی 🌻💖☀️",
+    "07:07": "❝ دەستپێکی ڕۆژ بە سوپاسگوزاری، بەرهەمی ڕۆژ بە بەختەوەری و کامەرانی دەڕوێنێت. ❞\nبەیانیتان گوڵڕێژ و پڕ لە کامەرانی 🌺☕✨",
+    "08:08": "❝ هەرگیز کۆڵ مەدە لەوەی کە دڵت بەڕاستی دەیەوێت، سەرکەوتن بەردەوام چاوەڕێتە. ❞\nڕۆژێکی پڕ لە بەرهەم و سەرکەوتن بۆ هەمووان 🚀🌟💪",
+    "09:09": "❝ مرۆڤە جوانەکان وەک گوڵ وان، لە هەر کوێ بن بۆن و بەرامی خێر و خۆشی دەبەخشنەوە. ❞\nهەمیشە بدرەوشێنەوە و شاد بن 🌸👑💖",
+    "10:10": "❝ دڵت پڕ بکە لە خۆشەویستی و میهرەبانی، چونکە تاکە سامانە کە هەرگیز کۆن نابێت. ❞\nکاتێکی زۆر خۆش و پڕ لە وزەی ئەرێنی 💖☕✨",
+    "11:11": "❝ کاتژمێری ئاواتەکان! 🌟 لە دڵەوە هیوای گەیشتن بە هەموو خەونە جوانەکانتان بۆ دەخوازم. ❞\nخەونەکانتان ببن بە ڕاستی و ئاواتەکانتان بێنە دی ✨🌈🌸",
+    "12:12": "❝ نیوەڕۆتان باش! هەمیشە بە ئارامی و دڵخۆشی هەنگاو بەرەو لوتکەی ئامانجەکانت بنێ. ❞\nڕۆژێکی پڕ لە سەرکەوتن و دەستکەوتی باش 🌞🍀❤️",
+    "13:13": "❝ ژیان کورتترە لەوەی بە خەم و بێزاری بەسەری بەریت، دڵت خۆش بکە بە شتە بچووکەکان. ❞\nهەمیشە دەمتان بە خەندە و دڵتان ئارام بێت 😊🌸💐",
+    "14:14": "❝ بەهێز بە و بڕوات بە خۆت هەبێت، تۆ لەوە زۆر بەهێزتریت کە خۆت بیری لێ دەکەیتەوە! ❞\nبەردەوام بە بە تین و تاوەوە بەرەو سەرکەوتن 💪✨🔥",
+    "15:15": "❝ ئارامیی دڵ لە لێبوردەیی و خۆشەویستی و دەستباربوونی ئەوانی ترەوە سەرچاوە دەگرێت. ❞\nپڕ بن لە ئاشتی و میهرەبانی 🕊️❤️🌸",
+    "16:16": "❝ کات وەک زێڕە، لەگەڵ ئەو کەسانە بەسەری بەره کە بەهادار و دڵسۆزن لە ژیانتدا. ❞\nئێوارەیەکی دڵڕفێن و پڕ لە خۆشی ☕🍂✨",
+    "17:17": "❝ ئاوابوونی خۆر یادخەرەوەیە کە هەموو کۆتاییەک، سەرەتایەکی زۆر جوانتری بەدوادا دێت. ❞\nئێوارەتان پڕ لە ئارامی و ساتەوەختی شیرین 🌇✨💐",
+    "18:18": "❝ ڕێز و خۆشەویستی و وەفاداری گەورەترین دیارین کە دەتوانیت بە مرۆڤەکانی ببەخشیت. ❞\nئێوارەتان باش و خوانتان پڕ لە بەرەکەت 🌸💖🍽️",
+    "19:19": "❝ هەموو ساتێک سوپاسی خودا بکە بۆ ئەو هەزاران نیعمەتەی کە پێت بەخشراوە. ❞\nشەوێکی پڕ لە خێر و ئاسوودەیی دڵ 🌙🤲❤️",
+    "20:20": "❝ لەگەڵ خێزان و هاوڕێ ئازیزەکانتدا ساتەکانت بکە بە یادگارییەکی زێڕین و شیرین. ❞\nکاتێکی زۆر خۆش و بەجۆش بۆ هەمووتان 🌟🎉🥰",
+    "21:21": "❝ مێشکت ئارام بکەرەوە و واز لە ماندووبوونی ڕۆژ بهێنە، تۆ ماندوو بوویت و هەوڵت دا. ❞\nشەوتان شاد و چاتتان پڕ لە گەرمی 🫖🌙🌸",
+    "22:22": "❝ کاتژمێری ئارامیی شەوانە! هیوای خەوێکی پڕ لە خەونی شیرین و ئاسوودەیی بۆ هەمووان. ❞\nشەوتان پڕ لە ئەستێرە و ڕووناکی بێت ✨😴💖",
+    "23:23": "❝ بێدەنگیی شەو باشترین دەرفەتە بۆ نزاکردن لەگەڵ پەروەردگار و دوعاکردن بۆ ئازیزانت. ❞\nشەوتان پڕ لە بەرەکەت و نزای قبوڵکراو بێت 🤲🌌🌸"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  کاتی بانگەکان و زیکر (Prayer Times & Azan Schedule in Kurdistan)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+PRAYER_SCHEDULE = {
+    "04:30": {
+        "name": "بانگی بەیانی (الفجر)",
+        "zikr": "«اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ، وَأَنَا عَلَى عَهْدِكَ وَوَعْدِكَ مَا اسْتَطَعْتُ» 🤲✨"
+    },
+    "12:20": {
+        "name": "بانگی نیوەڕۆ (الظهر)",
+        "zikr": "«سُبْحَانَ اللَّهِ وَبِحَمْدِهِ، سُبْحَانَ اللَّهِ الْعَظِيمِ» - خوایە نوێژ و کردەوە چاکەکانمان لێ قبوڵ بکەیت 🌸🕋"
+    },
+    "16:05": {
+        "name": "بانگی عەسر (العصر)",
+        "zikr": "«لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ» 📿✨"
+    },
+    "19:10": {
+        "name": "بانگی مەغریب (المغرب)",
+        "zikr": "«اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَفْوَ وَالْعَافِيَةَ فِي الدُّنْيَا وَالْآخِرَةِ» - خودا دوعاکانتان گیرابکات 🤲🌇"
+    },
+    "20:45": {
+        "name": "بانگی عیشا (العشاء)",
+        "zikr": "«اللَّهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ وَعَلَىٰ آلِ مُحَمَّدٍ» - خوایە بە خێر و ئارامی کۆتایی بەم ڕۆژەمان بهێنیت 🌙✨"
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  فیلتەری جنێو، قسەی ناشرین و سپام
+# ═══════════════════════════════════════════════════════════════════════════════
+
+BAD_WORDS_LIST = [
+    'قن', 'قنت', 'قنم', 'قنی', 'قوز', 'قۆز', 'قوزت', 'قوزم', 'قوزی',
+    'کیر', 'کێرم', 'کیرم', 'کێر', 'کێری', 'کێرت', 'کیرت',
+    'گواو', 'گوخۆر', 'گوو', 'گو', 'گوت', 'گووم',
+    'حیز', 'سۆزانی', 'سێکس', 'پۆرن', 'قەحبە', 'گەواد', 'پینتی', 'بێنامووس', 'نامووس',
+    'ئەتگێم', 'ئەگێم', 'بگێم', 'بگێرم',
+    'fuck', r'f\s*u\s*c\s*k', 'shit', 'bitch', 'asshole', 'dick', 'pussy',
+    'bastard', 'whore', 'slut', 'nigger', 'faggot', 'cock', 'cunt',
+    'motherf', 'stfu', 'porn', 'xxx', 'nude', 'naked',
+    'boobs', 'tits', 'penis', 'vagina', 'orgasm', 'hentai'
+]
+
+BAD_PHRASES_LIST = [
+    r'لە\s*دایکت', r'دایکت\s*بگێم', r'دایکت\s*گێم', r'دایکت\s*بێ', r'دایکت\s*بم',
+    r'لە\s*خوشکت', r'خوشکت\s*بگێم', r'خوشکت\s*گێم', r'خوشکت\s*بێ', r'خوشکت\s*بم',
+    r'لە\s*عەرزت', r'لە\s*قەبرت', r'داپیرەت\s*بم'
+]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  فەنکشنەکانی پەیوەندی بە Telegram API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def tg_call(method: str, payload: dict = None):
+    try:
+        r = requests.post(f"{API_BASE}/{method}", json=payload or {}, timeout=30)
+        return r.json()
+    except Exception as e:
+        print(f"Telegram API Error ({method}):", e)
+        return None
+
+BOT_ID = 0
+me_data = tg_call("getMe")
+if me_data and me_data.get("ok"):
+    BOT_ID = me_data["result"]["id"]
+    print(f"Bot authenticated as: @{me_data['result'].get('username', 'bot')} (ID: {BOT_ID})")
+
+def send_message(chat_id: int, text: str, reply_to: int = 0):
+    body = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
+    if reply_to > 0:
+        body["reply_to_message_id"] = reply_to
+        body["allow_sending_without_reply"] = True
+    return tg_call("sendMessage", body)
+
+def delete_message(chat_id: int, message_id: int):
+    return tg_call("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
+
+def get_display_name(user_obj: dict) -> str:
+    if not user_obj:
+        return "?"
+    if user_obj.get("first_name"):
+        return user_obj["first_name"]
+    if user_obj.get("username"):
+        return f"@{user_obj['username']}"
+    return str(user_obj.get("id", "?"))
+
+def is_admin(chat_id: int, user_id: int) -> bool:
+    res = tg_call("getChatMember", {"chat_id": chat_id, "user_id": user_id})
+    if res and res.get("ok"):
+        status = res["result"]["status"]
+        return status in ["creator", "administrator"]
+    return False
+
+def add_user_warning(chat_id: int, user_id: int) -> int:
+    c_key = str(chat_id)
+    u_key = str(user_id)
+    if "warnings" not in state_data:
+        state_data["warnings"] = {}
+    if c_key not in state_data["warnings"]:
+        state_data["warnings"][c_key] = {}
+    current = state_data["warnings"][c_key].get(u_key, 0) + 1
+    state_data["warnings"][c_key][u_key] = current
+    save_state()
+    return current
+
+def reset_user_warnings(chat_id: int, user_id: int):
+    c_key = str(chat_id)
+    u_key = str(user_id)
+    if "warnings" in state_data and c_key in state_data["warnings"]:
+        if u_key in state_data["warnings"][c_key]:
+            del state_data["warnings"][c_key][u_key]
+            save_state()
+
+def set_user_mute(chat_id: int, user_id: int, minutes: int = 60):
+    until = int(time.time()) + (minutes * 60)
+    return tg_call("restrictChatMember", {
+        "chat_id": chat_id,
+        "user_id": user_id,
+        "until_date": until,
+        "permissions": {
+            "can_send_messages": False,
+            "can_send_media_messages": False,
+            "can_send_other_messages": False,
+            "can_add_web_page_previews": False
+        }
+    })
+
+def unmute_user(chat_id: int, user_id: int):
+    return tg_call("restrictChatMember", {
+        "chat_id": chat_id,
+        "user_id": user_id,
+        "permissions": {
+            "can_send_messages": True,
+            "can_send_media_messages": True,
+            "can_send_other_messages": True,
+            "can_add_web_page_previews": True
+        }
+    })
+
+def ban_user(chat_id: int, user_id: int):
+    return tg_call("banChatMember", {"chat_id": chat_id, "user_id": user_id})
+
+def unban_user(chat_id: int, user_id: int):
+    return tg_call("unbanChatMember", {"chat_id": chat_id, "user_id": user_id, "only_if_banned": True})
+
+def register_group(chat_id: int):
+    if "groups" not in state_data:
+        state_data["groups"] = []
+    if chat_id not in state_data["groups"]:
+        state_data["groups"].append(chat_id)
+        save_state()
+
+def clean_ai_text(text: str) -> str:
+    if not text:
+        return ""
+    clean = re.sub(r'(?im)^\s*@?[a-zA-Z0-9_]+:\s*', '', text)
+    clean = re.sub(r'(?im)^\s*(system note|translation note|note|translation)\s*[::-].*$', '', clean)
+    clean = re.sub(r'\([^()\r\n]*\)', '', clean)
+    if re.search(r'[\u0900-\u097F]', clean):
+        return ""
+    return clean.strip()
+
+def get_smart_reply(text: str):
+    lower = text.strip().lower()
+    for entry in SMART_REPLIES:
+        for p in entry["patterns"]:
+            if p in lower:
+                return random.choice(entry["replies"])
+    return None
+
+def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
+    smart = get_smart_reply(question)
+    if smart:
+        return smart
+
+    if not groq_client:
+        return "گیانەکەم دەتوانیت دووبارە ڕوونی بکەیتەوە؟ 😅🌸"
+
+    try:
+        res = groq_client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": AI_SYSTEM_PROMPT},
+                {"role": "user", "content": question}
+            ],
+            max_tokens=150,
+            temperature=0.7
+        )
+        answer = res.choices[0].message.content
+        answer = clean_ai_text(answer)
+        if answer:
+            return answer
+    except Exception as e:
+        print("Groq Error:", e)
+
+    return "گیان دەتوانیت دووبارە ڕوونی بکەیتەوە؟ لە خزمەتدام! 🌸😊"
+
+def contains_bad_word(text: str) -> bool:
+    if not text:
+        return False
+    lower = text.lower()
+    for p in BAD_WORDS_LIST:
+        if re.search(r'\b' + re.escape(p) + r'\b' if p.isalnum() else re.escape(p), lower):
+            return True
+    for phrase in BAD_PHRASES_LIST:
+        if re.search(phrase, lower):
+            return True
+    return False
+
+def is_nsfw_sticker(sticker_obj: dict) -> bool:
+    if not sticker_obj:
+        return False
+    set_name = (sticker_obj.get("set_name") or "").lower()
+    emoji = sticker_obj.get("emoji") or ""
+    
+    # Check explicit 18+ emoji
+    if "🔞" in emoji:
+        return True
+
+    nsfw_keywords = [
+        "sex", "sexy", "porn", "xxx", "nude", "naked", "nsfw", "18+", "18plus", "adult",
+        "erotic", "hentai", "boobs", "dick", "pussy", "tits", "vagina", "brazzers",
+        "onlyfans", "xvideo", "ass", "milf", "blowjob", "fuck", "horny", "bitch",
+        "lewd", "ecchi", "taboo", "fetish", "bdsm", "kinky", "butt", "sensual", "strip",
+        "masturbat", "orgasm", "penis", "cum", "cock", "cunt", "slut", "whore", "boob", "tit", "breast",
+        "سێکس", "پۆرن", "قن", "قوز", "کیر", "حیز", "گواو", "سۆزانی", "ڕووت", "قەحبە",
+        "گەواد", "سێکسی", "شەهوەت", "جماع", "نيك", "طيز", "زب", "كس", "شرموطة", "بورن", "سكس"
+    ]
+    
+    for kw in nsfw_keywords:
+        if kw in set_name:
+            return True
+            
+    return False
+
+def is_nsfw_animation_or_media(msg: dict, text: str) -> bool:
+    if contains_bad_word(text):
+        return True
+    
+    # Check caption or search query
+    caption = (msg.get("caption") or "").lower()
+    if contains_bad_word(caption):
+        return True
+
+    # Check via_bot / inline gif query if available
+    via = msg.get("via_bot", {})
+    via_name = (via.get("username") or "").lower()
+
+    anim = msg.get("animation") or msg.get("document") or {}
+    file_name = (anim.get("file_name") or "").lower()
+    mime_type = (anim.get("mime_type") or "").lower()
+    
+    nsfw_keywords = [
+        "sex", "sexy", "porn", "xxx", "nude", "naked", "nsfw", "18+", "adult",
+        "erotic", "hentai", "boobs", "dick", "pussy", "tits", "vagina", "brazzers",
+        "onlyfans", "xvideo", "ass", "milf", "blowjob", "fuck", "horny", "bitch",
+        "سێکس", "پۆرن", "سێکسی", "قحبة", "طيز", "زب", "كس", "شرموطة", "بورن", "سكس"
+    ]
+    for kw in nsfw_keywords:
+        if kw in file_name or kw in caption:
+            return True
+            
+    return False
+
+def contains_link_or_spam(msg: dict, text: str) -> bool:
+    if text and re.search(r'(?i)\bhttps?://|\bt\.me/|\btelegram\.me/|\bwww\.|@[a-zA-Z0-9_]{4,}', text):
+        return True
+    if msg.get("entities"):
+        for e in msg["entities"]:
+            if e.get("type") in ["url", "text_link", "mention"]:
+                return True
+    if msg.get("caption_entities"):
+        for e in msg["caption_entities"]:
+            if e.get("type") in ["url", "text_link", "mention"]:
+                return True
+    if msg.get("reply_markup"):
+        return True
+    if any(k in msg for k in ["forward_date", "forward_from", "forward_from_chat", "forward_sender_name"]):
+        return True
+    return False
+
+def parse_duration_minutes(text: str) -> int:
+    if not text:
+        return 60
+    m = re.match(r'^(\d+)([mhd])?$', text.strip().lower())
+    if not m:
+        return 60
+    val = int(m.group(1))
+    unit = m.group(2)
+    if unit == 'h':
+        return val * 60
+    elif unit == 'd':
+        return val * 1440
+    return val
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  تایبەتمەندی پەخشی کاتژمێرە یەکسانەکان و کاتی بانگەکان (Background Scheduler)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def background_scheduler():
+    """هەموو خولەکێک پشکنین دەکات بۆ کاتژمێرە یەکسانەکان و کاتی بانگەکان"""
+    print("⏰ Background Clock & Prayer Scheduler Started!")
+    last_sent_minute = ""
+
+    while True:
+        try:
+            now = datetime.datetime.now()
+            current_time = now.strftime("%H:%M")
+
+            if current_time != last_sent_minute:
+                # ١. کاتژمێرە یەکسانەکان (Mirror Hours)
+                if config.get("enableMirrorHours", True) and current_time in MIRROR_HOURS_QUOTES:
+                    quote = MIRROR_HOURS_QUOTES[current_time]
+                    msg_text = f"✨ **کاتژمێرە یەکسانەکان ({current_time})** 💫\n\n{quote}"
+                    for gid in state_data.get("groups", []):
+                        send_message(gid, msg_text)
+                    print(f"✨ Broadcasted mirror hour {current_time} to groups")
+                    last_sent_minute = current_time
+
+                # ۲. کاتی بانگەکان و زیکر (Prayer Times)
+                elif config.get("enablePrayerTimes", True) and current_time in PRAYER_SCHEDULE:
+                    p_info = PRAYER_SCHEDULE[current_time]
+                    p_msg = (
+                        f"🕌 **کاتی {p_info['name']} بە کاتی کوردستان** 🕋\n\n"
+                        f"📿 **زیکر و نزای ئەم کاتە:**\n{p_info['zikr']}\n\n"
+                        f"اللَّهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ وَعَلَىٰ آلِ مُحَمَّدٍ 🌸"
+                    )
+                    for gid in state_data.get("groups", []):
+                        send_message(gid, p_msg)
+                    print(f"🕌 Broadcasted prayer time {current_time} ({p_info['name']}) to groups")
+                    last_sent_minute = current_time
+
+            time.sleep(20)
+        except Exception as e:
+            print("Scheduler Exception:", e)
+            time.sleep(30)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  فرمانە سەرەکییەکان (Admin & User Commands)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def handle_command(msg: dict, text: str):
+    chat = msg["chat"]
+    chat_id = chat["id"]
+    msg_id = msg["message_id"]
+    from_user = msg["from"]
+    user_id = from_user["id"]
+    display_name = get_display_name(from_user)
+
+    parts = text.strip().split(maxsplit=1)
+    cmd = parts[0].split("@")[0].lower()
+    arg = parts[1].strip() if len(parts) > 1 else ""
+
+    if cmd == "/start":
+        send_message(chat_id, f"🌸 سڵاو {display_name} گیان! من بوتی گاردنیام 🤖❤️\n\nئەرکی من پاراستنی ئاسایشی گروپ، پێشوازی لە ئەندامان، پەخشی کاتژمێرە یەکسانەکان، کاتی بانگەکان و وەڵامدانەوەی پرسیارەکانە بە ژیریی دەستکرد! ✨🥰", msg_id)
+        return
+    elif cmd == "/help":
+        help_text = (
+            "📋 **لیستی تەواوی فرمانەکانی بوتی گاردنیا:**\n\n"
+            "🔹 **فرمانە گشتییەکان:**\n"
+            "• `/id` - پیشاندانی ئایدی چات\n"
+            "• `/rules` - پیشاندانی یاساکانی گروپ\n\n"
+            "🛡️ **فرمانەکانی ئەدمین:**\n"
+            "• `/warn` - ئاگادارکردنەوەی بەکارهێنەر (بە ڕیپڵای)\n"
+            "• `/warnings` - پیشاندانی ژمارەی ئاگادارییەکان\n"
+            "• `/clearwarnings` - سڕینەوەی ئاگادارییەکان\n"
+            "• `/mute 10m` - بێدەنگکردن بۆ ماوەیەک (10m, 1h, 1d)\n"
+            "• `/unmute` - لادانی بێدەنگی لەسەر بەکارهێنەر\n"
+            "• `/ban` - باندکردنی بەکارهێنەر لە گروپ\n"
+            "• `/unban <user_id>` - لادانی باند بە پێدانی ئایدی\n"
+            "• `/setrules <دەق>` - دانانی یاساکانی گروپ 🌸"
+        )
+        send_message(chat_id, help_text, msg_id)
+        return
+    elif cmd == "/id":
+        send_message(chat_id, f"🆔 ئایدی ئەم چاتە: `{chat_id}`\n👤 ئایدی تۆ: `{user_id}` ✨", msg_id)
+        return
+    elif cmd == "/rules":
+        c_key = str(chat_id)
+        rules = state_data.get("rules", {}).get(c_key)
+        if rules:
+            send_message(chat_id, f"📜 **یاساکانی گروپ:**\n\n{rules} 🌸", msg_id)
+        else:
+            send_message(chat_id, "ℹ️ یاسایەکی تایبەت بۆ ئەم گروپە دانەنراوە ✨", msg_id)
+        return
+
+    if not is_admin(chat_id, user_id):
+        send_message(chat_id, "⚠️ تەنها ئەدمینەکانی گروپ دەتوانن ئەم فرمانە بەکاربهێنن! 🌸", msg_id)
+        return
+
+    reply_to = msg.get("reply_to_message")
+    target_user = reply_to.get("from") if reply_to else None
+
+    if cmd == "/setrules":
+        if not arg:
+            send_message(chat_id, "تکایە دەقی یاساکان بنووسە: `/setrules دەق...`", msg_id)
+            return
+        if "rules" not in state_data:
+            state_data["rules"] = {}
+        state_data["rules"][str(chat_id)] = arg
+        save_state()
+        send_message(chat_id, "✅ یاساکانی گروپ بە سەرکەوتوویی نوێکرانەوە! 🌸", msg_id)
+
+    elif cmd == "/warn":
+        if not target_user:
+            send_message(chat_id, "تکایە ڕیپڵای پەیامی بەکارهێنەرەکە بکە بۆ ئاگادارکردنەوە! ⚠️", msg_id)
+            return
+        t_id = target_user["id"]
+        t_name = get_display_name(target_user)
+        cnt = add_user_warning(chat_id, t_id)
+        send_message(chat_id, f"⚠️ {t_name} ئاگادار کرایەوە! ({cnt}/{MAX_WARNINGS})", msg_id)
+        if cnt >= MAX_WARNINGS:
+            set_user_mute(chat_id, t_id, AUTO_MUTE_MINUTES)
+            send_message(chat_id, f"🚫 {t_name} بەهۆی گەیشتن بە ئەوپەڕی ئاگاداری بۆ ماوەی {AUTO_MUTE_MINUTES} خولەک بێدەنگ کرا! 🔇")
+
+    elif cmd == "/warnings":
+        if not target_user:
+            send_message(chat_id, "تکایە ڕیپڵای بەکارهێنەر بکە! 📊", msg_id)
+            return
+        t_id = target_user["id"]
+        t_name = get_display_name(target_user)
+        cnt = state_data.get("warnings", {}).get(str(chat_id), {}).get(str(t_id), 0)
+        send_message(chat_id, f"📊 ژمارەی ئاگادارییەکانی {t_name}: ({cnt}/{MAX_WARNINGS}) ⚠️", msg_id)
+
+    elif cmd == "/clearwarnings":
+        if not target_user:
+            send_message(chat_id, "تکایە ڕیپڵای بەکارهێنەر بکە! ✨", msg_id)
+            return
+        t_id = target_user["id"]
+        t_name = get_display_name(target_user)
+        reset_user_warnings(chat_id, t_id)
+        send_message(chat_id, f"✅ هەموو ئاگادارییەکانی {t_name} سڕانەوە 🌸", msg_id)
+
+    elif cmd == "/mute":
+        if not target_user:
+            send_message(chat_id, "تکایە ڕیپڵای پەیامی بەکارهێنەرەکە بکە! 🔇", msg_id)
+            return
+        t_id = target_user["id"]
+        t_name = get_display_name(target_user)
+        mins = parse_duration_minutes(arg)
+        set_user_mute(chat_id, t_id, mins)
+        send_message(chat_id, f"🚫 {t_name} بۆ ماوەی {mins} خولەک لە چاتکردن بێدەنگ کرا 🔇", msg_id)
+
+    elif cmd == "/unmute":
+        if not target_user:
+            send_message(chat_id, "تکایە ڕیپڵای پەیامی بەکارهێنەرەکە بکە! 🔊", msg_id)
+            return
+        t_id = target_user["id"]
+        t_name = get_display_name(target_user)
+        unmute_user(chat_id, t_id)
+        send_message(chat_id, f"🔊 بێدەنگی لەسەر {t_name} لادرا و دەتوانێت نامە بنێرێت 🌸", msg_id)
+
+    elif cmd == "/ban":
+        if not target_user:
+            send_message(chat_id, "تکایە ڕیپڵای بەکارهێنەر بکە! 🚫", msg_id)
+            return
+        t_id = target_user["id"]
+        t_name = get_display_name(target_user)
+        ban_user(chat_id, t_id)
+        send_message(chat_id, f"🚫 {t_name} لە گروپ دەرکرا و باند کرا ⛔", msg_id)
+
+    elif cmd == "/unban":
+        if not arg or not arg.isdigit():
+            send_message(chat_id, "تکایە ئایدی بەکارهێنەر بنووسە: `/unban 123456789`", msg_id)
+            return
+        target_uid = int(arg)
+        unban_user(chat_id, target_uid)
+        send_message(chat_id, f"✅ بەکارهێنەر بە ئایدی `{target_uid}` ئازاد کرا 🌸", msg_id)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  چاودێری و پاراستنی نامەکان (Message Handling & Security Engine)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def handle_message(msg: dict):
+    if "chat" not in msg or "from" not in msg:
+        return
+    chat = msg["chat"]
+    chat_type = chat["type"]
+    if chat_type not in ["group", "supergroup", "private"]:
+        return
+
+    chat_id = chat["id"]
+    msg_id = msg["message_id"]
+    from_user = msg["from"]
+    user_id = from_user["id"]
+    display_name = get_display_name(from_user)
+
+    # Register group for broadcasts
+    if chat_type in ["group", "supergroup"]:
+        register_group(chat_id)
+
+    text = msg.get("text") or msg.get("caption") or ""
+    print(f"📩 [{chat_type.upper()}] {display_name} (ID: {user_id}): {text if text else '[Media/Sticker/Other]'}")
+
+    # 🌸 بەخێرهاتنی ئەندامانی نوێ
+    if "new_chat_members" in msg:
+        for member in msg["new_chat_members"]:
+            if member.get("is_bot"):
+                continue
+            m_name = get_display_name(member)
+            w_msg = random.choice(WELCOME_MESSAGES).format(name=m_name)
+            send_message(chat_id, w_msg, msg_id)
+            print(f"👋 Welcome message sent to: {m_name}")
+
+    # فرمانەکان
+    if text.startswith("/"):
+        print(f"⚡ Executing command: {text} from {display_name}")
+        handle_command(msg, text)
+        return
+
+    # چاتی تایبەت (Private Chat AI)
+    if chat_type == "private":
+        if config.get("aiInPrivateChats", True) and text:
+            reply = get_ai_reply(chat_id, user_id, text)
+            if reply:
+                send_message(chat_id, reply, msg_id)
+                print(f"🤖 [PV] Replied to {display_name}: {reply}")
+        return
+
+    # 🛡️ ئاسایشی توندی گروپ (بۆ نا-ئەدمین)
+    is_user_admin = is_admin(chat_id, user_id)
+    if not is_user_admin:
+        violation = ""
+        # پشکنینی ستیکەری سێکسی و نەشیاو (ستیکەری ئاسایی ناسڕێتەوە)
+        if config.get("blockNSFWStickers", True) and "sticker" in msg and is_nsfw_sticker(msg["sticker"]):
+            violation = "ناردنی ستیکەری نەشیاو و سێکسی 🔞"
+        # پشکنینی گیف و فایلی نەشیاو (گیفی ئاسایی ناسڕێتەوە)
+        elif config.get("blockNSFWGIFs", True) and ("animation" in msg or "document" in msg) and is_nsfw_animation_or_media(msg, text):
+            violation = "ناردنی گیف یان فایلی نەشیاو 🔞"
+        # پشکنینی لینک و سپام
+        elif config.get("blockLinks", True) and contains_link_or_spam(msg, text):
+            violation = "ناردنی لینک، پۆست یان ریپڵای دوگمەدار 🔗"
+        # پشکنینی جنێو و قسەی ناشرین
+        elif config.get("blockBadWords", True) and contains_bad_word(text):
+            violation = "قسەی ناشرین و جنێو 🤬"
+
+        if violation:
+            delete_message(chat_id, msg_id)
+            cnt = add_user_warning(chat_id, user_id)
+            send_message(chat_id, f"⚠️ {display_name} {violation} قەدەغەیە! ئاگاداری: ({cnt}/{MAX_WARNINGS})")
+            print(f"🛡️ Deleted violation from {display_name}: {violation} (Warning {cnt}/{MAX_WARNINGS})")
+            if cnt >= MAX_WARNINGS:
+                set_user_mute(chat_id, user_id, AUTO_MUTE_MINUTES)
+                send_message(chat_id, f"🚫 {display_name} بەهۆی دووبارەکردنەوەی سەرپێچی، بۆ ماوەی {AUTO_MUTE_MINUTES} خولەک لە چاتکردن بێدەنگ کرا! 🔇")
+                print(f"🚫 Muted {display_name} for {AUTO_MUTE_MINUTES} minutes")
+            return
+
+    # 💬 وەڵامدانەوەی AI بە کوردییەکی زۆر ڕوخۆش و پڕ ئیمۆجی
+    # مەرج: ئەگەر مرۆڤێک ڕیپڵای مرۆڤێکی تر بکات، بوتەکە بێدەنگ دەبێت و تەداخول ناکات
+    if config.get("aiEnabled", True) and text:
+        should_ai_reply = True
+        if "reply_to_message" in msg and msg["reply_to_message"]:
+            target_user = msg["reply_to_message"].get("from", {})
+            target_id = target_user.get("id", 0)
+            is_target_bot = target_user.get("is_bot", False)
+            # ئەگەر ڕیپڵای کەسێکی مرۆڤ بێت (نەک بووتەکە) ➔ تەداخول ناکات
+            if target_id != BOT_ID and not is_target_bot:
+                should_ai_reply = False
+
+        if should_ai_reply:
+            reply = get_ai_reply(chat_id, user_id, text)
+            if reply:
+                send_message(chat_id, reply, msg_id)
+                print(f"🤖 Replied to {display_name}: {reply}")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  دەستپێکردنی مۆتۆری سەرەکی (Main Engine)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def main():
+    tg_call("deleteWebhook", {"drop_pending_updates": True})
+    print("===============================================")
+    print("  Gardnya Security & AI Protection Bot Started!")
+    print(f"  Bot: @{config.get('botUsername', 'gardny4_bot')}")
+    print(f"  AI Model: {GROQ_MODEL} (Joyful & Kurdish Persona)")
+    print("  Equal Hours & Prayer Broadcasts: Active")
+    print("  Smart NSFW Sticker & GIF Protection: Active")
+    print("===============================================")
+
+    # Start background scheduler thread for Mirror Hours and Prayer Times
+    t = threading.Thread(target=background_scheduler, daemon=True)
+    t.start()
+
+    offset = 0
+    while True:
+        try:
+            res = tg_call("getUpdates", {"offset": offset, "timeout": 30, "allowed_updates": ["message"]})
+            if res and res.get("ok"):
+                for update in res["result"]:
+                    offset = update["update_id"] + 1
+                    if "message" in update:
+                        handle_message(update["message"])
+        except Exception as e:
+            print("Polling Exception:", e)
+            time.sleep(5)
+
+if __name__ == "__main__":
+    main()
