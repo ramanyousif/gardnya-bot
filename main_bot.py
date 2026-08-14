@@ -394,6 +394,61 @@ def contains_bad_word(text: str) -> bool:
             return True
     return False
 
+def download_telegram_file(file_id: str) -> bytes:
+    """Download a file from Telegram servers and return raw bytes."""
+    try:
+        res = tg_call("getFile", {"file_id": file_id})
+        if not res or not res.get("ok"):
+            return None
+        file_path = res["result"]["file_path"]
+        url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+        r = requests.get(url, timeout=15)
+        if r.status_code == 200:
+            return r.content
+    except Exception as e:
+        print(f"Download file error: {e}")
+    return None
+
+def check_nsfw_with_ai_vision(file_id: str) -> bool:
+    """Use Groq Vision AI to check if an image is NSFW/sexual."""
+    if not groq_client:
+        return False
+    try:
+        import base64
+        img_bytes = download_telegram_file(file_id)
+        if not img_bytes or len(img_bytes) < 500:
+            return False
+        b64 = base64.b64encode(img_bytes).decode("utf-8")
+        res = groq_client.chat.completions.create(
+            model="llama-3.2-11b-vision-preview",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Is this image NSFW, sexual, pornographic, or contains nudity? Answer ONLY with YES or NO. Nothing else."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{b64}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=10,
+            temperature=0.0
+        )
+        answer = res.choices[0].message.content.strip().upper()
+        print(f"🔍 AI Vision NSFW check result: {answer}")
+        if "YES" in answer:
+            return True
+    except Exception as e:
+        print(f"AI Vision check error: {e}")
+    return False
+
 def is_nsfw_sticker(sticker_obj: dict) -> bool:
     if not sticker_obj:
         return False
@@ -410,6 +465,7 @@ def is_nsfw_sticker(sticker_obj: dict) -> bool:
         "onlyfans", "xvideo", "ass", "milf", "blowjob", "fuck", "horny", "bitch",
         "lewd", "ecchi", "taboo", "fetish", "bdsm", "kinky", "butt", "sensual", "strip",
         "masturbat", "orgasm", "penis", "cum", "cock", "cunt", "slut", "whore", "boob", "tit", "breast",
+        "hot_girl", "hot_babe", "hotgirl", "hotbabe", "bikini", "lingerie",
         "سێکس", "پۆرن", "قن", "قوز", "کیر", "حیز", "گواو", "سۆزانی", "ڕووت", "قەحبە",
         "گەواد", "سێکسی", "شەهوەت", "جماع", "نيك", "طيز", "زب", "كس", "شرموطة", "بورن", "سكس"
     ]
@@ -417,25 +473,40 @@ def is_nsfw_sticker(sticker_obj: dict) -> bool:
     for kw in nsfw_keywords:
         if kw in set_name:
             return True
+    
+    # 🧠 AI Vision fallback: check actual sticker image content
+    file_id = sticker_obj.get("file_id") or ""
+    thumb = sticker_obj.get("thumbnail") or sticker_obj.get("thumb") or {}
+    check_id = thumb.get("file_id") or file_id
+    if check_id:
+        if check_nsfw_with_ai_vision(check_id):
+            print(f"🔞 AI Vision detected NSFW sticker: set={set_name}")
+            return True
             
+    return False
+
+def is_nsfw_photo(msg: dict) -> bool:
+    """Check if a photo message contains NSFW content using AI Vision."""
+    photos = msg.get("photo")
+    if not photos:
+        return False
+    # Use smallest photo size for faster download
+    file_id = photos[0].get("file_id") or ""
+    if file_id and check_nsfw_with_ai_vision(file_id):
+        return True
     return False
 
 def is_nsfw_animation_or_media(msg: dict, text: str) -> bool:
     if contains_bad_word(text):
         return True
     
-    # Check caption or search query
+    # Check caption
     caption = (msg.get("caption") or "").lower()
     if contains_bad_word(caption):
         return True
 
-    # Check via_bot / inline gif query if available
-    via = msg.get("via_bot", {})
-    via_name = (via.get("username") or "").lower()
-
     anim = msg.get("animation") or msg.get("document") or {}
     file_name = (anim.get("file_name") or "").lower()
-    mime_type = (anim.get("mime_type") or "").lower()
     
     nsfw_keywords = [
         "sex", "sexy", "porn", "xxx", "nude", "naked", "nsfw", "18+", "adult",
@@ -445,6 +516,14 @@ def is_nsfw_animation_or_media(msg: dict, text: str) -> bool:
     ]
     for kw in nsfw_keywords:
         if kw in file_name or kw in caption:
+            return True
+    
+    # 🧠 AI Vision fallback for GIFs/animations
+    thumb = anim.get("thumbnail") or anim.get("thumb") or {}
+    check_id = thumb.get("file_id") or anim.get("file_id") or ""
+    if check_id:
+        if check_nsfw_with_ai_vision(check_id):
+            print(f"🔞 AI Vision detected NSFW animation/GIF")
             return True
             
     return False
@@ -790,6 +869,16 @@ def handle_message(msg: dict):
         # پشکنینی ستیکەری سێکسی و نەشیاو (ستیکەری ئاسایی ناسڕێتەوە)
         if config.get("blockNSFWStickers", True) and "sticker" in msg and is_nsfw_sticker(msg["sticker"]):
             violation = "ناردنی ستیکەری نەشیاو و سێکسی 🔞"
+        # پشکنینی وێنەی سێکسی (بە AI Vision)
+        elif "photo" in msg and is_nsfw_photo(msg):
+            violation = "ناردنی وێنەی نەشیاو و سێکسی 🔞"
+        # پشکنینی ڤیدیۆی سێکسی (بە AI Vision)
+        elif ("video" in msg or "video_note" in msg):
+            vid = msg.get("video") or msg.get("video_note") or {}
+            thumb = vid.get("thumbnail") or vid.get("thumb") or {}
+            check_id = thumb.get("file_id") or ""
+            if check_id and check_nsfw_with_ai_vision(check_id):
+                violation = "ناردنی ڤیدیۆی نەشیاو و سێکسی 🔞"
         # پشکنینی گیف و فایلی نەشیاو (گیفی ئاسایی ناسڕێتەوە)
         elif config.get("blockNSFWGIFs", True) and ("animation" in msg or "document" in msg) and is_nsfw_animation_or_media(msg, text):
             violation = "ناردنی گیف یان فایلی نەشیاو 🔞"
