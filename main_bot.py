@@ -948,43 +948,43 @@ def handle_message(msg: dict):
                 print(f"🤖 [PV] Replied to {display_name}: {reply}")
         return
 
-    # 🛡️ ئاسایشی توندی گروپ (بۆ نا-ئەدمین)
+    # 🛡️ پشکنینی سکوریتی توند بۆ هەموو نامەکان (ستیکەر، گیف، وێنە، ڤیدیۆ)
+    violation = ""
     is_user_admin = is_admin(chat_id, user_id)
-    if not is_user_admin:
-        violation = ""
-        # پشکنینی ستیکەری سێکسی و نەشیاو (ستیکەری ئاسایی ناسڕێتەوە)
-        if config.get("blockNSFWStickers", True) and "sticker" in msg and is_nsfw_sticker(msg["sticker"]):
-            violation = "ناردنی ستیکەری نەشیاو و سێکسی 🔞"
-        # پشکنینی وێنەی سێکسی (بە AI Vision)
-        elif "photo" in msg and is_nsfw_photo(msg):
-            violation = "ناردنی وێنەی نەشیاو و سێکسی 🔞"
-        # پشکنینی ڤیدیۆی سێکسی (بە AI Vision)
-        elif ("video" in msg or "video_note" in msg):
-            vid = msg.get("video") or msg.get("video_note") or {}
-            thumb = vid.get("thumbnail") or vid.get("thumb") or {}
-            check_id = thumb.get("file_id") or ""
-            if check_id and check_nsfw_with_ai_vision(check_id):
-                violation = "ناردنی ڤیدیۆی نەشیاو و سێکسی 🔞"
-        # پشکنینی گیف و فایلی نەشیاو (گیفی ئاسایی ناسڕێتەوە)
-        elif config.get("blockNSFWGIFs", True) and ("animation" in msg or "document" in msg) and is_nsfw_animation_or_media(msg, text):
-            violation = "ناردنی گیف یان فایلی نەشیاو 🔞"
-        # پشکنینی لینک و سپام
-        elif config.get("blockLinks", True) and contains_link_or_spam(msg, text):
-            violation = "ناردنی لینک، پۆست یان ریپڵای دوگمەدار 🔗"
-        # پشکنینی جنێو و قسەی ناشرین
-        elif config.get("blockBadWords", True) and contains_bad_word(text):
-            violation = "قسەی ناشرین و جنێو 🤬"
 
-        if violation:
-            delete_message(chat_id, msg_id)
-            cnt = add_user_warning(chat_id, user_id)
-            send_message(chat_id, f"⚠️ {display_name} {violation} قەدەغەیە! ئاگاداری: ({cnt}/{MAX_WARNINGS})")
-            print(f"🛡️ Deleted violation from {display_name}: {violation} (Warning {cnt}/{MAX_WARNINGS})")
-            if cnt >= MAX_WARNINGS:
-                set_user_mute(chat_id, user_id, AUTO_MUTE_MINUTES)
-                send_message(chat_id, f"🚫 {display_name} بەهۆی دووبارەکردنەوەی سەرپێچی، بۆ ماوەی {AUTO_MUTE_MINUTES} خولەک لە چاتکردن بێدەنگ کرا! 🔇")
-                print(f"🚫 Muted {display_name} for {AUTO_MUTE_MINUTES} minutes")
-            return
+    # ١. پشکنینی ستیکەری سێکسی بە AI Vision (تەنانەت ئەگەر ئەدمینیش بێت)
+    if config.get("blockNSFWStickers", True) and "sticker" in msg and is_nsfw_sticker(msg["sticker"]):
+        violation = "ناردنی ستیکەری نەشیاو و سێکسی 🔞"
+    # ۲. پشکنینی وێنەی سێکسی بە AI Vision
+    elif "photo" in msg and is_nsfw_photo(msg):
+        violation = "ناردنی وێنەی نەشیاو و سێکسی 🔞"
+    # ۳. پشکنینی ڤیدیۆی سێکسی بە AI Vision
+    elif ("video" in msg or "video_note" in msg):
+        vid = msg.get("video") or msg.get("video_note") or {}
+        thumb = vid.get("thumbnail") or vid.get("thumb") or {}
+        check_id = thumb.get("file_id") or ""
+        if check_id and check_nsfw_with_ai_vision(check_id):
+            violation = "ناردنی ڤیدیۆی نەشیاو و سێکسی 🔞"
+    # ٤. پشکنینی گیف و فایلی نەشیاو بە AI Vision
+    elif config.get("blockNSFWGIFs", True) and ("animation" in msg or "document" in msg) and is_nsfw_animation_or_media(msg, text):
+        violation = "ناردنی گیف یان فایلی نەشیاو 🔞"
+    # ٥. پشکنینی لینک و سپام (بۆ نا-ئەدمین)
+    elif not is_user_admin and config.get("blockLinks", True) and contains_link_or_spam(msg, text):
+        violation = "ناردنی لینک، پۆست یان ریپڵای دوگمەدار 🔗"
+    # ٦. پشکنینی جنێو و قسەی ناشرین (بۆ نا-ئەدمین)
+    elif not is_user_admin and config.get("blockBadWords", True) and contains_bad_word(text):
+        violation = "قسەی ناشرین و جنێو 🤬"
+
+    if violation:
+        delete_message(chat_id, msg_id)
+        cnt = add_user_warning(chat_id, user_id)
+        send_message(chat_id, f"⚠️ {display_name} {violation} قەدەغەیە! ئاگاداری: ({cnt}/{MAX_WARNINGS})")
+        print(f"🛡️ Deleted violation from {display_name}: {violation} (Warning {cnt}/{MAX_WARNINGS})")
+        if cnt >= MAX_WARNINGS:
+            set_user_mute(chat_id, user_id, AUTO_MUTE_MINUTES)
+            send_message(chat_id, f"🚫 {display_name} بەهۆی دووبارەکردنەوەی سەرپێچی، بۆ ماوەی {AUTO_MUTE_MINUTES} خولەک لە چاتکردن بێدەنگ کرا! 🔇")
+            print(f"🚫 Muted {display_name} for {AUTO_MUTE_MINUTES} minutes")
+        return
 
     # 🎭 کاتێک ئەندامێک ستیکەری ئاسایی دەنێرێت (وەڵامدانەوەی شیرین و پەیوەندیدار)
     if "sticker" in msg:
