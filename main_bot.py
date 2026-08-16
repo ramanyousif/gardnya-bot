@@ -372,24 +372,25 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
 
     # 🌟 Try Google Gemini first (best Kurdish support)
     if GEMINI_API_KEY:
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-            body = {
-                "contents": [{"parts": [{"text": question}]}],
-                "systemInstruction": {"parts": [{"text": AI_SYSTEM_PROMPT}]},
-                "generationConfig": {"maxOutputTokens": 200, "temperature": 0.8}
-            }
-            r = requests.post(url, json=body, timeout=15)
-            if r.status_code == 200:
-                data = r.json()
-                candidates = data.get("candidates", [])
-                if candidates:
-                    answer = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                    answer = clean_ai_text(answer)
-                    if answer:
-                        return answer
-        except Exception as e:
-            print(f"Gemini Error: {e}")
+        for gem_model in ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest"]:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
+                body = {
+                    "contents": [{"parts": [{"text": question}]}],
+                    "systemInstruction": {"parts": [{"text": AI_SYSTEM_PROMPT}]},
+                    "generationConfig": {"maxOutputTokens": 200, "temperature": 0.8}
+                }
+                r = requests.post(url, json=body, timeout=15)
+                if r.status_code == 200:
+                    data = r.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        answer = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        answer = clean_ai_text(answer)
+                        if answer:
+                            return answer
+            except Exception as e:
+                print(f"Gemini Error ({gem_model}): {e}")
 
     # 🔄 Fallback to Groq
     if groq_client:
@@ -448,45 +449,51 @@ def check_nsfw_with_ai_vision(file_id: str) -> bool:
 
     # 🌟 Try Google Gemini Vision first (best NSFW detection - safety filters auto-block)
     if GEMINI_API_KEY:
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-            body = {
-                "contents": [{
-                    "parts": [
-                        {"text": "Describe this image in one word. Is it appropriate for all ages?"},
-                        {"inline_data": {"mime_type": "image/jpeg", "data": b64}}
+        for gem_model in ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest"]:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
+                body = {
+                    "contents": [{
+                        "parts": [
+                            {"text": "Is this image NSFW, sexual, nude, pornographic, or sexually explicit? Answer with YES or NO."},
+                            {"inline_data": {"mime_type": "image/jpeg", "data": b64}}
+                        ]
+                    }],
+                    "generationConfig": {"maxOutputTokens": 20, "temperature": 0.0},
+                    "safetySettings": [
+                        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_LOW_AND_ABOVE"}
                     ]
-                }],
-                "generationConfig": {"maxOutputTokens": 20, "temperature": 0.0},
-                "safetySettings": [
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_LOW_AND_ABOVE"}
-                ]
-            }
-            r = requests.post(url, json=body, timeout=15)
-            if r.status_code == 200:
-                data = r.json()
-                # If blocked by safety filters → it IS nsfw!
-                pf = data.get("promptFeedback", {})
-                if pf.get("blockReason"):
-                    print(f"🔞 Gemini BLOCKED image (reason: {pf.get('blockReason')})")
-                    return True
-                candidates = data.get("candidates", [])
-                if candidates:
-                    finish = candidates[0].get("finishReason", "")
-                    if finish == "SAFETY":
-                        print("🔞 Gemini flagged image as SAFETY violation")
+                }
+                r = requests.post(url, json=body, timeout=15)
+                if r.status_code == 200:
+                    data = r.json()
+                    # If blocked by safety filters → it IS nsfw!
+                    pf = data.get("promptFeedback", {})
+                    if pf.get("blockReason"):
+                        print(f"🔞 Gemini BLOCKED image (reason: {pf.get('blockReason')})")
                         return True
-                    # Check safety ratings
-                    safety = candidates[0].get("safetyRatings", [])
-                    for s in safety:
-                        if s.get("category") == "HARM_CATEGORY_SEXUALLY_EXPLICIT":
-                            if s.get("probability") in ["HIGH", "MEDIUM"]:
-                                print(f"🔞 Gemini rated image as sexually explicit: {s.get('probability')}")
-                                return True
-            print("🔍 Gemini Vision: Image appears safe")
-            return False
-        except Exception as e:
-            print(f"Gemini Vision error: {e}")
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        finish = candidates[0].get("finishReason", "")
+                        if finish == "SAFETY":
+                            print("🔞 Gemini flagged image as SAFETY violation")
+                            return True
+                        # Check safety ratings
+                        safety = candidates[0].get("safetyRatings", [])
+                        for s in safety:
+                            if s.get("category") == "HARM_CATEGORY_SEXUALLY_EXPLICIT":
+                                if s.get("probability") in ["HIGH", "MEDIUM"]:
+                                    print(f"🔞 Gemini rated image as sexually explicit: {s.get('probability')}")
+                                    return True
+                        text_resp = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").upper()
+                        if "YES" in text_resp:
+                            print(f"🔞 Gemini text analysis flagged NSFW: {text_resp}")
+                            return True
+                elif r.status_code != 404:
+                    print(f"Gemini Vision {gem_model} status: {r.status_code}")
+                break
+            except Exception as e:
+                print(f"Gemini Vision error ({gem_model}): {e}")
 
     # 🔄 Fallback to Groq Vision
     if groq_client:
