@@ -11,6 +11,7 @@ import time
 import random
 import threading
 import datetime
+import base64
 import requests
 from pathlib import Path
 
@@ -22,6 +23,7 @@ CONFIG_FILE = Path("config.json")
 config = {
     "token": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
     "botUsername": os.environ.get("BOT_USERNAME", "gardny4_bot"),
+    "geminiApiKey": os.environ.get("GEMINI_API_KEY", ""),
     "groqApiKey": os.environ.get("GROQ_API_KEY", ""),
     "groqModel": "llama-3.3-70b-versatile",
     "aiEnabled": True,
@@ -29,6 +31,7 @@ config = {
     "aiHistoryMessages": 10,
     "blockNSFWStickers": True,
     "blockNSFWGIFs": True,
+    "blockNSFWPhotos": True,
     "blockLinks": True,
     "blockBadWords": True,
     "enableMirrorHours": True,
@@ -46,14 +49,18 @@ if CONFIG_FILE.exists():
         print(f"Warning: Failed to load config.json: {e}")
 
 BOT_TOKEN = config.get("token") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+GEMINI_API_KEY = config.get("geminiApiKey") or os.environ.get("GEMINI_API_KEY", "")
 GROQ_API_KEY = config.get("groqApiKey") or os.environ.get("GROQ_API_KEY", "")
 GROQ_MODEL = config.get("groqModel", "llama-3.3-70b-versatile")
 MAX_WARNINGS = int(config.get("maxWarnings", 3))
 AUTO_MUTE_MINUTES = int(config.get("autoMuteMinutes", 60))
 
+# Kurdistan Timezone (UTC+3)
+KURDISTAN_UTC_OFFSET = datetime.timezone(datetime.timedelta(hours=3))
+
 API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-# Initialize Groq AI Client
+# Initialize Groq AI Client (fallback)
 groq_client = None
 if GROQ_API_KEY:
     try:
@@ -61,6 +68,9 @@ if GROQ_API_KEY:
         groq_client = groq.Groq(api_key=GROQ_API_KEY)
     except Exception as e:
         print(f"Groq Init Warning: {e}")
+
+print(f"🤖 AI Engine: {'Google Gemini 2.0 Flash' if GEMINI_API_KEY else 'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'None'}")
+print(f"🌍 Timezone: Kurdistan (UTC+3)")
 
 STATE_FILE = Path("data/state.json")
 STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -360,25 +370,45 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     if smart:
         return smart
 
-    if not groq_client:
-        return "گیانەکەم دەتوانیت دووبارە ڕوونی بکەیتەوە؟ 😅🌸"
+    # 🌟 Try Google Gemini first (best Kurdish support)
+    if GEMINI_API_KEY:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+            body = {
+                "contents": [{"parts": [{"text": question}]}],
+                "systemInstruction": {"parts": [{"text": AI_SYSTEM_PROMPT}]},
+                "generationConfig": {"maxOutputTokens": 200, "temperature": 0.8}
+            }
+            r = requests.post(url, json=body, timeout=15)
+            if r.status_code == 200:
+                data = r.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    answer = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                    answer = clean_ai_text(answer)
+                    if answer:
+                        return answer
+        except Exception as e:
+            print(f"Gemini Error: {e}")
 
-    try:
-        res = groq_client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": AI_SYSTEM_PROMPT},
-                {"role": "user", "content": question}
-            ],
-            max_tokens=150,
-            temperature=0.7
-        )
-        answer = res.choices[0].message.content
-        answer = clean_ai_text(answer)
-        if answer:
-            return answer
-    except Exception as e:
-        print("Groq Error:", e)
+    # 🔄 Fallback to Groq
+    if groq_client:
+        try:
+            res = groq_client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": AI_SYSTEM_PROMPT},
+                    {"role": "user", "content": question}
+                ],
+                max_tokens=150,
+                temperature=0.7
+            )
+            answer = res.choices[0].message.content
+            answer = clean_ai_text(answer)
+            if answer:
+                return answer
+        except Exception as e:
+            print("Groq Error:", e)
 
     return "گیان دەتوانیت دووبارە ڕوونی بکەیتەوە؟ لە خزمەتدام! 🌸😊"
 
@@ -410,43 +440,75 @@ def download_telegram_file(file_id: str) -> bytes:
     return None
 
 def check_nsfw_with_ai_vision(file_id: str) -> bool:
-    """Use Groq Vision AI to check if an image is NSFW/sexual."""
-    if not groq_client:
+    """Use Gemini Vision or Groq Vision to check if an image is NSFW."""
+    img_bytes = download_telegram_file(file_id)
+    if not img_bytes or len(img_bytes) < 500:
         return False
-    try:
-        import base64
-        img_bytes = download_telegram_file(file_id)
-        if not img_bytes or len(img_bytes) < 500:
+    b64 = base64.b64encode(img_bytes).decode("utf-8")
+
+    # 🌟 Try Google Gemini Vision first (best NSFW detection - safety filters auto-block)
+    if GEMINI_API_KEY:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+            body = {
+                "contents": [{
+                    "parts": [
+                        {"text": "Describe this image in one word. Is it appropriate for all ages?"},
+                        {"inline_data": {"mime_type": "image/jpeg", "data": b64}}
+                    ]
+                }],
+                "generationConfig": {"maxOutputTokens": 20, "temperature": 0.0},
+                "safetySettings": [
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_LOW_AND_ABOVE"}
+                ]
+            }
+            r = requests.post(url, json=body, timeout=15)
+            if r.status_code == 200:
+                data = r.json()
+                # If blocked by safety filters → it IS nsfw!
+                pf = data.get("promptFeedback", {})
+                if pf.get("blockReason"):
+                    print(f"🔞 Gemini BLOCKED image (reason: {pf.get('blockReason')})")
+                    return True
+                candidates = data.get("candidates", [])
+                if candidates:
+                    finish = candidates[0].get("finishReason", "")
+                    if finish == "SAFETY":
+                        print("🔞 Gemini flagged image as SAFETY violation")
+                        return True
+                    # Check safety ratings
+                    safety = candidates[0].get("safetyRatings", [])
+                    for s in safety:
+                        if s.get("category") == "HARM_CATEGORY_SEXUALLY_EXPLICIT":
+                            if s.get("probability") in ["HIGH", "MEDIUM"]:
+                                print(f"🔞 Gemini rated image as sexually explicit: {s.get('probability')}")
+                                return True
+            print("🔍 Gemini Vision: Image appears safe")
             return False
-        b64 = base64.b64encode(img_bytes).decode("utf-8")
-        res = groq_client.chat.completions.create(
-            model="llama-3.2-11b-vision-preview",
-            messages=[
-                {
+        except Exception as e:
+            print(f"Gemini Vision error: {e}")
+
+    # 🔄 Fallback to Groq Vision
+    if groq_client:
+        try:
+            res = groq_client.chat.completions.create(
+                model="llama-3.2-11b-vision-preview",
+                messages=[{
                     "role": "user",
                     "content": [
-                        {
-                            "type": "text",
-                            "text": "Is this image NSFW, sexual, pornographic, or contains nudity? Answer ONLY with YES or NO. Nothing else."
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{b64}"
-                            }
-                        }
+                        {"type": "text", "text": "Is this image NSFW, sexual, pornographic, or contains nudity? Answer ONLY YES or NO."},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
                     ]
-                }
-            ],
-            max_tokens=10,
-            temperature=0.0
-        )
-        answer = res.choices[0].message.content.strip().upper()
-        print(f"🔍 AI Vision NSFW check result: {answer}")
-        if "YES" in answer:
-            return True
-    except Exception as e:
-        print(f"AI Vision check error: {e}")
+                }],
+                max_tokens=10, temperature=0.0
+            )
+            answer = res.choices[0].message.content.strip().upper()
+            print(f"🔍 Groq Vision NSFW check: {answer}")
+            if "YES" in answer:
+                return True
+        except Exception as e:
+            print(f"Groq Vision error: {e}")
+
     return False
 
 def is_nsfw_sticker(sticker_obj: dict) -> bool:
@@ -649,7 +711,7 @@ def background_scheduler():
 
     while True:
         try:
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(KURDISTAN_UTC_OFFSET)
             current_time = now.strftime("%H:%M")
 
             if current_time != last_sent_minute:
