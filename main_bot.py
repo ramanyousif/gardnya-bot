@@ -425,29 +425,37 @@ def contains_bad_word(text: str) -> bool:
             return True
     return False
 
-def download_telegram_file(file_id: str) -> bytes:
-    """Download a file from Telegram servers and return raw bytes."""
+def download_telegram_file(file_id: str):
+    """Download a file from Telegram servers and return (raw_bytes, mime_type)."""
     try:
         res = tg_call("getFile", {"file_id": file_id})
         if not res or not res.get("ok"):
-            return None
+            return None, "image/jpeg"
         file_path = res["result"]["file_path"]
+        ext = file_path.split(".")[-1].lower() if "." in file_path else "jpg"
+        mime = "image/jpeg"
+        if ext in ["png"]:
+            mime = "image/png"
+        elif ext in ["webp"]:
+            mime = "image/webp"
+        elif ext in ["gif"]:
+            mime = "image/gif"
         url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
         r = requests.get(url, timeout=15)
         if r.status_code == 200:
-            return r.content
+            return r.content, mime
     except Exception as e:
         print(f"Download file error: {e}")
-    return None
+    return None, "image/jpeg"
 
 def check_nsfw_with_ai_vision(file_id: str) -> bool:
     """Use Gemini Vision or Groq Vision to check if an image is NSFW."""
-    img_bytes = download_telegram_file(file_id)
-    if not img_bytes or len(img_bytes) < 500:
+    img_bytes, mime_type = download_telegram_file(file_id)
+    if not img_bytes or len(img_bytes) < 300:
         return False
     b64 = base64.b64encode(img_bytes).decode("utf-8")
 
-    # 🌟 Try Google Gemini Vision first (best NSFW detection - safety filters auto-block)
+    # 🌟 Try Google Gemini Vision (with thinkingBudget=0 for instant accurate answer)
     if GEMINI_API_KEY:
         for gem_model in ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest"]:
             try:
@@ -455,11 +463,15 @@ def check_nsfw_with_ai_vision(file_id: str) -> bool:
                 body = {
                     "contents": [{
                         "parts": [
-                            {"text": "Is this image NSFW, sexual, nude, pornographic, or sexually explicit? Answer with YES or NO."},
-                            {"inline_data": {"mime_type": "image/jpeg", "data": b64}}
+                            {"text": "Analyze this image carefully. Does it contain nudity, pornography, sexual acts, lingerie, exposed breasts, buttocks, genitalia, or explicit sexual content? Answer strictly with YES or NO in one word."},
+                            {"inline_data": {"mime_type": mime_type, "data": b64}}
                         ]
                     }],
-                    "generationConfig": {"maxOutputTokens": 20, "temperature": 0.0},
+                    "generationConfig": {
+                        "maxOutputTokens": 250,
+                        "temperature": 0.0,
+                        "thinkingConfig": {"thinkingBudget": 0}
+                    },
                     "safetySettings": [
                         {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_LOW_AND_ABOVE"}
                     ]
@@ -467,28 +479,33 @@ def check_nsfw_with_ai_vision(file_id: str) -> bool:
                 r = requests.post(url, json=body, timeout=15)
                 if r.status_code == 200:
                     data = r.json()
-                    # If blocked by safety filters → it IS nsfw!
+                    # 1. Blocked by Google Safety filters -> 100% NSFW
                     pf = data.get("promptFeedback", {})
                     if pf.get("blockReason"):
-                        print(f"🔞 Gemini BLOCKED image (reason: {pf.get('blockReason')})")
+                        print(f"🔞 Gemini Safety Filter BLOCKED image: {pf.get('blockReason')}")
                         return True
                     candidates = data.get("candidates", [])
                     if candidates:
-                        finish = candidates[0].get("finishReason", "")
-                        if finish == "SAFETY":
-                            print("🔞 Gemini flagged image as SAFETY violation")
+                        cand = candidates[0]
+                        if cand.get("finishReason") == "SAFETY":
+                            print("🔞 Gemini finishReason is SAFETY violation")
                             return True
-                        # Check safety ratings
-                        safety = candidates[0].get("safetyRatings", [])
+                        # 2. Check safety ratings
+                        safety = cand.get("safetyRatings", [])
                         for s in safety:
                             if s.get("category") == "HARM_CATEGORY_SEXUALLY_EXPLICIT":
                                 if s.get("probability") in ["HIGH", "MEDIUM"]:
-                                    print(f"🔞 Gemini rated image as sexually explicit: {s.get('probability')}")
+                                    print(f"🔞 Gemini safety probability: {s.get('probability')}")
                                     return True
-                        text_resp = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").upper()
-                        if "YES" in text_resp:
-                            print(f"🔞 Gemini text analysis flagged NSFW: {text_resp}")
-                            return True
+                        # 3. Check text output
+                        parts = cand.get("content", {}).get("parts", [])
+                        for part in parts:
+                            txt = (part.get("text") or "").strip().upper()
+                            if "YES" in txt:
+                                print(f"🔞 Gemini Vision answered YES (NSFW detected): {txt}")
+                                return True
+                    print(f"✅ Gemini Vision ({gem_model}): Content is clean")
+                    return False
                 elif r.status_code != 404:
                     print(f"Gemini Vision {gem_model} status: {r.status_code}")
                 break
@@ -503,14 +520,14 @@ def check_nsfw_with_ai_vision(file_id: str) -> bool:
                 messages=[{
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Is this image NSFW, sexual, pornographic, or contains nudity? Answer ONLY YES or NO."},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                        {"type": "text", "text": "Is this image NSFW, sexual, pornographic, or contains nudity? Answer strictly YES or NO."},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64}"}}
                     ]
                 }],
-                max_tokens=10, temperature=0.0
+                max_tokens=20, temperature=0.0
             )
             answer = res.choices[0].message.content.strip().upper()
-            print(f"🔍 Groq Vision NSFW check: {answer}")
+            print(f"🔍 Groq Vision check: {answer}")
             if "YES" in answer:
                 return True
         except Exception as e:
