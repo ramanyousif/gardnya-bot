@@ -340,6 +340,109 @@ def ban_user(chat_id: int, user_id: int):
 def unban_user(chat_id: int, user_id: int):
     return tg_call("unbanChatMember", {"chat_id": chat_id, "user_id": user_id, "only_if_banned": True})
 
+def set_chat_locked(chat_id: int, locked: bool) -> bool:
+    """قوفڵکردن یان کردنەوەی گروپ بۆ کاتی خەو"""
+    perms = {
+        "can_send_messages": not locked,
+        "can_send_media_messages": not locked,
+        "can_send_polls": not locked,
+        "can_send_other_messages": not locked,
+        "can_add_web_page_previews": not locked,
+        "can_change_info": False,
+        "can_invite_users": not locked,
+        "can_pin_messages": False
+    }
+    res = tg_call("setChatPermissions", {"chat_id": chat_id, "permissions": perms})
+    return bool(res and res.get("ok"))
+
+def purge_chat_messages(chat_id: int, start_msg_id: int, count: int = 20):
+    """پاککردنەوەی پەیامەکان بە کۆمەڵ"""
+    count = min(max(count, 1), 100)
+    for mid in range(start_msg_id, max(start_msg_id - count - 5, 0), -1):
+        try:
+            delete_message(chat_id, mid)
+        except Exception:
+            pass
+
+def add_user_quiz_point(chat_id: int, user_id: int) -> int:
+    c_key = str(chat_id)
+    u_key = str(user_id)
+    if "quiz_scores" not in state_data:
+        state_data["quiz_scores"] = {}
+    if c_key not in state_data["quiz_scores"]:
+        state_data["quiz_scores"][c_key] = {}
+    current = state_data["quiz_scores"][c_key].get(u_key, 0) + 1
+    state_data["quiz_scores"][c_key][u_key] = current
+    save_state()
+    return current
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  بانکی مەتەڵ و یارییە بەکۆمەڵە کوردییەکان (Kurdish Quizzes & Games)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+KURDISH_QUIZZES = [
+    {
+        "question": "چییە هەرچەند لێی ببەیت زۆرتر دەبێت؟",
+        "answers": ["کەلێن", "چاڵ", "کون", "چال", "kelen", "chal"],
+        "display_answer": "کەلێن یان چاڵ 🕳️"
+    },
+    {
+        "question": "چییە لە دایک دەبێت بە باڵندەیی بەڵام مەلەوانێکی زۆر چاکە و ناتوانێت بفڕێت؟",
+        "answers": ["بەتریک", "پەنگوین", "پەنگوینە", "بەتریکە", "penguin", "batrik"],
+        "display_answer": "بەتریک (پەنگوین) 🐧"
+    },
+    {
+        "question": "پایتەختی هەرێمی کوردستان ناوی چییە؟",
+        "answers": ["هەولێر", "ھەولێر", "erbil", "hawler", "hawlerê"],
+        "display_answer": "هەولێری پایتەخت 🏰"
+    },
+    {
+        "question": "چییە پێی نییە بەڵام بە شەودا دەڕوات و بە ڕۆژدا دەوەستێت؟",
+        "answers": ["خەو", "ئەستێرە", "مانگ", "xaw", "astera"],
+        "display_answer": "خەو یان ئەستێرەکان 🌙✨"
+    },
+    {
+        "question": "بەرزترین شاخی باشووری کوردستان ناوی چییە؟",
+        "answers": ["هەڵگورد", "ھەڵگورد", "هلگورد", "helgurd", "halgurd"],
+        "display_answer": "لووتکەی هەڵگورد 🏔️"
+    },
+    {
+        "question": "چییە لە ئاودا دروست دەبێت بەڵام ئەگەر بچێتەوە ناو ئاو دەتوێتەوە و دەمرێت؟",
+        "answers": ["سەهۆڵ", "بەفر", "خوێ", "شەکر", "sahol", "bafr"],
+        "display_answer": "سەهۆڵ یان خوێ 🧊"
+    },
+    {
+        "question": "چییە هەمیشە لە پێش تۆدایە بەڵام هەرگیز ناتوانیت بە چاو بیبینیت؟",
+        "answers": ["داهاتوو", "ئایندە", "سبەینێ", "dahatu", "ayinda"],
+        "display_answer": "داهاتوو (ئایندە) 🔮"
+    },
+    {
+        "question": "چییە تەنها یەک چاوی هەیە بەڵام نابینایە و ناتوانێت هیچ شتێک ببینێت؟",
+        "answers": ["دەرزی", "دەرزێ", "darzi", "derzi"],
+        "display_answer": "دەرزی 🪡"
+    },
+    {
+        "question": "چییە پێستی هەیە بەڵام گۆشتی نییە، پەڕەی هەیە بەڵام باڵندە نییە؟",
+        "answers": ["کتێب", "دەفتەر", "kteb", "daftar"],
+        "display_answer": "کتێب 📚"
+    },
+    {
+        "question": "چییە کاتێک باران دەبارێت ئەو بەرز دەبێتەوە؟",
+        "answers": ["چەتر", "شەمسیە", "chatr", "shamsya"],
+        "display_answer": "چەتر ☂️"
+    },
+    {
+        "question": "چییە کە بۆ تۆیە، بەڵام خەڵکی تر زۆرتر لە تۆ بەکاری دەهێنن؟",
+        "answers": ["ناو", "ناوت", "ناوی خۆت", "naw", "nawt"],
+        "display_answer": "ناوی خۆت 🏷️"
+    },
+    {
+        "question": "شاری دڵداری و ڕۆشنبیری کوردستان ناوی کام شارەیە؟",
+        "answers": ["سلێمانی", "سلیمانی", "slemani", "sulaymaniyah"],
+        "display_answer": "شاری سلێمانی 🌸"
+    }
+]
+
 def register_group(chat_id: int):
     if "groups" not in state_data:
         state_data["groups"] = []
@@ -771,9 +874,15 @@ def handle_command(msg: dict, text: str):
         help_text = (
             "📋 **لیستی تەواوی فرمانەکانی بوتی گاردنیا:**\n\n"
             "🔹 **فرمانە گشتییەکان:**\n"
-            "• `/id` - پیشاندانی ئایدی چات\n"
-            "• `/rules` - پیشاندانی یاساکانی گروپ\n\n"
+            "• `/id` - پیشاندانی ئایدی چات و بەکارهێنەر\n"
+            "• `/rules` - پیشاندانی یاساکانی گروپ\n"
+            "• `/game` یان `/quiz` - دەستپێکردنی مەتەڵ و یاریی بەکۆمەڵ 🎮\n"
+            "• `/points` - پیشاندانی خاڵەکانی یاری و ڕیزبەندی 🏆\n\n"
             "🛡️ **فرمانەکانی ئەدمین:**\n"
+            "• `/lock` - قوفڵکردنی گروپ (بۆ کاتی خەو) 🔒\n"
+            "• `/unlock` - کردنەوەی قوفڵی گروپ 🔓\n"
+            "• `/purge 20` - پاککردنەوەی چات بە کۆمەڵ 🧹\n"
+            "• `/del` - سڕینەوەی پەیامی دیاریکراو (بە ڕیپڵای) 🗑️\n"
             "• `/warn` - ئاگادارکردنەوەی بەکارهێنەر (بە ڕیپڵای)\n"
             "• `/warnings` - پیشاندانی ژمارەی ئاگادارییەکان\n"
             "• `/clearwarnings` - سڕینەوەی ئاگادارییەکان\n"
@@ -796,13 +905,79 @@ def handle_command(msg: dict, text: str):
         else:
             send_message(chat_id, "ℹ️ یاسایەکی تایبەت بۆ ئەم گروپە دانەنراوە ✨", msg_id)
         return
+    elif cmd in ["/game", "/quiz"]:
+        q = random.choice(KURDISH_QUIZZES)
+        if "active_quiz" not in state_data:
+            state_data["active_quiz"] = {}
+        state_data["active_quiz"][str(chat_id)] = {
+            "question": q["question"],
+            "answers": [a.lower() for a in q["answers"]],
+            "display_answer": q["display_answer"],
+            "time": time.time()
+        }
+        save_state()
+        quiz_msg = (
+            f"🎮 **مەتەڵ و یاریی گاردنیا:**\n\n"
+            f"❓ **{q['question']}**\n\n"
+            f"💡 کێ یەکەم کەس دەتوانێت وەڵامەکەی لە چات بنووسێت بۆ بەدەستهێنانی خاڵ؟ 🏆✨"
+        )
+        send_message(chat_id, quiz_msg)
+        return
+    elif cmd in ["/points", "/score", "/scores"]:
+        c_key = str(chat_id)
+        scores = state_data.get("quiz_scores", {}).get(c_key, {})
+        my_pts = scores.get(str(user_id), 0)
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
+        board = f"🏆 **ڕیزبەندیی پاڵەوانانی یاری لەم گروپەدا:**\n\n"
+        medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+        if sorted_scores:
+            for idx, (uid, pts) in enumerate(sorted_scores):
+                board += f"{medals[idx]} بەکارهێنەر `{uid}`: **{pts} خاڵ**\n"
+        else:
+            board += "تائێستا کەس خاڵی تۆمار نەکردووە! یەکەم کەس بە بە فەرمانی `/game` 🎮\n"
+        board += f"\n👤 خاڵەکانی تۆ ({display_name}): **{my_pts} خاڵ** 🌟"
+        send_message(chat_id, board, msg_id)
+        return
 
+    # 🛡️ تەنها بۆ ئەدمینەکان
     if not is_admin(chat_id, user_id):
         send_message(chat_id, "⚠️ تەنها ئەدمینەکانی گروپ دەتوانن ئەم فرمانە بەکاربهێنن! 🌸", msg_id)
         return
 
     reply_to = msg.get("reply_to_message")
     target_user = reply_to.get("from") if reply_to else None
+
+    if cmd == "/lock":
+        ok = set_chat_locked(chat_id, True)
+        if ok:
+            send_message(chat_id, "🔒 **گروپ بە سەرکەوتوویی قوفڵ کرا!** 😴\n\nئەندامانی ئازیز، چاتکردن بە شێوەیەکی کاتی داخرا بۆ کاتی پشوو و خەو. شەوتان شاد 🌙✨")
+        else:
+            send_message(chat_id, "⚠️ نەتوانرا گروپ قوفڵ بکرێت. دڵنیابە بوتەکە مۆڵەتی ئەدمینی (Change Group Info / Restrict Members)ی هەیە! 🌸", msg_id)
+
+    elif cmd == "/unlock":
+        ok = set_chat_locked(chat_id, False)
+        if ok:
+            send_message(chat_id, "🔓 **گروپ کرایەوە!** 🌸\n\nبەیانیتان باش و ڕۆژێکی پڕ لە خێر و کامەرانی بۆ هەمووان! ئێستا دەتوانن بە ئازادی چات بکەن ✨🎉")
+        else:
+            send_message(chat_id, "⚠️ نەتوانرا قوفڵی گروپ بکرێتەوە! 🌸", msg_id)
+
+    elif cmd == "/purge":
+        count = 20
+        if arg and arg.isdigit():
+            count = int(arg)
+        elif reply_to:
+            r_id = reply_to.get("message_id", msg_id - 20)
+            count = max(msg_id - r_id + 1, 1)
+        delete_message(chat_id, msg_id)
+        purge_chat_messages(chat_id, msg_id, count)
+        print(f"🧹 Purged {count} messages in chat {chat_id}")
+
+    elif cmd == "/del":
+        if not reply_to:
+            send_message(chat_id, "تکایە ڕیپڵای ئەو پەیامە بکە کە دەتەوێت بسڕدرێتەوە! 🗑️", msg_id)
+            return
+        delete_message(chat_id, reply_to["message_id"])
+        delete_message(chat_id, msg_id)
 
     if cmd == "/setrules":
         if not arg:
@@ -905,10 +1080,17 @@ def handle_message(msg: dict):
     text = msg.get("text") or msg.get("caption") or ""
     print(f"📩 [{chat_type.upper()}] {display_name} (ID: {user_id}): {text if text else '[Media/Sticker/Other]'}")
 
-    # 🌸 بەخێرهاتنی ئەندامانی نوێ
+    # 🌸 بەخێرهاتنی ئەندامانی نوێ و دژە-بۆت (Anti-Bot)
     if "new_chat_members" in msg:
         for member in msg["new_chat_members"]:
             if member.get("is_bot"):
+                # ئەگەر بۆت بوو و ئەو کەسەی زیادی کردووە ئەدمین نەبوو ➔ دەرکردنی بۆت
+                if not is_admin(chat_id, user_id):
+                    ban_user(chat_id, member["id"])
+                    unban_user(chat_id, member["id"])
+                    delete_message(chat_id, msg_id)
+                    send_message(chat_id, f"🚫 {display_name} ناتوانیت بۆت زیاد بکەیت! تەنها ئەدمین مۆڵەتی هەیە ⚠️")
+                    print(f"🤖 Anti-Bot: Kicked unauthorized bot {member.get('id')} added by {display_name}")
                 continue
             m_name = get_display_name(member)
             w_msg = random.choice(WELCOME_MESSAGES).format(name=m_name)
@@ -984,6 +1166,25 @@ def handle_message(msg: dict):
                 send_message(chat_id, stk_reply, msg_id)
                 print(f"🤖 Reacted to sticker from {display_name}: {stk_reply}")
                 return
+
+    # 🎮 پشکنینی وەڵامی مەتەڵ و یاری
+    c_key = str(chat_id)
+    if "active_quiz" in state_data and c_key in state_data["active_quiz"]:
+        curr_quiz = state_data["active_quiz"][c_key]
+        clean_ans = text.strip().lower()
+        if any(ans in clean_ans for ans in curr_quiz.get("answers", [])):
+            pts = add_user_quiz_point(chat_id, user_id)
+            disp_ans = curr_quiz.get("display_answer", "")
+            del state_data["active_quiz"][c_key]
+            save_state()
+            win_msg = (
+                f"🎉 **ئافەرین {display_name} گیان! وەڵامەکەت دروستە!** 👏🌟\n\n"
+                f"✅ **وەڵام:** {disp_ans}\n"
+                f"🏆 **+١ خاڵت بەدەستهێنا!** کۆی گشتی خاڵەکانت: **{pts} خاڵ** ✨"
+            )
+            send_message(chat_id, win_msg, msg_id)
+            print(f"🏆 Quiz winner in {chat_id}: {display_name} (Points: {pts})")
+            return
 
     # 💬 وەڵامدانەوەی AI بە کوردییەکی زۆر ڕوخۆش و پڕ ئیمۆجی
     # مەرج: ئەگەر مرۆڤێک ڕیپڵای مرۆڤێکی تر بکات، بوتەکە بێدەنگ دەبێت و تەداخول ناکات
