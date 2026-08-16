@@ -372,7 +372,7 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
 
     # 🌟 Try Google Gemini first (best Kurdish support)
     if GEMINI_API_KEY:
-        for gem_model in ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest"]:
+        for gem_model in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-flash-lite-latest"]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
                 body = {
@@ -389,6 +389,8 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                         answer = clean_ai_text(answer)
                         if answer:
                             return answer
+                elif r.status_code == 429:
+                    continue
             except Exception as e:
                 print(f"Gemini Error ({gem_model}): {e}")
 
@@ -449,28 +451,27 @@ def download_telegram_file(file_id: str):
     return None, "image/jpeg"
 
 def check_nsfw_with_ai_vision(file_id: str) -> bool:
-    """Use Gemini Vision or Groq Vision to check if an image is NSFW."""
+    """Use Gemini Vision to check if an image is NSFW."""
     img_bytes, mime_type = download_telegram_file(file_id)
     if not img_bytes or len(img_bytes) < 300:
         return False
     b64 = base64.b64encode(img_bytes).decode("utf-8")
 
-    # 🌟 Try Google Gemini Vision (with thinkingBudget=0 for instant accurate answer)
+    # 🌟 Try Google Gemini Vision (gemini-3.5-flash / gemini-3.5-flash-lite have full quota)
     if GEMINI_API_KEY:
-        for gem_model in ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest"]:
+        for gem_model in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-flash-lite-latest"]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
                 body = {
                     "contents": [{
                         "parts": [
-                            {"text": "Analyze this image carefully. Does it contain nudity, pornography, sexual acts, lingerie, exposed breasts, buttocks, genitalia, or explicit sexual content? Answer strictly with YES or NO in one word."},
+                            {"text": "Analyze this image. Does it contain nudity, pornography, sexual acts, lingerie, exposed breasts, buttocks, genitalia, or explicit sexual content? Answer strictly with YES or NO in one word."},
                             {"inline_data": {"mime_type": mime_type, "data": b64}}
                         ]
                     }],
                     "generationConfig": {
-                        "maxOutputTokens": 250,
-                        "temperature": 0.0,
-                        "thinkingConfig": {"thinkingBudget": 0}
+                        "maxOutputTokens": 100,
+                        "temperature": 0.0
                     },
                     "safetySettings": [
                         {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_LOW_AND_ABOVE"}
@@ -506,32 +507,13 @@ def check_nsfw_with_ai_vision(file_id: str) -> bool:
                                 return True
                     print(f"✅ Gemini Vision ({gem_model}): Content is clean")
                     return False
-                elif r.status_code != 404:
+                elif r.status_code == 429:
+                    print(f"Gemini {gem_model} 429, switching to next...")
+                    continue
+                else:
                     print(f"Gemini Vision {gem_model} status: {r.status_code}")
-                break
             except Exception as e:
                 print(f"Gemini Vision error ({gem_model}): {e}")
-
-    # 🔄 Fallback to Groq Vision
-    if groq_client:
-        try:
-            res = groq_client.chat.completions.create(
-                model="llama-3.2-11b-vision-preview",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Is this image NSFW, sexual, pornographic, or contains nudity? Answer strictly YES or NO."},
-                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64}"}}
-                    ]
-                }],
-                max_tokens=20, temperature=0.0
-            )
-            answer = res.choices[0].message.content.strip().upper()
-            print(f"🔍 Groq Vision check: {answer}")
-            if "YES" in answer:
-                return True
-        except Exception as e:
-            print(f"Groq Vision error: {e}")
 
     return False
 
