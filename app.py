@@ -66,15 +66,11 @@ def health():
 #  Auto-setup on app load
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Detect PythonAnywhere domain
-PA_DOMAIN = os.environ.get(
-    'PYTHONANYWHERE_DOMAIN',
-    'ramanyousif2002.pythonanywhere.com'
-)
-WEBHOOK_URL = f"https://{PA_DOMAIN}/webhook"
+# Exact domain for ramanyousif2002
+WEBHOOK_URL = "https://ramanyousif2002.pythonanywhere.com/webhook"
 
 # Set Telegram webhook
-result = main_bot.tg_call("setWebhook", {"url": WEBHOOK_URL})
+result = main_bot.tg_call("setWebhook", {"url": WEBHOOK_URL, "allowed_updates": ["message"]})
 if result and result.get("ok"):
     print(f"🌐 Webhook set successfully: {WEBHOOK_URL}")
 else:
