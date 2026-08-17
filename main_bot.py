@@ -280,7 +280,7 @@ def send_message(chat_id: int, text: str, reply_to: int = 0, thread_id: int = 0,
         res = tg_call("sendMessage", body)
     return res
 
-def send_photo(chat_id: int, photo_path: str, caption: str, reply_to: int = 0, thread_id: int = 0):
+def send_photo(chat_id: int, photo_target: str, caption: str, reply_to: int = 0, thread_id: int = 0):
     try:
         data = {
             "chat_id": str(chat_id),
@@ -293,8 +293,20 @@ def send_photo(chat_id: int, photo_path: str, caption: str, reply_to: int = 0, t
         if thread_id > 0:
             data["message_thread_id"] = str(thread_id)
         
-        if photo_path and os.path.exists(photo_path):
-            with open(photo_path, "rb") as f:
+        # 1. Telegram file_id
+        if photo_target and not os.path.exists(photo_target):
+            data["photo"] = photo_target
+            r = requests.post(f"{API_BASE}/sendPhoto", data=data, timeout=30)
+            res = r.json()
+            if not res.get("ok"):
+                data.pop("parse_mode", None)
+                r = requests.post(f"{API_BASE}/sendPhoto", data=data, timeout=30)
+                return r.json()
+            return res
+        
+        # 2. Local file path
+        elif photo_target and os.path.exists(photo_target):
+            with open(photo_target, "rb") as f:
                 files = {"photo": f}
                 r = requests.post(f"{API_BASE}/sendPhoto", data=data, files=files, timeout=30)
                 res = r.json()
@@ -1142,21 +1154,54 @@ def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int 
     m_user = user.get("username")
     username_display = f"@{html.escape(m_user)}" if m_user else "یوزەری نییە"
     
+    # 🏰 وەگرتنی زانیاری خۆکاری گروپ (ناوی گروپ، وێنەی پڕۆفایلی گروپ، ئۆنەر، چەناڵ)
+    chat_res = tg_call("getChat", {"chat_id": chat_id})
+    chat_info = chat_res.get("result", {}) if chat_res else {}
+    raw_title = chat_info.get("title", "گروپ")
+    group_title = html.escape(raw_title)
+    group_photo_id = chat_info.get("photo", {}).get("big_file_id")
+    group_username = chat_info.get("username")
+
+    is_pat_mat = "پات" in raw_title or "mat" in raw_title.lower() or chat_id == -1002230635631
+
+    if is_pat_mat:
+        channel_text = "@mshell9 👑✨"
+        owner_text = "خاتوو <b>𝒢𝒶𝓇𝒹𝓃𝓎𝒶</b> 🌸👑"
+    else:
+        # بۆ گروپەکانی تر: بە شێوەیەکی زیرەکانە ئۆنەری ڕاستەقینەی گروپ دەدۆزێتەوە
+        admins_res = tg_call("getChatAdministrators", {"chat_id": chat_id})
+        creator_user = None
+        if admins_res and admins_res.get("ok"):
+            for admin_item in admins_res.get("result", []):
+                if admin_item.get("status") == "creator":
+                    creator_user = admin_item.get("user", {})
+                    break
+        if creator_user:
+            c_first = html.escape(creator_user.get("first_name", "بەڕێوەبەر"))
+            c_u = creator_user.get("username")
+            owner_text = f"<b>{c_first}</b>" + (f" (@{html.escape(c_u)})" if c_u else "") + " 👑✨"
+        else:
+            owner_text = "بەڕێوەبەری گروپ 👑✨"
+            
+        channel_text = f"@{html.escape(group_username)} 👑✨" if group_username else f"تایبەت بە گروپی {group_title} 🏰✨"
+
     welcome_caption = (
-        f"🎉 <b>بەخێربێیت بۆ گروپی پات و مات</b> 🏰✨\n"
-        f"🌸 دووربە لە هەموو کێشەیەک 🌸\n"
-        f"ئازیز سەیری یاساکان بکە هەتا دووربیت لە هەر کێشەیەک 📜✨\n\n"
+        f"🎉 <b>بەخێربێیت بۆ گروپی {group_title}</b> 🏰✨\n"
+        f"🌸 دووربە لە هەموو کێشەیەک 🌸\n\n"
+        f"✨ <b>گروپەکەمان بە بوونی تۆ ئاوەدان و ڕازاوەیە! 🏡💖</b>\n"
+        f"<b>بۆیە تۆش بەشداری چات بە لەگەڵمان تا پێکەوە هەمیشە دڵخۆش و شاد بین! 🥰🎉</b>\n\n"
         f"👤 <b>ناوت:</b> {m_first} 👑\n"
         f"🏷️ <b>یوزەرت:</b> {username_display}\n\n"
-        f"👇🏻👇🏻 <b>چەناڵی پات و مات:</b>\n"
-        f"@mshell9 👑✨\n\n"
-        f"👇🏻👇🏻 <b>ئۆنەری پات و مات:</b>\n"
-        f"خاتوو <b>𝒢𝒶𝓇𝒹𝓃𝓎𝒶</b> 🌸👑"
+        f"👇🏻👇🏻 <b>چەناڵی {group_title}:</b>\n"
+        f"{channel_text}\n\n"
+        f"👇🏻👇🏻 <b>ئۆنەری {group_title}:</b>\n"
+        f"{owner_text}"
     )
     
-    pat_mat_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pat_mat.jpg")
-    send_photo(chat_id, pat_mat_img, welcome_caption, msg_id, thread_id)
-    print(f"👋 Sent Pat & Mat welcome card to: {m_first} ({username_display}) in chat {chat_id}")
+    # ئەگەر گروپەکە وێنەی پڕۆفایلی تایبەتی هەبوو وێنەی گروپەکە دادەنێت، ئەگەرنا وێنەی پات و مات
+    photo_to_send = group_photo_id if group_photo_id else os.path.join(os.path.dirname(os.path.abspath(__file__)), "pat_mat.jpg")
+    send_photo(chat_id, photo_to_send, welcome_caption, msg_id, thread_id)
+    print(f"👋 Sent dynamic welcome card to: {m_first} ({username_display}) in {raw_title} ({chat_id})")
 
 def handle_chat_member_update(data: dict):
     if not data:
