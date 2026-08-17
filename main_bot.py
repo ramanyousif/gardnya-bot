@@ -264,14 +264,16 @@ if me_data and me_data.get("ok"):
     BOT_ID = me_data["result"]["id"]
     print(f"Bot authenticated as: @{me_data['result'].get('username', 'bot')} (ID: {BOT_ID})")
 
-def send_message(chat_id: int, text: str, reply_to: int = 0):
+def send_message(chat_id: int, text: str, reply_to: int = 0, thread_id: int = 0):
     body = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
     if reply_to > 0:
         body["reply_to_message_id"] = reply_to
         body["allow_sending_without_reply"] = True
+    if thread_id > 0:
+        body["message_thread_id"] = thread_id
     return tg_call("sendMessage", body)
 
-def send_photo(chat_id: int, photo_path: str, caption: str, reply_to: int = 0):
+def send_photo(chat_id: int, photo_path: str, caption: str, reply_to: int = 0, thread_id: int = 0):
     try:
         data = {
             "chat_id": str(chat_id),
@@ -281,32 +283,43 @@ def send_photo(chat_id: int, photo_path: str, caption: str, reply_to: int = 0):
         if reply_to > 0:
             data["reply_to_message_id"] = str(reply_to)
             data["allow_sending_without_reply"] = "true"
+        if thread_id > 0:
+            data["message_thread_id"] = str(thread_id)
         
         if photo_path and os.path.exists(photo_path):
             with open(photo_path, "rb") as f:
                 files = {"photo": f}
                 r = requests.post(f"{API_BASE}/sendPhoto", data=data, files=files, timeout=30)
-                return r.json()
+                res = r.json()
+                if not res.get("ok"):
+                    data.pop("parse_mode", None)
+                    f.seek(0)
+                    r = requests.post(f"{API_BASE}/sendPhoto", data=data, files={"photo": f}, timeout=30)
+                    return r.json()
+                return res
         else:
-            # Fallback to sendMessage if photo not found
-            return send_message(chat_id, caption, reply_to)
+            return send_message(chat_id, caption, reply_to, thread_id)
     except Exception as e:
         print(f"sendPhoto Error: {e}")
-        return send_message(chat_id, caption, reply_to)
+        return send_message(chat_id, caption, reply_to, thread_id)
 
 def delete_message(chat_id: int, message_id: int):
     return tg_call("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
 
 def get_display_name(user_obj: dict) -> str:
     if not user_obj:
-        return "?"
+        return "ئازیز"
+    if user_obj.get("title"):
+        return user_obj["title"]
     if user_obj.get("first_name"):
         return user_obj["first_name"]
     if user_obj.get("username"):
         return f"@{user_obj['username']}"
-    return str(user_obj.get("id", "?"))
+    return str(user_obj.get("id", "ئازیز"))
 
 def is_admin(chat_id: int, user_id: int) -> bool:
+    if user_id == chat_id or user_id == 0:
+        return True
     res = tg_call("getChatMember", {"chat_id": chat_id, "user_id": user_id})
     if res and res.get("ok"):
         status = res["result"]["status"]
@@ -912,9 +925,10 @@ def background_scheduler():
 def handle_command(msg: dict, text: str):
     chat = msg["chat"]
     chat_id = chat["id"]
-    msg_id = msg["message_id"]
-    from_user = msg["from"]
-    user_id = from_user["id"]
+    msg_id = msg.get("message_id", 0)
+    thread_id = msg.get("message_thread_id", 0)
+    from_user = msg.get("from") or msg.get("sender_chat") or {"id": chat_id, "title": chat.get("title", "Admin")}
+    user_id = from_user.get("id", chat_id)
     display_name = get_display_name(from_user)
 
     parts = text.strip().split(maxsplit=1)
@@ -924,9 +938,9 @@ def handle_command(msg: dict, text: str):
     if cmd in ["/start", "/setup"]:
         if chat.get("type") in ["group", "supergroup"]:
             register_group(chat_id)
-            send_message(chat_id, f"🌸 سڵاو {display_name} گیان! من بوتی گاردنیام 🤖❤️\n\nئەم گروپە بە سەرکەوتوویی تۆمارکرا بۆ پەخشی خۆکاری کاتژمێرە یەکسانەکان، کاتی بانگەکان، پاراستنی ئاسایش و وەڵامدانەوەی AI! ✨🥰", msg_id)
+            send_message(chat_id, f"🌸 سڵاو {display_name} گیان! من بوتی گاردنیام 🤖❤️\n\nئەم گروپە بە سەرکەوتوویی تۆمارکرا بۆ پەخشی خۆکاری کاتژمێرە یەکسانەکان، کاتی بانگەکان، پاراستنی ئاسایش و وەڵامدانەوەی AI! ✨🥰", msg_id, thread_id)
         else:
-            send_message(chat_id, f"🌸 سڵاو {display_name} گیان! من بوتی گاردنیام 🤖❤️\n\nئەرکی من پاراستنی ئاسایشی گروپ، پێشوازی لە ئەندامان، پەخشی کاتژمێرە یەکسانەکان، کاتی بانگەکان و وەڵامدانەوەی پرسیارەکانە بە ژیریی دەستکرد! ✨🥰", msg_id)
+            send_message(chat_id, f"🌸 سڵاو {display_name} گیان! من بوتی گاردنیام 🤖❤️\n\nئەرکی من پاراستنی ئاسایشی گروپ، پێشوازی لە ئەندامان، پەخشی کاتژمێرە یەکسانەکان، کاتی بانگەکان و وەڵامدانەوەی پرسیارەکانە بە ژیریی دەستکرد! ✨🥰", msg_id, thread_id)
         return
     elif cmd == "/help":
         help_text = (
@@ -950,18 +964,18 @@ def handle_command(msg: dict, text: str):
             "• `/unban <user_id>` - لادانی باند بە پێدانی ئایدی\n"
             "• `/setrules <دەق>` - دانانی یاساکانی گروپ 🌸"
         )
-        send_message(chat_id, help_text, msg_id)
+        send_message(chat_id, help_text, msg_id, thread_id)
         return
     elif cmd == "/id":
-        send_message(chat_id, f"🆔 ئایدی ئەم چاتە: `{chat_id}`\n👤 ئایدی تۆ: `{user_id}` ✨", msg_id)
+        send_message(chat_id, f"🆔 ئایدی ئەم چاتە: `{chat_id}`\n👤 ئایدی تۆ: `{user_id}` ✨", msg_id, thread_id)
         return
     elif cmd == "/rules":
         c_key = str(chat_id)
         rules = state_data.get("rules", {}).get(c_key)
         if rules:
-            send_message(chat_id, f"📜 **یاساکانی گروپ:**\n\n{rules} 🌸", msg_id)
+            send_message(chat_id, f"📜 **یاساکانی گروپ:**\n\n{rules} 🌸", msg_id, thread_id)
         else:
-            send_message(chat_id, "ℹ️ یاسایەکی تایبەت بۆ ئەم گروپە دانەنراوە ✨", msg_id)
+            send_message(chat_id, "ℹ️ یاسایەکی تایبەت بۆ ئەم گروپە دانەنراوە ✨", msg_id, thread_id)
         return
     elif cmd in ["/game", "/quiz"]:
         q = random.choice(KURDISH_QUIZZES)
@@ -979,7 +993,7 @@ def handle_command(msg: dict, text: str):
             f"❓ **{q['question']}**\n\n"
             f"💡 کێ یەکەم کەس دەتوانێت وەڵامەکەی لە چات بنووسێت بۆ بەدەستهێنانی خاڵ؟ 🏆✨"
         )
-        send_message(chat_id, quiz_msg)
+        send_message(chat_id, quiz_msg, 0, thread_id)
         return
     elif cmd in ["/points", "/score", "/scores"]:
         c_key = str(chat_id)
@@ -994,12 +1008,12 @@ def handle_command(msg: dict, text: str):
         else:
             board += "تائێستا کەس خاڵی تۆمار نەکردووە! یەکەم کەس بە بە فەرمانی `/game` 🎮\n"
         board += f"\n👤 خاڵەکانی تۆ ({display_name}): **{my_pts} خاڵ** 🌟"
-        send_message(chat_id, board, msg_id)
+        send_message(chat_id, board, msg_id, thread_id)
         return
 
     # 🛡️ تەنها بۆ ئەدمینەکان
     if not is_admin(chat_id, user_id):
-        send_message(chat_id, "⚠️ تەنها ئەدمینەکانی گروپ دەتوانن ئەم فرمانە بەکاربهێنن! 🌸", msg_id)
+        send_message(chat_id, "⚠️ تەنها ئەدمینەکانی گروپ دەتوانن ئەم فرمانە بەکاربهێنن! 🌸", msg_id, thread_id)
         return
 
     reply_to = msg.get("reply_to_message")
@@ -1008,16 +1022,16 @@ def handle_command(msg: dict, text: str):
     if cmd == "/lock":
         ok = set_chat_locked(chat_id, True)
         if ok:
-            send_message(chat_id, "🔒 **گروپ بە سەرکەوتوویی قوفڵ کرا!** 😴\n\nئەندامانی ئازیز، چاتکردن بە شێوەیەکی کاتی داخرا بۆ کاتی پشوو و خەو. شەوتان شاد 🌙✨")
+            send_message(chat_id, "🔒 **گروپ بە سەرکەوتوویی قوفڵ کرا!** 😴\n\nئەندامانی ئازیز، چاتکردن بە شێوەیەکی کاتی داخرا بۆ کاتی پشوو و خەو. شەوتان شاد 🌙✨", 0, thread_id)
         else:
-            send_message(chat_id, "⚠️ نەتوانرا گروپ قوفڵ بکرێت. دڵنیابە بوتەکە مۆڵەتی ئەدمینی (Change Group Info / Restrict Members)ی هەیە! 🌸", msg_id)
+            send_message(chat_id, "⚠️ نەتوانرا گروپ قوفڵ بکرێت. دڵنیابە بوتەکە مۆڵەتی ئەدمینی (Change Group Info / Restrict Members)ی هەیە! 🌸", msg_id, thread_id)
 
     elif cmd == "/unlock":
         ok = set_chat_locked(chat_id, False)
         if ok:
-            send_message(chat_id, "🔓 **گروپ کرایەوە!** 🌸\n\nبەیانیتان باش و ڕۆژێکی پڕ لە خێر و کامەرانی بۆ هەمووان! ئێستا دەتوانن بە ئازادی چات بکەن ✨🎉")
+            send_message(chat_id, "🔓 **گروپ کرایەوە!** 🌸\n\nبەیانیتان باش و ڕۆژێکی پڕ لە خێر و کامەرانی بۆ هەمووان! ئێستا دەتوانن بە ئازادی چات بکەن ✨🎉", 0, thread_id)
         else:
-            send_message(chat_id, "⚠️ نەتوانرا قوفڵی گروپ بکرێتەوە! 🌸", msg_id)
+            send_message(chat_id, "⚠️ نەتوانرا قوفڵی گروپ بکرێتەوە! 🌸", msg_id, thread_id)
 
     elif cmd == "/purge":
         count = 20
@@ -1032,103 +1046,104 @@ def handle_command(msg: dict, text: str):
 
     elif cmd == "/del":
         if not reply_to:
-            send_message(chat_id, "تکایە ڕیپڵای ئەو پەیامە بکە کە دەتەوێت بسڕدرێتەوە! 🗑️", msg_id)
+            send_message(chat_id, "تکایە ڕیپڵای ئەو پەیامە بکە کە دەتەوێت بسڕدرێتەوە! 🗑️", msg_id, thread_id)
             return
         delete_message(chat_id, reply_to["message_id"])
         delete_message(chat_id, msg_id)
 
     if cmd == "/setrules":
         if not arg:
-            send_message(chat_id, "تکایە دەقی یاساکان بنووسە: `/setrules دەق...`", msg_id)
+            send_message(chat_id, "تکایە دەقی یاساکان بنووسە: `/setrules دەق...`", msg_id, thread_id)
             return
         if "rules" not in state_data:
             state_data["rules"] = {}
         state_data["rules"][str(chat_id)] = arg
         save_state()
-        send_message(chat_id, "✅ یاساکانی گروپ بە سەرکەوتوویی نوێکرانەوە! 🌸", msg_id)
+        send_message(chat_id, "✅ یاساکانی گروپ بە سەرکەوتوویی نوێکرانەوە! 🌸", msg_id, thread_id)
 
     elif cmd == "/warn":
         if not target_user:
-            send_message(chat_id, "تکایە ڕیپڵای پەیامی بەکارهێنەرەکە بکە بۆ ئاگادارکردنەوە! ⚠️", msg_id)
+            send_message(chat_id, "تکایە ڕیپڵای پەیامی بەکارهێنەرەکە بکە بۆ ئاگادارکردنەوە! ⚠️", msg_id, thread_id)
             return
         t_id = target_user["id"]
         t_name = get_display_name(target_user)
         cnt = add_user_warning(chat_id, t_id)
-        send_message(chat_id, f"⚠️ {t_name} ئاگادار کرایەوە! ({cnt}/{MAX_WARNINGS})", msg_id)
+        send_message(chat_id, f"⚠️ {t_name} ئاگادار کرایەوە! ({cnt}/{MAX_WARNINGS})", msg_id, thread_id)
         if cnt >= MAX_WARNINGS:
             set_user_mute(chat_id, t_id, AUTO_MUTE_MINUTES)
-            send_message(chat_id, f"🚫 {t_name} بەهۆی گەیشتن بە ئەوپەڕی ئاگاداری بۆ ماوەی {AUTO_MUTE_MINUTES} خولەک بێدەنگ کرا! 🔇")
+            send_message(chat_id, f"🚫 {t_name} بەهۆی گەیشتن بە ئەوپەڕی ئاگاداری بۆ ماوەی {AUTO_MUTE_MINUTES} خولەک بێدەنگ کرا! 🔇", 0, thread_id)
 
     elif cmd == "/warnings":
         if not target_user:
-            send_message(chat_id, "تکایە ڕیپڵای بەکارهێنەر بکە! 📊", msg_id)
+            send_message(chat_id, "تکایە ڕیپڵای بەکارهێنەر بکە! 📊", msg_id, thread_id)
             return
         t_id = target_user["id"]
         t_name = get_display_name(target_user)
         cnt = state_data.get("warnings", {}).get(str(chat_id), {}).get(str(t_id), 0)
-        send_message(chat_id, f"📊 ژمارەی ئاگادارییەکانی {t_name}: ({cnt}/{MAX_WARNINGS}) ⚠️", msg_id)
+        send_message(chat_id, f"📊 ژمارەی ئاگادارییەکانی {t_name}: ({cnt}/{MAX_WARNINGS}) ⚠️", msg_id, thread_id)
 
     elif cmd == "/clearwarnings":
         if not target_user:
-            send_message(chat_id, "تکایە ڕیپڵای بەکارهێنەر بکە! ✨", msg_id)
+            send_message(chat_id, "تکایە ڕیپڵای بەکارهێنەر بکە! ✨", msg_id, thread_id)
             return
         t_id = target_user["id"]
         t_name = get_display_name(target_user)
         reset_user_warnings(chat_id, t_id)
-        send_message(chat_id, f"✅ هەموو ئاگادارییەکانی {t_name} سڕانەوە 🌸", msg_id)
+        send_message(chat_id, f"✅ هەموو ئاگادارییەکانی {t_name} سڕانەوە 🌸", msg_id, thread_id)
 
     elif cmd == "/mute":
         if not target_user:
-            send_message(chat_id, "تکایە ڕیپڵای پەیامی بەکارهێنەرەکە بکە! 🔇", msg_id)
+            send_message(chat_id, "تکایە ڕیپڵای پەیامی بەکارهێنەرەکە بکە! 🔇", msg_id, thread_id)
             return
         t_id = target_user["id"]
         t_name = get_display_name(target_user)
         mins = parse_duration_minutes(arg)
         set_user_mute(chat_id, t_id, mins)
-        send_message(chat_id, f"🚫 {t_name} بۆ ماوەی {mins} خولەک لە چاتکردن بێدەنگ کرا 🔇", msg_id)
+        send_message(chat_id, f"🚫 {t_name} بۆ ماوەی {mins} خولەک لە چاتکردن بێدەنگ کرا 🔇", msg_id, thread_id)
 
     elif cmd == "/unmute":
         if not target_user:
-            send_message(chat_id, "تکایە ڕیپڵای پەیامی بەکارهێنەرەکە بکە! 🔊", msg_id)
+            send_message(chat_id, "تکایە ڕیپڵای پەیامی بەکارهێنەرەکە بکە! 🔊", msg_id, thread_id)
             return
         t_id = target_user["id"]
         t_name = get_display_name(target_user)
         unmute_user(chat_id, t_id)
-        send_message(chat_id, f"🔊 بێدەنگی لەسەر {t_name} لادرا و دەتوانێت نامە بنێرێت 🌸", msg_id)
+        send_message(chat_id, f"🔊 بێدەنگی لەسەر {t_name} لادرا و دەتوانێت نامە بنێرێت 🌸", msg_id, thread_id)
 
     elif cmd == "/ban":
         if not target_user:
-            send_message(chat_id, "تکایە ڕیپڵای بەکارهێنەر بکە! 🚫", msg_id)
+            send_message(chat_id, "تکایە ڕیپڵای بەکارهێنەر بکە! 🚫", msg_id, thread_id)
             return
         t_id = target_user["id"]
         t_name = get_display_name(target_user)
         ban_user(chat_id, t_id)
-        send_message(chat_id, f"🚫 {t_name} لە گروپ دەرکرا و باند کرا ⛔", msg_id)
+        send_message(chat_id, f"🚫 {t_name} لە گروپ دەرکرا و باند کرا ⛔", msg_id, thread_id)
 
     elif cmd == "/unban":
         if not arg or not arg.isdigit():
-            send_message(chat_id, "تکایە ئایدی بەکارهێنەر بنووسە: `/unban 123456789`", msg_id)
+            send_message(chat_id, "تکایە ئایدی بەکارهێنەر بنووسە: `/unban 123456789`", msg_id, thread_id)
             return
         target_uid = int(arg)
         unban_user(chat_id, target_uid)
-        send_message(chat_id, f"✅ بەکارهێنەر بە ئایدی `{target_uid}` ئازاد کرا 🌸", msg_id)
+        send_message(chat_id, f"✅ بەکارهێنەر بە ئایدی `{target_uid}` ئازاد کرا 🌸", msg_id, thread_id)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  چاودێری و پاراستنی نامەکان (Message Handling & Security Engine)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def handle_message(msg: dict):
-    if "chat" not in msg or "from" not in msg:
+    if not msg or "chat" not in msg:
         return
     chat = msg["chat"]
-    chat_type = chat["type"]
+    chat_type = chat.get("type", "")
     if chat_type not in ["group", "supergroup", "private"]:
         return
 
     chat_id = chat["id"]
-    msg_id = msg["message_id"]
-    from_user = msg["from"]
-    user_id = from_user["id"]
+    msg_id = msg.get("message_id", 0)
+    thread_id = msg.get("message_thread_id", 0)
+    from_user = msg.get("from") or msg.get("sender_chat") or {"id": chat_id, "title": chat.get("title", "Admin")}
+    user_id = from_user.get("id", chat_id)
     display_name = get_display_name(from_user)
 
     # Register group for broadcasts
@@ -1147,7 +1162,7 @@ def handle_message(msg: dict):
                     ban_user(chat_id, member["id"])
                     unban_user(chat_id, member["id"])
                     delete_message(chat_id, msg_id)
-                    send_message(chat_id, f"🚫 {display_name} ناتوانیت بۆت زیاد بکەیت! تەنها ئەدمین مۆڵەتی هەیە ⚠️")
+                    send_message(chat_id, f"🚫 {display_name} ناتوانیت بۆت زیاد بکەیت! تەنها ئەدمین مۆڵەتی هەیە ⚠️", 0, thread_id)
                     print(f"🤖 Anti-Bot: Kicked unauthorized bot {member.get('id')} added by {display_name}")
                 continue
             
@@ -1169,7 +1184,7 @@ def handle_message(msg: dict):
             )
             
             pat_mat_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pat_mat.jpg")
-            send_photo(chat_id, pat_mat_img, welcome_caption, msg_id)
+            send_photo(chat_id, pat_mat_img, welcome_caption, msg_id, thread_id)
             print(f"👋 Sent Pat & Mat welcome card to: {m_first} ({username_display})")
 
     # فرمانەکان
