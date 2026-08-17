@@ -1127,6 +1127,51 @@ def handle_command(msg: dict, text: str):
         unban_user(chat_id, target_uid)
         send_message(chat_id, f"✅ بەکارهێنەر بە ئایدی `{target_uid}` ئازاد کرا 🌸", msg_id, thread_id)
 
+def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int = 0):
+    if not user or user.get("is_bot"):
+        return
+    
+    m_first = html.escape(user.get("first_name", "ئازیز"))
+    m_user = user.get("username")
+    username_display = f"@{html.escape(m_user)}" if m_user else "یوزەری نییە"
+    
+    welcome_caption = (
+        f"🎉 <b>بەخێربێیت بۆ گروپی پات و مات</b> 🏰✨\n"
+        f"🌸 دووربە لە هەموو کێشەیەک 🌸\n"
+        f"ئازیز سەیری یاساکان بکە هەتا دووربیت لە هەر کێشەیەک 📜✨\n\n"
+        f"👤 <b>ناوت:</b> {m_first} 👑\n"
+        f"🏷️ <b>یوزەرت:</b> {username_display}\n\n"
+        f"👇🏻👇🏻 <b>چەناڵی پات و مات:</b>\n"
+        f"@mshell9 👑✨\n\n"
+        f"👇🏻👇🏻 <b>ئۆنەری پات و مات:</b>\n"
+        f"خاتوو <b>𝒢𝒶𝓇𝒹𝓃𝓎𝒶</b> 🌸👑"
+    )
+    
+    pat_mat_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pat_mat.jpg")
+    send_photo(chat_id, pat_mat_img, welcome_caption, msg_id, thread_id)
+    print(f"👋 Sent Pat & Mat welcome card to: {m_first} ({username_display}) in chat {chat_id}")
+
+def handle_chat_member_update(data: dict):
+    if not data:
+        return
+    chat = data.get("chat", {})
+    chat_id = chat.get("id")
+    if not chat_id:
+        return
+    
+    if chat.get("type") in ["group", "supergroup"]:
+        register_group(chat_id)
+        
+    old_status = data.get("old_chat_member", {}).get("status")
+    new_member_obj = data.get("new_chat_member", {})
+    new_status = new_member_obj.get("status")
+    user = new_member_obj.get("user", {})
+    
+    # User joined the group via link, invite, or direct join
+    if old_status in ["left", "kicked", "restricted"] and new_status in ["member", "administrator"]:
+        print(f"👋 chat_member join detected in {chat_id}: {user.get('first_name')}")
+        handle_new_member(chat_id, user)
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  چاودێری و پاراستنی نامەکان (Message Handling & Security Engine)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1166,26 +1211,7 @@ def handle_message(msg: dict):
                     print(f"🤖 Anti-Bot: Kicked unauthorized bot {member.get('id')} added by {display_name}")
                 continue
             
-            m_first = html.escape(member.get("first_name", "ئازیز"))
-            m_user = member.get("username")
-            username_display = f"@{html.escape(m_user)}" if m_user else "یوزەری نییە"
-            
-            # 🖼️ دیزاینی ناوازەی پات و مات بۆ بەخێرهاتنی ئەندام
-            welcome_caption = (
-                f"🎉 <b>بەخێربێیت بۆ گروپی پات و مات</b> 🏰✨\n"
-                f"🌸 دووربە لە هەموو کێشەیەک 🌸\n"
-                f"ئازیز سەیری یاساکان بکە هەتا دووربیت لە هەر کێشەیەک 📜✨\n\n"
-                f"👤 <b>ناوت:</b> {m_first} 👑\n"
-                f"🏷️ <b>یوزەرت:</b> {username_display}\n\n"
-                f"👇🏻👇🏻 <b>چەناڵی پات و مات:</b>\n"
-                f"@mshell9 👑✨\n\n"
-                f"👇🏻👇🏻 <b>ئۆنەری پات و مات:</b>\n"
-                f"خاتوو <b>𝒢𝒶𝓇𝒹𝓃𝓎𝒶</b> 🌸👑"
-            )
-            
-            pat_mat_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pat_mat.jpg")
-            send_photo(chat_id, pat_mat_img, welcome_caption, msg_id, thread_id)
-            print(f"👋 Sent Pat & Mat welcome card to: {m_first} ({username_display})")
+            handle_new_member(chat_id, member, msg_id, thread_id)
 
     # فرمانەکان
     if text.startswith("/"):
