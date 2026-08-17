@@ -832,6 +832,29 @@ def parse_duration_minutes(text: str) -> int:
         return val * 1440
     return val
 
+def format_12h_kurdistan(time_str: str) -> str:
+    """کاتی ۲۴ دەگۆڕێت بۆ کاتی ۱۲ بە دیاریکردنی (بەیانی، نیوەڕۆ، عەسر، ئێوارە، شەو)"""
+    try:
+        hh, mm = map(int, time_str.split(":"))
+        if 5 <= hh < 12:
+            period = "بەیانی ☀️"
+        elif 12 <= hh < 15:
+            period = "نیوەڕۆ 🌞"
+        elif 15 <= hh < 18:
+            period = "عەسر 🌤️"
+        elif 18 <= hh < 21:
+            period = "ئێوارە 🌇"
+        else:
+            period = "شەو 🌙"
+        
+        hh_12 = hh % 12
+        if hh_12 == 0:
+            hh_12 = 12
+        
+        return f"{hh_12:02d}:{mm:02d}ی {period}"
+    except Exception:
+        return time_str
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  تایبەتمەندی پەخشی کاتژمێرە یەکسانەکان و کاتی بانگەکان (Background Scheduler)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -847,13 +870,14 @@ def background_scheduler():
             current_time = now.strftime("%H:%M")
 
             if current_time != last_sent_minute:
-                # ١. کاتژمێرە یەکسانەکان (Mirror Hours)
+                # ١. کاتژمێرە یەکسانەکان (Mirror Hours بە کاتی ۱۲ و قۆناغەکانی ڕۆژ)
                 if config.get("enableMirrorHours", True) and current_time in MIRROR_HOURS_QUOTES:
                     quote = MIRROR_HOURS_QUOTES[current_time]
-                    msg_text = f"✨ **کاتژمێرە یەکسانەکان ({current_time})** 💫\n\n{quote}"
+                    formatted_time = format_12h_kurdistan(current_time)
+                    msg_text = f"✨ **کاتژمێرە یەکسانەکان ({formatted_time})** 💫\n\n{quote}"
                     for gid in state_data.get("groups", []):
                         send_message(gid, msg_text)
-                    print(f"✨ Broadcasted mirror hour {current_time} to groups")
+                    print(f"✨ Broadcasted mirror hour {current_time} ({formatted_time}) to groups")
                     last_sent_minute = current_time
 
                 # ۲. کاتی بانگەکان و زیکر (Prayer Times)
