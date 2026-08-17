@@ -99,12 +99,11 @@ AI_SYSTEM_PROMPT = """
 You are Gardnya (گاردنیا), a super friendly, witty, cheerful, and charming young Kurdish companion in a Telegram group chat.
 You speak ONLY in natural, sweet Sorani Kurdish (کوردیی سۆرانی ئاسایی چاتی ڕۆژانە).
 
-Personality & Rules:
-1. You are VERY joyful, kind, smiling, respectful, and humorous (زۆر ڕوخۆش و قسەخۆش).
-2. ALWAYS use lively, colorful emojis in EVERY response (🌸, ✨, ❤️, 😊, 🥰, 🌺, 🎉, 💖, 🤗, 💐, ☕).
-3. Use warm Kurdish everyday expressions: (گیانەکەم, بەسەرچاو, وەڵا, براکەم, عافیەتبیت, دەستت خۆش, قوربانت, ههههه).
-4. Answer ANY question asked by the user intelligently, helpfully, and cheerfully.
-5. NEVER sound like a cold machine or broken literal English translation. Sound like a true sweet Kurdish best friend in a group!
+CRITICAL RULES:
+1. Keep your answers VERY SHORT and concise, maximum 1 to 2 lines (زۆر بە کورتی و پوختی لە ١ یان ٢ دێڕدا وەڵام بدەرەوە، هەرگیز درێژدادڕی مەکە!).
+2. ALWAYS use lively, colorful emojis in EVERY response (🌸, ✨, ❤️, 😊, 🥰, 🌺, 🎉, 💖).
+3. Use warm Kurdish everyday expressions: (گیانەکەم, بەسەرچاو, قوربانت, وەڵا, براکەم, دەستت خۆش).
+4. Be joyful, polite, and humorous.
 """
 
 WELCOME_MESSAGES = [
@@ -985,6 +984,12 @@ def handle_command(msg: dict, text: str):
     cmd = parts[0].split("@")[0].lower()
     arg = parts[1].strip() if len(parts) > 1 else ""
 
+    # 🛡️ لە گروپەکاندا: تەواوی فرمانەکان (یاری، مەتەڵ، ئاسایش، ڕێکخستن) تەنها لە ئەدمین وەردەگیرێن
+    if chat.get("type") in ["group", "supergroup"]:
+        if not is_admin(chat_id, user_id):
+            print(f"🚫 Ignored command '{cmd}' from non-admin member: {display_name} ({user_id})")
+            return
+
     if cmd in ["/start", "/setup"]:
         if chat.get("type") in ["group", "supergroup"]:
             register_group(chat_id)
@@ -994,36 +999,35 @@ def handle_command(msg: dict, text: str):
         return
     elif cmd == "/help":
         help_text = (
-            "📋 **لیستی تەواوی فرمانەکانی بوتی گاردنیا:**\n\n"
-            "🔹 **فرمانە گشتییەکان:**\n"
-            "• `/id` - پیشاندانی ئایدی چات و بەکارهێنەر\n"
-            "• `/rules` - پیشاندانی یاساکانی گروپ\n"
-            "• `/game` یان `/quiz` - دەستپێکردنی مەتەڵ و یاریی بەکۆمەڵ 🎮\n"
-            "• `/points` - پیشاندانی خاڵەکانی یاری و ڕیزبەندی 🏆\n\n"
-            "🛡️ **فرمانەکانی ئەدمین:**\n"
-            "• `/lock` - قوفڵکردنی گروپ (بۆ کاتی خەو) 🔒\n"
-            "• `/unlock` - کردنەوەی قوفڵی گروپ 🔓\n"
-            "• `/purge 20` - پاککردنەوەی چات بە کۆمەڵ 🧹\n"
-            "• `/del` - سڕینەوەی پەیامی دیاریکراو (بە ڕیپڵای) 🗑️\n"
-            "• `/warn` - ئاگادارکردنەوەی بەکارهێنەر (بە ڕیپڵای)\n"
-            "• `/warnings` - پیشاندانی ژمارەی ئاگادارییەکان\n"
-            "• `/clearwarnings` - سڕینەوەی ئاگادارییەکان\n"
-            "• `/mute 10m` - بێدەنگکردن بۆ ماوەیەک (10m, 1h, 1d)\n"
-            "• `/unmute` - لادانی بێدەنگی لەسەر بەکارهێنەر\n"
-            "• `/ban` - باندکردنی بەکارهێنەر لە گروپ\n"
-            "• `/unban <user_id>` - لادانی باند بە پێدانی ئایدی\n"
-            "• `/setrules <دەق>` - دانانی یاساکانی گروپ 🌸"
+            "📋 <b>لیستی تەواوی فرمانەکانی بوتی گاردنیا (تەنها بۆ ئەدمین):</b>\n\n"
+            "🎮 <b>یاری و مەتەڵ:</b>\n"
+            "• <code>/game</code> یان <code>/quiz</code> - دانانی مەتەڵی نوێ بۆ گروپ 🎮\n"
+            "• <code>/answer</code> - ئاشکراکردنی وەڵامی دروستی مەتەڵەکە 💡\n"
+            "• <code>/points</code> - پیشاندانی خاڵەکانی یاری و ڕیزبەندی 🏆\n\n"
+            "🛡️ <b>پاراستن و بەڕێوەبردن:</b>\n"
+            "• <code>/lock</code> - قوفڵکردنی گروپ (بۆ کاتی خەو) 🔒\n"
+            "• <code>/unlock</code> - کردنەوەی قوفڵی گروپ 🔓\n"
+            "• <code>/purge 20</code> - پاککردنەوەی چات بە کۆمەڵ 🧹\n"
+            "• <code>/del</code> - سڕینەوەی پەیامی دیاریکراو (بە ڕیپڵای) 🗑️\n"
+            "• <code>/warn</code> - ئاگادارکردنەوەی بەکارهێنەر (بە ڕیپڵای)\n"
+            "• <code>/warnings</code> - پیشاندانی ژمارەی ئاگادارییەکان\n"
+            "• <code>/clearwarnings</code> - سڕینەوەی ئاگادارییەکان\n"
+            "• <code>/mute 10m</code> - بێدەنگکردن بۆ ماوەیەک (10m, 1h, 1d)\n"
+            "• <code>/unmute</code> - لادانی بێدەنگی لەسەر بەکارهێنەر\n"
+            "• <code>/ban</code> - باندکردنی بەکارهێنەر لە گروپ\n"
+            "• <code>/unban &lt;user_id&gt;</code> - لادانی باند بە پێدانی ئایدی\n"
+            "• <code>/setrules &lt;دەق&gt;</code> - دانانی یاساکانی گروپ 🌸"
         )
         send_message(chat_id, help_text, msg_id, thread_id)
         return
     elif cmd == "/id":
-        send_message(chat_id, f"🆔 ئایدی ئەم چاتە: `{chat_id}`\n👤 ئایدی تۆ: `{user_id}` ✨", msg_id, thread_id)
+        send_message(chat_id, f"🆔 ئایدی ئەم چاتە: <code>{chat_id}</code>\n👤 ئایدی تۆ: <code>{user_id}</code> ✨", msg_id, thread_id)
         return
     elif cmd == "/rules":
         c_key = str(chat_id)
         rules = state_data.get("rules", {}).get(c_key)
         if rules:
-            send_message(chat_id, f"📜 **یاساکانی گروپ:**\n\n{rules} 🌸", msg_id, thread_id)
+            send_message(chat_id, f"📜 <b>یاساکانی گروپ:</b>\n\n{rules} 🌸", msg_id, thread_id)
         else:
             send_message(chat_id, "ℹ️ یاسایەکی تایبەت بۆ ئەم گروپە دانەنراوە ✨", msg_id, thread_id)
         return
@@ -1039,31 +1043,36 @@ def handle_command(msg: dict, text: str):
         }
         save_state()
         quiz_msg = (
-            f"🎮 **مەتەڵ و یاریی گاردنیا:**\n\n"
-            f"❓ **{q['question']}**\n\n"
+            f"🎮 <b>مەتەڵ و یاریی گاردنیا:</b>\n\n"
+            f"❓ <b>{q['question']}</b>\n\n"
             f"💡 کێ یەکەم کەس دەتوانێت وەڵامەکەی لە چات بنووسێت بۆ بەدەستهێنانی خاڵ؟ 🏆✨"
         )
         send_message(chat_id, quiz_msg, 0, thread_id)
+        return
+    elif cmd in ["/answer", "/ans", "/hal"]:
+        c_key = str(chat_id)
+        if "active_quiz" in state_data and c_key in state_data["active_quiz"]:
+            disp_ans = state_data["active_quiz"][c_key].get("display_answer", "")
+            del state_data["active_quiz"][c_key]
+            save_state()
+            send_message(chat_id, f"💡 <b>وەڵامی دروستی مەتەڵەکە:</b> {disp_ans} ✨\n\nمەتەڵەکە داخرا! دەتوانن بە <code>/game</code> مەتەڵی نوێ دابنێن 🎮🌸", msg_id, thread_id)
+        else:
+            send_message(chat_id, "ℹ️ لە ئێستادا هیچ مەتەڵێکی چالاک دانەنراوە! دەتوانیت بە <code>/game</code> مەتەڵێک دابنێیت 🎮🌸", msg_id, thread_id)
         return
     elif cmd in ["/points", "/score", "/scores"]:
         c_key = str(chat_id)
         scores = state_data.get("quiz_scores", {}).get(c_key, {})
         my_pts = scores.get(str(user_id), 0)
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
-        board = f"🏆 **ڕیزبەندیی پاڵەوانانی یاری لەم گروپەدا:**\n\n"
+        board = f"🏆 <b>ڕیزبەندیی پاڵەوانانی یاری لەم گروپەدا:</b>\n\n"
         medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
         if sorted_scores:
             for idx, (uid, pts) in enumerate(sorted_scores):
-                board += f"{medals[idx]} بەکارهێنەر `{uid}`: **{pts} خاڵ**\n"
+                board += f"{medals[idx]} بەکارهێنەر <code>{uid}</code>: <b>{pts} خاڵ</b>\n"
         else:
-            board += "تائێستا کەس خاڵی تۆمار نەکردووە! یەکەم کەس بە بە فەرمانی `/game` 🎮\n"
-        board += f"\n👤 خاڵەکانی تۆ ({display_name}): **{my_pts} خاڵ** 🌟"
+            board += "تائێستا کەس خاڵی تۆمار نەکردووە! یەکەم کەس بە بە فەرمانی <code>/game</code> 🎮\n"
+        board += f"\n👤 خاڵەکانی تۆ ({display_name}): <b>{my_pts} خاڵ</b> 🌟"
         send_message(chat_id, board, msg_id, thread_id)
-        return
-
-    # 🛡️ تەنها بۆ ئەدمینەکان
-    if not is_admin(chat_id, user_id):
-        send_message(chat_id, "⚠️ تەنها ئەدمینەکانی گروپ دەتوانن ئەم فرمانە بەکاربهێنن! 🌸", msg_id, thread_id)
         return
 
     reply_to = msg.get("reply_to_message")
@@ -1372,7 +1381,7 @@ def handle_message(msg: dict):
 
     # 🎮 پشکنینی وەڵامی مەتەڵ و یاری
     c_key = str(chat_id)
-    if "active_quiz" in state_data and c_key in state_data["active_quiz"]:
+    if "active_quiz" in state_data and c_key in state_data["active_quiz"] and text:
         curr_quiz = state_data["active_quiz"][c_key]
         clean_ans = text.strip().lower()
         if any(ans in clean_ans for ans in curr_quiz.get("answers", [])):
@@ -1381,13 +1390,20 @@ def handle_message(msg: dict):
             del state_data["active_quiz"][c_key]
             save_state()
             win_msg = (
-                f"🎉 **ئافەرین {display_name} گیان! وەڵامەکەت دروستە!** 👏🌟\n\n"
-                f"✅ **وەڵام:** {disp_ans}\n"
-                f"🏆 **+١ خاڵت بەدەستهێنا!** کۆی گشتی خاڵەکانت: **{pts} خاڵ** ✨"
+                f"🎉 <b>ئافەرین {display_name} گیان! وەڵامەکەت دروستە!</b> 👏🌟\n\n"
+                f"✅ <b>وەڵام:</b> {disp_ans}\n"
+                f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی گشتی خاڵەکانت: <b>{pts} خاڵ</b> ✨"
             )
-            send_message(chat_id, win_msg, msg_id)
+            send_message(chat_id, win_msg, msg_id, thread_id)
             print(f"🏆 Quiz winner in {chat_id}: {display_name} (Points: {pts})")
             return
+        
+        # ئەگەر کەسێک بە هەڵە وەڵامی دایەوە بە ڕیپڵای بۆ بووت یان مەتەڵەکە
+        if "reply_to_message" in msg and msg["reply_to_message"]:
+            replied_from = msg["reply_to_message"].get("from", {})
+            if replied_from.get("id") == BOT_ID or replied_from.get("is_bot"):
+                send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> دووبارە تاقی بکەرەوە 🌸🤔", msg_id, thread_id)
+                return
 
     # 💬 وەڵامدانەوەی AI بە کوردییەکی زۆر ڕوخۆش و پڕ ئیمۆجی
     # مەرج: ئەگەر مرۆڤێک ڕیپڵای مرۆڤێکی تر بکات، بوتەکە بێدەنگ دەبێت و تەداخول ناکات
