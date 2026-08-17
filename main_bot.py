@@ -1130,13 +1130,25 @@ def handle_command(msg: dict, text: str):
         else:
             send_message(chat_id, "ℹ️ لە ئێستادا هیچ یارییەکی چالاک دانەنراوە تا ڕابگیرێت! 🎮🌸", msg_id, thread_id)
         return
-    elif cmd in ["/answer", "/ans", "/hal"]:
+    elif cmd in ["/answer", "/ans", "/hal", "/next"]:
         c_key = str(chat_id)
         if "active_quiz" in state_data and c_key in state_data["active_quiz"]:
             disp_ans = state_data["active_quiz"][c_key].get("display_answer", "")
-            del state_data["active_quiz"][c_key]
+            ans_msg = (
+                f"💡 <b>وەڵامی دروستی مەتەڵەکە:</b> {disp_ans} ✨\n\n"
+                f"⏳ <i>مەتەڵی نوێ لە چەند چرکەیەکی تردا دێت...</i> 🎮🌸"
+            )
+            send_message(chat_id, ans_msg, msg_id, thread_id)
+            
+            # بەردەوامی: ناردنی مەتەڵی دواتر بە شێوەیەکی خۆکار
+            def answer_next_quiz_thread():
+                time.sleep(3)
+                if "active_quiz" in state_data and c_key in state_data["active_quiz"]:
+                    send_next_quiz(chat_id, thread_id)
+            
+            state_data["active_quiz"][c_key]["answers"] = []
             save_state()
-            send_message(chat_id, f"💡 <b>وەڵامی دروستی مەتەڵەکە:</b> {disp_ans} ✨\n\nمەتەڵەکە داخرا! دەتوانن بە <code>/game</code> مەتەڵی نوێ دابنێن 🎮🌸", msg_id, thread_id)
+            threading.Thread(target=answer_next_quiz_thread, daemon=True).start()
         else:
             send_message(chat_id, "ℹ️ لە ئێستادا هیچ مەتەڵێکی چالاک دانەنراوە! دەتوانیت بە <code>/game</code> مەتەڵێک دابنێیت 🎮🌸", msg_id, thread_id)
         return
