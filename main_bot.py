@@ -269,6 +269,29 @@ def send_message(chat_id: int, text: str, reply_to: int = 0):
         body["allow_sending_without_reply"] = True
     return tg_call("sendMessage", body)
 
+def send_photo(chat_id: int, photo_path: str, caption: str, reply_to: int = 0):
+    try:
+        data = {
+            "chat_id": str(chat_id),
+            "caption": caption,
+            "parse_mode": "HTML"
+        }
+        if reply_to > 0:
+            data["reply_to_message_id"] = str(reply_to)
+            data["allow_sending_without_reply"] = "true"
+        
+        if photo_path and os.path.exists(photo_path):
+            with open(photo_path, "rb") as f:
+                files = {"photo": f}
+                r = requests.post(f"{API_BASE}/sendPhoto", data=data, files=files, timeout=30)
+                return r.json()
+        else:
+            # Fallback to sendMessage if photo not found
+            return send_message(chat_id, caption, reply_to)
+    except Exception as e:
+        print(f"sendPhoto Error: {e}")
+        return send_message(chat_id, caption, reply_to)
+
 def delete_message(chat_id: int, message_id: int):
     return tg_call("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
 
@@ -1096,10 +1119,27 @@ def handle_message(msg: dict):
                     send_message(chat_id, f"🚫 {display_name} ناتوانیت بۆت زیاد بکەیت! تەنها ئەدمین مۆڵەتی هەیە ⚠️")
                     print(f"🤖 Anti-Bot: Kicked unauthorized bot {member.get('id')} added by {display_name}")
                 continue
-            m_name = get_display_name(member)
-            w_msg = random.choice(WELCOME_MESSAGES).format(name=m_name)
-            send_message(chat_id, w_msg, msg_id)
-            print(f"👋 Welcome message sent to: {m_name}")
+            
+            m_first = member.get("first_name", "ئازیز")
+            m_user = member.get("username")
+            username_display = f"@{m_user}" if m_user else "یوزەری نییە"
+            
+            # 🖼️ دیزاینی ناوازەی پات و مات بۆ بەخێرهاتنی ئەندام
+            welcome_caption = (
+                f"🎉 <b>بەخێربێیت بۆ گروپی پات و مات</b> 🏰✨\n"
+                f"🌸 دووربە لە هەموو کێشەیەک 🌸\n"
+                f"ئازیز سەیری یاساکان بکە هەتا دووربیت لە هەر کێشەیەک 📜✨\n\n"
+                f"👤 <b>ناوت:</b> {m_first} 👑\n"
+                f"🏷️ <b>یوزەرت:</b> {username_display}\n\n"
+                f"👇🏻👇🏻 <b>چەناڵی پات و مات:</b>\n"
+                f"@mshell9 👑✨\n\n"
+                f"👇🏻👇🏻 <b>ئۆنەری پات و مات:</b>\n"
+                f"خاتوو <b>𝒢𝒶𝓇𝒹𝓃𝓎𝒶</b> 🌸👑"
+            )
+            
+            pat_mat_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pat_mat.jpg")
+            send_photo(chat_id, pat_mat_img, welcome_caption, msg_id)
+            print(f"👋 Sent Pat & Mat welcome card to: {m_first} ({username_display})")
 
     # فرمانەکان
     if text.startswith("/"):
