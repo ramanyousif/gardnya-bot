@@ -280,7 +280,24 @@ def send_message(chat_id: int, text: str, reply_to: int = 0, thread_id: int = 0,
         res = tg_call("sendMessage", body)
     return res
 
-def send_photo(chat_id: int, photo_target: str, caption: str, reply_to: int = 0, thread_id: int = 0):
+def get_chat_photo_bytes(chat_id: int):
+    """ئەگەر گروپەکە وێنەی پڕۆفایلی هەبێت بە شێوەی باێت دایدەبەزێنێت"""
+    try:
+        chat_res = tg_call("getChat", {"chat_id": chat_id})
+        photo_id = chat_res.get("result", {}).get("photo", {}).get("big_file_id") if chat_res else None
+        if photo_id:
+            file_res = tg_call("getFile", {"file_id": photo_id})
+            if file_res and file_res.get("ok"):
+                f_path = file_res["result"]["file_path"]
+                url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{f_path}"
+                resp = requests.get(url, timeout=15)
+                if resp.status_code == 200:
+                    return resp.content
+    except Exception as e:
+        print(f"Error fetching group photo bytes: {e}")
+    return None
+
+def send_photo(chat_id: int, photo_source, caption: str, reply_to: int = 0, thread_id: int = 0):
     try:
         data = {
             "chat_id": str(chat_id),
@@ -293,20 +310,20 @@ def send_photo(chat_id: int, photo_target: str, caption: str, reply_to: int = 0,
         if thread_id > 0:
             data["message_thread_id"] = str(thread_id)
         
-        # 1. Telegram file_id
-        if photo_target and not os.path.exists(photo_target):
-            data["photo"] = photo_target
-            r = requests.post(f"{API_BASE}/sendPhoto", data=data, timeout=30)
+        # 1. If photo_source is raw bytes (downloaded group avatar)
+        if isinstance(photo_source, bytes):
+            files = {"photo": ("group_photo.jpg", photo_source)}
+            r = requests.post(f"{API_BASE}/sendPhoto", data=data, files=files, timeout=30)
             res = r.json()
             if not res.get("ok"):
                 data.pop("parse_mode", None)
-                r = requests.post(f"{API_BASE}/sendPhoto", data=data, timeout=30)
+                r = requests.post(f"{API_BASE}/sendPhoto", data=data, files={"photo": ("group_photo.jpg", photo_source)}, timeout=30)
                 return r.json()
             return res
         
-        # 2. Local file path
-        elif photo_target and os.path.exists(photo_target):
-            with open(photo_target, "rb") as f:
+        # 2. If photo_source is local file path (e.g. pat_mat.jpg)
+        elif isinstance(photo_source, str) and os.path.exists(photo_source):
+            with open(photo_source, "rb") as f:
                 files = {"photo": f}
                 r = requests.post(f"{API_BASE}/sendPhoto", data=data, files=files, timeout=30)
                 res = r.json()
@@ -1198,9 +1215,13 @@ def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int 
         f"{owner_text}"
     )
     
-    # ئەگەر گروپەکە وێنەی پڕۆفایلی تایبەتی هەبوو وێنەی گروپەکە دادەنێت، ئەگەرنا وێنەی پات و مات
-    photo_to_send = group_photo_id if group_photo_id else os.path.join(os.path.dirname(os.path.abspath(__file__)), "pat_mat.jpg")
-    send_photo(chat_id, photo_to_send, welcome_caption, msg_id, thread_id)
+    # ئەگەر گروپەکە وێنەی پڕۆفایلی هەبوو وێنەی گروپەکە دادەنێت، ئەگەرنا وێنەی پات و مات
+    photo_bytes = get_chat_photo_bytes(chat_id)
+    if photo_bytes:
+        send_photo(chat_id, photo_bytes, welcome_caption, msg_id, thread_id)
+    else:
+        pat_mat_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pat_mat.jpg")
+        send_photo(chat_id, pat_mat_img, welcome_caption, msg_id, thread_id)
     print(f"👋 Sent dynamic welcome card to: {m_first} ({username_display}) in {raw_title} ({chat_id})")
 
 def handle_chat_member_update(data: dict):
