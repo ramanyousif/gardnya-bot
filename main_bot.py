@@ -470,7 +470,7 @@ def add_user_quiz_point(chat_id: int, user_id: int) -> int:
 KURDISH_QUIZZES = [
     {
         "question": "چییە هەرچەند لێی ببەیت زۆرتر دەبێت؟",
-        "answers": ["کەلێن", "چاڵ", "کون", "چال", "kelen", "chal"],
+        "answers": ["کەلێن", "چاڵ", "کون", "چال", "kelen", "chal", "kwn"],
         "display_answer": "کەلێن یان چاڵ 🕳️"
     },
     {
@@ -527,8 +527,76 @@ KURDISH_QUIZZES = [
         "question": "شاری دڵداری و ڕۆشنبیری کوردستان ناوی کام شارەیە؟",
         "answers": ["سلێمانی", "سلیمانی", "slemani", "sulaymaniyah"],
         "display_answer": "شاری سلێمانی 🌸"
+    },
+    {
+        "question": "چییە بە دەوری هەموو ماڵەکەدا دەسووڕێتەوە بێ ئەوەی یەک هەنگاو بجوڵێت؟",
+        "answers": ["پەرژین", "حەسار", "دیوار", "شوورە", "diwar", "hasar"],
+        "display_answer": "پەرژین یان دیواری ماڵ 🏡"
+    },
+    {
+        "question": "چییە کاتێک پێویستت پێیەتی فڕێی دەدەیت، بەڵام کاتێک پێویستت پێی نییە هەڵی دەگریتەوە؟",
+        "answers": ["لەنگەر", "لەنگەری کەشتی", "لنگەر", "anchor", "langer"],
+        "display_answer": "لەنگەری کەشتی ⚓"
+    },
+    {
+        "question": "چییە چەند پاکی بکەیتەوە ڕەشتر دەبێت؟",
+        "answers": ["تەختەڕەش", "تەختە ڕەش", "سبورە", "takhta rash", "blackboard"],
+        "display_answer": "تەختەڕەش 🎓"
+    },
+    {
+        "question": "چییە زمان و دەمی نییە بەڵام بە هەموو زمانەکانی دونیا قسە دەکات و دەنگ دەداتەوە؟",
+        "answers": ["دەنگدانەوە", "زرنگانەوە", "پەنگدانەوە", "echo", "danganawa"],
+        "display_answer": "دەنگدانەوە (سەدا) 📢"
+    },
+    {
+        "question": "چییە ملی هەیە بەڵام سەری نییە، قۆڵی هەیە بەڵام دەستی نییە؟",
+        "answers": ["کراس", "بلوز", "جل", "قەمیس", "kras", "bluz"],
+        "display_answer": "کراس یان بلوز 👕"
+    },
+    {
+        "question": "کام باڵندەیە کە هێلکە ناکات بەڵکو بێچووی دەبێت و شیر دەدات؟",
+        "answers": ["شەمشەمەکوێرە", "شەمشەمە کوێرە", "باڵندەی شەو", "bat", "shamshama kwera"],
+        "display_answer": "شەمشەمەکوێرە 🦇"
+    },
+    {
+        "question": "چییە لە تاریکیدا دیارە و لە ڕووناکیدا وون دەبێت؟",
+        "answers": ["ئەستێرە", "شەوق", "مانگ", "astera", "mang"],
+        "display_answer": "ئەستێرەکان 🌟"
+    },
+    {
+        "question": "چییە ددانی زۆری هەیە بەڵام هەرگیز ناتوانێت گازی لێ بگرێت؟",
+        "answers": ["شانە", "مەشانە", "شانه", "shana", "comb"],
+        "display_answer": "شانەی قژ 💇‍♂️"
     }
 ]
+
+def send_next_quiz(chat_id: int, thread_id: int = 0):
+    """مەتەڵی نوێ بە شێوەیەکی خۆکار و بەردەوام هەڵدەبژێرێت و دەینێرێت"""
+    c_key = str(chat_id)
+    prev_q = state_data.get("active_quiz", {}).get(c_key, {}).get("question", "")
+    
+    candidates = [q for q in KURDISH_QUIZZES if q["question"] != prev_q]
+    q = random.choice(candidates if candidates else KURDISH_QUIZZES)
+    
+    if "active_quiz" not in state_data:
+        state_data["active_quiz"] = {}
+        
+    state_data["active_quiz"][c_key] = {
+        "question": q["question"],
+        "answers": [a.lower() for a in q["answers"]],
+        "display_answer": q["display_answer"],
+        "time": time.time(),
+        "is_active": True
+    }
+    save_state()
+    
+    quiz_msg = (
+        f"🎮 <b>مەتەڵ و یاریی گاردنیا:</b>\n\n"
+        f"❓ <b>{q['question']}</b>\n\n"
+        f"💡 کێ یەکەم کەس دەتوانێت وەڵامەکەی بنووسێت بۆ بەدەستهێنانی خاڵ؟ 🏆✨\n\n"
+        f"<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
+    )
+    send_message(chat_id, quiz_msg, 0, thread_id)
 
 def register_group(chat_id: int):
     if "groups" not in state_data:
@@ -1032,22 +1100,22 @@ def handle_command(msg: dict, text: str):
             send_message(chat_id, "ℹ️ یاسایەکی تایبەت بۆ ئەم گروپە دانەنراوە ✨", msg_id, thread_id)
         return
     elif cmd in ["/game", "/quiz"]:
-        q = random.choice(KURDISH_QUIZZES)
-        if "active_quiz" not in state_data:
-            state_data["active_quiz"] = {}
-        state_data["active_quiz"][str(chat_id)] = {
-            "question": q["question"],
-            "answers": [a.lower() for a in q["answers"]],
-            "display_answer": q["display_answer"],
-            "time": time.time()
-        }
-        save_state()
-        quiz_msg = (
-            f"🎮 <b>مەتەڵ و یاریی گاردنیا:</b>\n\n"
-            f"❓ <b>{q['question']}</b>\n\n"
-            f"💡 کێ یەکەم کەس دەتوانێت وەڵامەکەی لە چات بنووسێت بۆ بەدەستهێنانی خاڵ؟ 🏆✨"
-        )
-        send_message(chat_id, quiz_msg, 0, thread_id)
+        send_next_quiz(chat_id, thread_id)
+        return
+    elif cmd in ["/stop", "/cancel", "/closequiz"]:
+        c_key = str(chat_id)
+        if "active_quiz" in state_data and c_key in state_data["active_quiz"]:
+            disp_ans = state_data["active_quiz"][c_key].get("display_answer", "")
+            del state_data["active_quiz"][c_key]
+            save_state()
+            ans_info = f"\n💡 وەڵامی مەتەڵی کۆتایی: <b>{disp_ans}</b>" if disp_ans else ""
+            stop_msg = (
+                f"🛑 <b>یاریی مەتەڵ ڕاگیرا لەلایەن ئەدمینەوە!</b> ✨{ans_info}\n\n"
+                f"دەستخۆشی لە هەموو بەشداربووان دەکەین 🌸🏆 بۆ بینینی خاڵەکان بنووسە: <code>/points</code> 👑"
+            )
+            send_message(chat_id, stop_msg, msg_id, thread_id)
+        else:
+            send_message(chat_id, "ℹ️ لە ئێستادا هیچ یارییەکی چالاک دانەنراوە تا ڕابگیرێت! 🎮🌸", msg_id, thread_id)
         return
     elif cmd in ["/answer", "/ans", "/hal"]:
         c_key = str(chat_id)
@@ -1387,15 +1455,24 @@ def handle_message(msg: dict):
         if any(ans in clean_ans for ans in curr_quiz.get("answers", [])):
             pts = add_user_quiz_point(chat_id, user_id)
             disp_ans = curr_quiz.get("display_answer", "")
-            del state_data["active_quiz"][c_key]
-            save_state()
             win_msg = (
-                f"🎉 <b>ئافەرین {display_name} گیان! وەڵامەکەت دروستە!</b> 👏🌟\n\n"
+                f"🎉 <b>ئافەرین {display_name} گیان! وەڵامەکەت زۆر دروستە!</b> 👏🌟\n\n"
                 f"✅ <b>وەڵام:</b> {disp_ans}\n"
-                f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی گشتی خاڵەکانت: <b>{pts} خاڵ</b> ✨"
+                f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی گشتی خاڵەکانت: <b>{pts} خاڵ</b> ✨\n\n"
+                f"⏳ <i>مەتەڵی نوێ لە چەند چرکەیەکی تردا دێت...</i> 🎮🌸"
             )
             send_message(chat_id, win_msg, msg_id, thread_id)
             print(f"🏆 Quiz winner in {chat_id}: {display_name} (Points: {pts})")
+            
+            # بەردەوامی: ناردنی مەتەڵی نوێ بە شێوەیەکی خۆکار
+            def auto_next_quiz_thread():
+                time.sleep(3)
+                if "active_quiz" in state_data and c_key in state_data["active_quiz"]:
+                    send_next_quiz(chat_id, thread_id)
+            
+            state_data["active_quiz"][c_key]["answers"] = []
+            save_state()
+            threading.Thread(target=auto_next_quiz_thread, daemon=True).start()
             return
         
         # ئەگەر کەسێک بە هەڵە وەڵامی دایەوە بە ڕیپڵای بۆ بووت یان مەتەڵەکە
