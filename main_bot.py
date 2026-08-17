@@ -867,8 +867,12 @@ def handle_command(msg: dict, text: str):
     cmd = parts[0].split("@")[0].lower()
     arg = parts[1].strip() if len(parts) > 1 else ""
 
-    if cmd == "/start":
-        send_message(chat_id, f"🌸 سڵاو {display_name} گیان! من بوتی گاردنیام 🤖❤️\n\nئەرکی من پاراستنی ئاسایشی گروپ، پێشوازی لە ئەندامان، پەخشی کاتژمێرە یەکسانەکان، کاتی بانگەکان و وەڵامدانەوەی پرسیارەکانە بە ژیریی دەستکرد! ✨🥰", msg_id)
+    if cmd in ["/start", "/setup"]:
+        if chat.get("type") in ["group", "supergroup"]:
+            register_group(chat_id)
+            send_message(chat_id, f"🌸 سڵاو {display_name} گیان! من بوتی گاردنیام 🤖❤️\n\nئەم گروپە بە سەرکەوتوویی تۆمارکرا بۆ پەخشی خۆکاری کاتژمێرە یەکسانەکان، کاتی بانگەکان، پاراستنی ئاسایش و وەڵامدانەوەی AI! ✨🥰", msg_id)
+        else:
+            send_message(chat_id, f"🌸 سڵاو {display_name} گیان! من بوتی گاردنیام 🤖❤️\n\nئەرکی من پاراستنی ئاسایشی گروپ، پێشوازی لە ئەندامان، پەخشی کاتژمێرە یەکسانەکان، کاتی بانگەکان و وەڵامدانەوەی پرسیارەکانە بە ژیریی دەستکرد! ✨🥰", msg_id)
         return
     elif cmd == "/help":
         help_text = (

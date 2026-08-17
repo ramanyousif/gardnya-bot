@@ -48,8 +48,14 @@ def webhook():
     """Handle incoming Telegram updates via webhook."""
     try:
         data = request.get_json(force=True)
-        if data and 'message' in data:
-            main_bot.handle_message(data['message'])
+        if data:
+            if 'message' in data:
+                main_bot.handle_message(data['message'])
+            elif 'my_chat_member' in data:
+                chat = data['my_chat_member'].get('chat', {})
+                if chat.get('type') in ['group', 'supergroup']:
+                    main_bot.register_group(chat['id'])
+                    print(f"🎉 Auto-registered group {chat.get('title')} ({chat['id']})")
     except Exception as e:
         print(f"Webhook error: {e}")
     # Ensure scheduler is alive on every webhook call
@@ -70,7 +76,10 @@ def health():
 WEBHOOK_URL = "https://ramanyousif2002.pythonanywhere.com/webhook"
 
 # Set Telegram webhook
-result = main_bot.tg_call("setWebhook", {"url": WEBHOOK_URL, "allowed_updates": ["message"]})
+result = main_bot.tg_call("setWebhook", {
+    "url": WEBHOOK_URL,
+    "allowed_updates": ["message", "my_chat_member"]
+})
 if result and result.get("ok"):
     print(f"🌐 Webhook set successfully: {WEBHOOK_URL}")
 else:
