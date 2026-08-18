@@ -994,7 +994,7 @@ def format_12h_kurdistan(time_str: str) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def background_scheduler():
-    """هەموو خولەکێک پشکنین دەکات بۆ کاتژمێرە یەکسانەکان و کاتی بانگەکان"""
+    """هەموو چەند چرکەیەک پشکنین دەکات بۆ کاتژمێرە یەکسانەکان و کاتی بانگەکان بە کاتی تەواو دروست"""
     print("⏰ Background Clock & Prayer Scheduler Started!")
     last_sent_minute = ""
 
@@ -1006,6 +1006,10 @@ def background_scheduler():
             if current_time != last_sent_minute:
                 # ١. کاتژمێرە یەکسانەکان (Mirror Hours بە کاتی ۱۰۰٪ یەکسان و قۆناغەکانی ڕۆژ)
                 if config.get("enableMirrorHours", True) and current_time in MIRROR_HOURS_CONFIG:
+                    # گەرەنتی کردنی ئەوەی پەیامەکە لە ناوەڕاستی ئەو خولەکەدا دەگات بۆ نەهێشتنی جیاوازی کاتی مۆبایلەکان
+                    if now.second < 15:
+                        time.sleep(15 - now.second)
+                    
                     item = MIRROR_HOURS_CONFIG[current_time]
                     time_label = item["time_label"]
                     quote = item["quote"]
@@ -1021,6 +1025,9 @@ def background_scheduler():
 
                 # ۲. کاتی بانگەکان و زیکر (Prayer Times)
                 elif config.get("enablePrayerTimes", True) and current_time in PRAYER_SCHEDULE:
+                    if now.second < 10:
+                        time.sleep(10 - now.second)
+
                     p_info = PRAYER_SCHEDULE[current_time]
                     p_msg = (
                         f"🕌 **کاتی {p_info['name']} بە کاتی کوردستان** 🕋\n\n"
@@ -1032,10 +1039,10 @@ def background_scheduler():
                     print(f"🕌 Broadcasted prayer time {current_time} ({p_info['name']}) to groups")
                     last_sent_minute = current_time
 
-            time.sleep(20)
+            time.sleep(10)
         except Exception as e:
             print("Scheduler Exception:", e)
-            time.sleep(30)
+            time.sleep(15)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  فرمانە سەرەکییەکان (Admin & User Commands)
