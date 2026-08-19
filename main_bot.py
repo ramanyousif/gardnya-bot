@@ -1202,7 +1202,7 @@ def handle_command(msg: dict, text: str):
     elif cmd == "/id":
         send_message(chat_id, f"🆔 ئایدی ئەم چاتە: <code>{chat_id}</code>\n👤 ئایدی تۆ: <code>{user_id}</code> ✨", msg_id, thread_id)
         return
-    elif cmd in ["/tagall", "/calltag", "/tag"]:
+    elif cmd in ["/tagall", "/calltag", "/tag", "/all", "@all"]:
         tag_all_members_for_voice_chat(chat_id, thread_id)
         return
     elif cmd == "/rules":
