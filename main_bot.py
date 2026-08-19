@@ -869,9 +869,105 @@ def contains_link_or_spam(msg: dict, text: str) -> bool:
                 return True
     if msg.get("reply_markup"):
         return True
-    if any(k in msg for k in ["forward_date", "forward_from", "forward_from_chat", "forward_sender_name"]):
-        return True
     return False
+
+def record_group_member(chat_id: int, user_obj: dict):
+    """تۆمارکردنی ئەندامانی چالاکی گروپ بۆ سیستەمی تاگکردن"""
+    if not user_obj or user_obj.get("is_bot"):
+        return
+    u_id = user_obj.get("id")
+    if not u_id or u_id == chat_id:
+        return
+    c_key = str(chat_id)
+    if "members" not in state_data:
+        state_data["members"] = {}
+    if c_key not in state_data["members"]:
+        state_data["members"][c_key] = {}
+    
+    first = user_obj.get("first_name") or "هاوڕێ"
+    username = user_obj.get("username")
+    state_data["members"][c_key][str(u_id)] = {
+        "id": u_id,
+        "first_name": first,
+        "username": username,
+        "last_seen": int(time.time())
+    }
+    save_state()
+
+def tag_all_members_for_voice_chat(chat_id: int, thread_id: int = 0):
+    """تاگکردنی هەموو ئەندامانی گروپ لە کاتی دەستپێکردنی کاڵ و سڕینەوەی پاش ۳۰ خولەک"""
+    c_key = str(chat_id)
+    known_members = {}
+    if "members" in state_data and c_key in state_data["members"]:
+        known_members = dict(state_data["members"][c_key])
+    
+    # بەدەستهێنانی ئەدمینەکانیش لە ڕێگەی Telegram API
+    admins_res = tg_call("getChatAdministrators", {"chat_id": chat_id})
+    if admins_res and admins_res.get("ok"):
+        for admin in admins_res.get("result", []):
+            u = admin.get("user", {})
+            if u and not u.get("is_bot"):
+                uid_str = str(u["id"])
+                known_members[uid_str] = {
+                    "id": u["id"],
+                    "first_name": u.get("first_name") or "ئەدمین",
+                    "username": u.get("username")
+                }
+
+    sent_msg_ids = []
+    
+    if not known_members:
+        tag_text = (
+            "🎙️ <b>پەیوەندی دەنگی (Voice Chat) کرایەوە! 🌸✨</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            "📢 هاوڕێیانی ئازیز، کاڵی گروپ دەستی پێکرد! وەرن بەشداربن لەگەڵمان بۆ کاتێکی زۆر خۆش و بەجۆش ☕🎧💖\n\n"
+            "⏳ <i>(ئەم پەیامە پاش ۳۰ خولەک بە خۆکاری دەسڕدرێتەوە)</i>"
+        )
+        res = send_message(chat_id, tag_text, 0, thread_id)
+        if res and isinstance(res, dict) and res.get("result", {}).get("message_id"):
+            sent_msg_ids.append(res["result"]["message_id"])
+    else:
+        mentions = []
+        for uid_str, udata in known_members.items():
+            uname = udata.get("username")
+            first = html.escape(udata.get("first_name", "هاوڕێ"))
+            if uname:
+                mentions.append(f"@{uname}")
+            else:
+                mentions.append(f'<a href="tg://user?id={udata["id"]}">{first}</a>')
+
+        # دابەشکردنی تاگەکان بۆ پەیامی ڕێک و پێک (٣٠ ئەندام لە هەر پەیامێکدا)
+        chunks = [mentions[i:i + 30] for i in range(0, len(mentions), 30)]
+        for idx, chunk in enumerate(chunks):
+            tags_str = " • ".join(chunk)
+            if idx == 0:
+                tag_text = (
+                    "🎙️ <b>پەیوەندی دەنگی (Voice Chat) کرایەوە! 🌸✨</b>\n"
+                    "━━━━━━━━━━━━━━━━━━\n"
+                    "📢 هاوڕێیانی ئازیز، کاڵی گروپ دەستی پێکرد! وەرن بەشداربن لەگەڵمان بۆ کاتێکی زۆر خۆش و بەجۆش ☕🎧💖\n\n"
+                    f"👥 <b>بانگهێشتنامەی ئەندامان:</b>\n{tags_str}\n\n"
+                    "⏳ <i>(ئەم پەیامە پاش ۳۰ خولەک بە خۆکاری دەسڕدرێتەوە)</i>"
+                )
+            else:
+                tag_text = f"👥 <b>بانگهێشتنامەی کاڵ (بەشی {idx+1}):</b>\n{tags_str}"
+
+            res = send_message(chat_id, tag_text, 0, thread_id)
+            if res and isinstance(res, dict) and res.get("result", {}).get("message_id"):
+                sent_msg_ids.append(res["result"]["message_id"])
+            time.sleep(0.5)
+
+    # سڕینەوەی خۆکاری نامەی تاگەکان دوای ۳۰ خولەک (1800 چرکە)
+    if sent_msg_ids:
+        def auto_delete_tags(cid, mids):
+            time.sleep(1800)
+            for mid in mids:
+                try:
+                    delete_message(cid, mid)
+                    print(f"🗑️ Auto-deleted voice chat tag message {mid} in {cid} after 30 mins")
+                except Exception as e:
+                    print(f"Error deleting tag message: {e}")
+        threading.Thread(target=auto_delete_tags, args=(chat_id, sent_msg_ids), daemon=True).start()
+        print(f"🎙️ Auto-tagged members for voice chat in {chat_id}. Scheduled auto-delete in 30 mins.")
 
 def get_sticker_comment(sticker_obj: dict) -> str:
     if not sticker_obj:
@@ -1082,6 +1178,7 @@ def handle_command(msg: dict, text: str):
             "• <code>/answer</code> - ئاشکراکردنی وەڵامی دروستی مەتەڵەکە 💡\n"
             "• <code>/points</code> - پیشاندانی خاڵەکانی یاری و ڕیزبەندی 🏆\n\n"
             "🛡️ <b>پاراستن و بەڕێوەبردن:</b>\n"
+            "• <code>/tagall</code> - بانگهێشت و تاگکردنی هەموو ئەندامان (بۆ کاتی کاڵ) 🎙️\n"
             "• <code>/lock</code> - قوفڵکردنی گروپ (بۆ کاتی خەو) 🔒\n"
             "• <code>/unlock</code> - کردنەوەی قوفڵی گروپ 🔓\n"
             "• <code>/purge 20</code> - پاککردنەوەی چات بە کۆمەڵ 🧹\n"
@@ -1099,6 +1196,9 @@ def handle_command(msg: dict, text: str):
         return
     elif cmd == "/id":
         send_message(chat_id, f"🆔 ئایدی ئەم چاتە: <code>{chat_id}</code>\n👤 ئایدی تۆ: <code>{user_id}</code> ✨", msg_id, thread_id)
+        return
+    elif cmd in ["/tagall", "/calltag", "/tag"]:
+        tag_all_members_for_voice_chat(chat_id, thread_id)
         return
     elif cmd == "/rules":
         c_key = str(chat_id)
@@ -1328,6 +1428,7 @@ def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int 
     )
     
     # ئەگەر گروپەکە وێنەی پڕۆفایلی هەبوو وێنەی گروپەکە دادەنێت، ئەگەرنا وێنەی پات و مات
+    record_group_member(chat_id, user)
     photo_bytes = get_chat_photo_bytes(chat_id)
     if photo_bytes:
         send_photo(chat_id, photo_bytes, welcome_caption, msg_id, thread_id)
@@ -1354,6 +1455,7 @@ def handle_chat_member_update(data: dict):
     
     # User joined the group via link, invite, or direct join
     if old_status in ["left", "kicked", "restricted"] and new_status in ["member", "administrator"]:
+        record_group_member(chat_id, user)
         print(f"👋 chat_member join detected in {chat_id}: {user.get('first_name')}")
         handle_new_member(chat_id, user)
 
@@ -1376,9 +1478,16 @@ def handle_message(msg: dict):
     user_id = from_user.get("id", chat_id)
     display_name = get_display_name(from_user)
 
-    # Register group for broadcasts
+    # Register group for broadcasts and record active member
     if chat_type in ["group", "supergroup"]:
         register_group(chat_id)
+        record_group_member(chat_id, from_user)
+
+    # 🎙️ پەیوەندی دەنگی (Voice / Video Chat Started Notification & Auto Tag)
+    if any(k in msg for k in ["video_chat_started", "voice_chat_started"]):
+        print(f"🎙️ Voice chat started detected in {chat_id}! Tagging all members...")
+        tag_all_members_for_voice_chat(chat_id, thread_id)
+        return
 
     text = msg.get("text") or msg.get("caption") or ""
     print(f"📩 [{chat_type.upper()}] {display_name} (ID: {user_id}): {text if text else '[Media/Sticker/Other]'}")
@@ -1396,6 +1505,7 @@ def handle_message(msg: dict):
                     print(f"🤖 Anti-Bot: Kicked unauthorized bot {member.get('id')} added by {display_name}")
                 continue
             
+            record_group_member(chat_id, member)
             handle_new_member(chat_id, member, msg_id, thread_id)
 
     # فرمانەکان
