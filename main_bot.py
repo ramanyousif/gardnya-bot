@@ -895,28 +895,32 @@ def record_group_member(chat_id: int, user_obj: dict):
     save_state()
 
 def tag_all_members_for_voice_chat(chat_id: int, thread_id: int = 0):
-    """تاگکردنی هەموو ئەندامانی گروپ لە کاتی دەستپێکردنی کاڵ و سڕینەوەی پاش ۳۰ خولەک"""
+    """تاگکردنی تەنها میمبەرەکان (بێ ئەدمین) لە کاتی دەستپێکردنی کاڵ و سڕینەوەی پاش ۳۰ خولەک"""
     c_key = str(chat_id)
     known_members = {}
     if "members" in state_data and c_key in state_data["members"]:
         known_members = dict(state_data["members"][c_key])
     
-    # بەدەستهێنانی ئەدمینەکانیش لە ڕێگەی Telegram API
+    # دۆزینەوەی تەواوی ئەدمینەکان بۆ ئەوەی بە هیچ جۆرێک تاگ نەکرێن
+    admin_ids = set()
     admins_res = tg_call("getChatAdministrators", {"chat_id": chat_id})
     if admins_res and admins_res.get("ok"):
         for admin in admins_res.get("result", []):
             u = admin.get("user", {})
-            if u and not u.get("is_bot"):
-                uid_str = str(u["id"])
-                known_members[uid_str] = {
-                    "id": u["id"],
-                    "first_name": u.get("first_name") or "ئەدمین",
-                    "username": u.get("username")
-                }
+            if u:
+                admin_ids.add(u["id"])
+    if BOT_ID:
+        admin_ids.add(BOT_ID)
+
+    # فلتەرکردن: تەنها ئەو میمبەرانەی کە ئەدمین نین
+    non_admin_members = [
+        udata for udata in known_members.values()
+        if udata.get("id") not in admin_ids
+    ]
 
     sent_msg_ids = []
     
-    if not known_members:
+    if not non_admin_members:
         tag_text = (
             "🎙️ <b>پەیوەندی دەنگی (Voice Chat) کرایەوە! 🌸✨</b>\n"
             "━━━━━━━━━━━━━━━━━━\n"
@@ -928,7 +932,7 @@ def tag_all_members_for_voice_chat(chat_id: int, thread_id: int = 0):
             sent_msg_ids.append(res["result"]["message_id"])
     else:
         mentions = []
-        for uid_str, udata in known_members.items():
+        for udata in non_admin_members:
             uname = udata.get("username")
             first = html.escape(udata.get("first_name", "هاوڕێ"))
             if uname:
@@ -941,15 +945,16 @@ def tag_all_members_for_voice_chat(chat_id: int, thread_id: int = 0):
         for idx, chunk in enumerate(chunks):
             tags_str = " • ".join(chunk)
             if idx == 0:
+                # سەرەتا تاگی میمبەرەکان، دواتر دەقی جوان
                 tag_text = (
+                    f"👥 {tags_str}\n\n"
                     "🎙️ <b>پەیوەندی دەنگی (Voice Chat) کرایەوە! 🌸✨</b>\n"
                     "━━━━━━━━━━━━━━━━━━\n"
                     "📢 هاوڕێیانی ئازیز، کاڵی گروپ دەستی پێکرد! وەرن بەشداربن لەگەڵمان بۆ کاتێکی زۆر خۆش و بەجۆش ☕🎧💖\n\n"
-                    f"👥 <b>بانگهێشتنامەی ئەندامان:</b>\n{tags_str}\n\n"
                     "⏳ <i>(ئەم پەیامە پاش ۳۰ خولەک بە خۆکاری دەسڕدرێتەوە)</i>"
                 )
             else:
-                tag_text = f"👥 <b>بانگهێشتنامەی کاڵ (بەشی {idx+1}):</b>\n{tags_str}"
+                tag_text = f"👥 {tags_str}"
 
             res = send_message(chat_id, tag_text, 0, thread_id)
             if res and isinstance(res, dict) and res.get("result", {}).get("message_id"):
@@ -967,7 +972,7 @@ def tag_all_members_for_voice_chat(chat_id: int, thread_id: int = 0):
                 except Exception as e:
                     print(f"Error deleting tag message: {e}")
         threading.Thread(target=auto_delete_tags, args=(chat_id, sent_msg_ids), daemon=True).start()
-        print(f"🎙️ Auto-tagged members for voice chat in {chat_id}. Scheduled auto-delete in 30 mins.")
+        print(f"🎙️ Auto-tagged {len(non_admin_members)} non-admin members for voice chat in {chat_id}. Scheduled auto-delete in 30 mins.")
 
 def get_sticker_comment(sticker_obj: dict) -> str:
     if not sticker_obj:
