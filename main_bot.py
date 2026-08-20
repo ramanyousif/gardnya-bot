@@ -1449,8 +1449,8 @@ def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int 
     is_pat_mat = "پات" in raw_title or "mat" in raw_title.lower() or chat_id == -1002230635631
 
     if is_pat_mat:
-        channel_text = "@mshell9 👑✨"
-        owner_text = "خاتوو <b>𝒢𝒶𝓇𝒹𝓃𝓎𝒶</b> 🌸👑"
+        channel_text = "@mshell9 ✨"
+        owner_text = "خاتوو <b>گـاردنـیـا</b> 🌸"
     else:
         # بۆ گروپەکانی تر: بە شێوەیەکی زیرەکانە ئۆنەری ڕاستەقینەی گروپ دەدۆزێتەوە
         admins_res = tg_call("getChatAdministrators", {"chat_id": chat_id})
@@ -1463,22 +1463,22 @@ def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int 
         if creator_user:
             c_first = html.escape(creator_user.get("first_name", "بەڕێوەبەر"))
             c_u = creator_user.get("username")
-            owner_text = f"<b>{c_first}</b>" + (f" (@{html.escape(c_u)})" if c_u else "") + " 👑✨"
+            owner_text = f"<b>{c_first}</b>" + (f" (@{html.escape(c_u)})" if c_u else "") + " 👑"
         else:
-            owner_text = "بەڕێوەبەری گروپ 👑✨"
+            owner_text = "بەڕێوەبەری گروپ 👑"
             
-        channel_text = f"@{html.escape(group_username)} 👑✨" if group_username else f"تایبەت بە گروپی {group_title} 🏰✨"
+        channel_text = f"@{html.escape(group_username)} ✨" if group_username else f"تایبەت بە گروپی {group_title} ✨"
 
     welcome_caption = (
-        f"🎉 <b>بەخێربێیت بۆ گروپی {group_title}</b> 🏰✨\n"
-        f"🌸 دووربە لە هەموو کێشەیەک 🌸\n\n"
-        f"✨ <b>گروپەکەمان بە بوونی تۆ ئاوەدان و ڕازاوەیە! 🏡💖</b>\n"
-        f"<b>بۆیە تۆش بەشداری چات بە لەگەڵمان تا پێکەوە هەمیشە دڵخۆش و شاد بین! 🥰🎉</b>\n\n"
-        f"👤 <b>ناوت:</b> {m_first} 👑\n"
+        f"🌸 <b>بەخێربێیت بۆ گروپی {group_title}</b>\n"
+        f"دووربە لە هەموو کێشەیەک ✨\n\n"
+        f"گروپەکەمان بە بوونی تۆ ئاوەدانە 🏡\n"
+        f"بەشداری چات بە لەگەڵمان تا پێکەوە شاد بین 🥰\n\n"
+        f"👤 <b>ناوت:</b> {m_first}\n"
         f"🏷️ <b>یوزەرت:</b> {username_display}\n\n"
-        f"👇🏻👇🏻 <b>چەناڵی {group_title}:</b>\n"
+        f"📢 <b>چەناڵی {group_title}:</b>\n"
         f"{channel_text}\n\n"
-        f"👇🏻👇🏻 <b>ئۆنەری {group_title}:</b>\n"
+        f"👑 <b>ئۆنەری {group_title}:</b>\n"
         f"{owner_text}"
     )
     
