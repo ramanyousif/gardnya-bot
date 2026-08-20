@@ -1450,7 +1450,7 @@ def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int 
 
     if is_pat_mat:
         channel_text = "@mshell9 ✨"
-        owner_text = "خاتوو <b>گـاردنـیـا</b> 🌸"
+        owner_text = "<b>خـاتـوو گـاردنـیـا</b> 🌸"
     else:
         # بۆ گروپەکانی تر: بە شێوەیەکی زیرەکانە ئۆنەری ڕاستەقینەی گروپ دەدۆزێتەوە
         admins_res = tg_call("getChatAdministrators", {"chat_id": chat_id})
@@ -1470,15 +1470,12 @@ def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int 
         channel_text = f"@{html.escape(group_username)} ✨" if group_username else f"تایبەت بە گروپی {group_title} ✨"
 
     welcome_caption = (
-        f"🌸 <b>بەخێربێیت بۆ گروپی {group_title}</b>\n"
-        f"دووربە لە هەموو کێشەیەک ✨\n\n"
-        f"گروپەکەمان بە بوونی تۆ ئاوەدانە 🏡\n"
-        f"بەشداری چات بە لەگەڵمان تا پێکەوە شاد بین 🥰\n\n"
+        f"بەخێربێیت بۆ گروپی {group_title} 👫دووربە لە هەموو کێشەیەک گروپەکەمان بە بوونی تۆ ئاوەدانە 🏡\n"
+        f"بەشداری چات بە لەگەڵمان تا پێکەوە شاد بین 🥰✨\n\n"
         f"👤 <b>ناوت:</b> {m_first}\n"
-        f"🏷️ <b>یوزەرت:</b> {username_display}\n\n"
-        f"📢 <b>چەناڵی {group_title}:</b>\n"
-        f"{channel_text}\n\n"
-        f"👑 <b>ئۆنەری {group_title}:</b>\n"
+        f"🏷️ <b>یوزەرت:</b> {username_display}\n"
+        f"📢 <b>چەناڵی {group_title} 👫:</b>{channel_text}\n\n"
+        f"👑 <b>ئۆنەری {group_title} 👫:</b>\n"
         f"{owner_text}"
     )
     
