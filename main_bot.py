@@ -1490,24 +1490,46 @@ def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int 
         channel_text = f"@{html.escape(group_username)} ✨" if group_username else f"تایبەت بە گروپی {group_title} ✨"
 
     welcome_caption = (
-        f"بەخێربێیت بۆ گروپی {group_title} 👫دووربە لە هەموو کێشەیەک گروپەکەمان بە بوونی تۆ ئاوەدانە 🏡\n"
-        f"بەشداری چات بە لەگەڵمان تا پێکەوە شاد بین 🥰✨\n\n"
+        f"بەخێربێیت بۆ گروپی {group_title}، دووربە لە هەموو کێشەیەک 🌸\n"
+        f"گروپەکەمان بە بوونی تۆ ئاوەدانە 🏡\n"
+        f"بەشداری چات بە لەگەڵمان تا پێکەوە شاد بین 🥰\n\n"
         f"👤 <b>ناوت:</b> {m_first}\n"
         f"🏷️ <b>یوزەرت:</b> {username_display}\n"
-        f"📢 <b>چەناڵی {group_title} 👫:</b>{channel_text}\n\n"
-        f"👑 <b>ئۆنەری {group_title} 👫:</b>\n"
+        f"📢 <b>چەناڵی {group_title}:</b> {channel_text}\n\n"
+        f"👑 <b>ئۆنەری {group_title}:</b>\n"
         f"{owner_text}"
     )
     
-    # ئەگەر گروپەکە وێنەی پڕۆفایلی هەبوو وێنەی گروپەکە دادەنێت، ئەگەرنا وێنەی پات و مات
+    # ١. تۆمارکردنی ئەندام لە داتابەیس
     record_group_member(chat_id, user)
-    photo_bytes = get_chat_photo_bytes(chat_id)
-    if photo_bytes:
-        send_photo(chat_id, photo_bytes, welcome_caption, msg_id, thread_id)
+    
+    # ۲. ئەگەر بەکارهێنەرەکە وێنەی پڕۆفایلی هەبوو وێنەی پڕۆفایلی خۆی دادەنێت
+    user_photo_bytes = None
+    try:
+        u_res = tg_call("getUserProfilePhotos", {"user_id": user.get("id", 0), "limit": 1})
+        if u_res and u_res.get("ok"):
+            u_photos = u_res.get("result", {}).get("photos", [])
+            if u_photos and len(u_photos) > 0:
+                sizes = u_photos[0]
+                if sizes:
+                    f_id = sizes[-1].get("file_id") or sizes[0].get("file_id")
+                    user_photo_bytes, _ = download_telegram_file(f_id)
+    except Exception as e:
+        print(f"Error fetching user profile photo: {e}")
+
+    if user_photo_bytes:
+        send_photo(chat_id, user_photo_bytes, welcome_caption, msg_id, thread_id)
+        print(f"👋 Sent dynamic welcome card with USER photo to: {m_first} ({username_display})")
     else:
-        pat_mat_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pat_mat.jpg")
-        send_photo(chat_id, pat_mat_img, welcome_caption, msg_id, thread_id)
-    print(f"👋 Sent dynamic welcome card to: {m_first} ({username_display}) in {raw_title} ({chat_id})")
+        # ۳. ئەگەر بەکارهێنەر وێنەی دانەنابوو، وێنەی گروپەکە دادەنێت
+        group_photo_bytes = get_chat_photo_bytes(chat_id)
+        if group_photo_bytes:
+            send_photo(chat_id, group_photo_bytes, welcome_caption, msg_id, thread_id)
+            print(f"👋 Sent dynamic welcome card with GROUP photo to: {m_first} ({username_display})")
+        else:
+            pat_mat_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pat_mat.jpg")
+            send_photo(chat_id, pat_mat_img, welcome_caption, msg_id, thread_id)
+            print(f"👋 Sent dynamic welcome card with DEFAULT photo to: {m_first} ({username_display})")
 
 def handle_chat_member_update(data: dict):
     if not data:
