@@ -956,8 +956,28 @@ def record_group_member(chat_id: int, user_obj: dict):
     }
     save_state()
 
-def tag_all_members_for_voice_chat(chat_id: int, custom_text: str = "", thread_id: int = 0):
-    """تاگکردنی میمبەرەکان لە تەنها یەک نامەی شاز و ڕێک و پێکدا بێ دووبارەبوونەوە و سڕینەوەی پاش ۳۰ خولەک"""
+def send_voice_chat_notification(chat_id: int, thread_id: int = 0):
+    """ناردنی تەنها یەک نامەی ئاگاداری کاتی دەستپێکردنی کاڵ بە بێ تاگکردنی کەس"""
+    tag_text = (
+        "🎙️ <b>پەیوەندی دەنگی (Voice Chat) دەستی پێکرد! 🌸✨</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "📢 هاوڕێیانی ئازیز، کاڵی گروپ دەستی پێکرد! وەرن بەشداربن لەگەڵمان بۆ کاتێکی زۆر خۆش و بەجۆش ☕🎧💖\n\n"
+        "⏳ <i>(ئەم پەیامە پاش ۳۰ خولەک بە خۆکاری دەسڕدرێتەوە)</i>"
+    )
+    res = send_message(chat_id, tag_text, 0, thread_id)
+    mid = res.get("result", {}).get("message_id") if res and isinstance(res, dict) else 0
+    if mid:
+        def auto_del_single(cid, m_id):
+            time.sleep(1800)
+            try:
+                delete_message(cid, m_id)
+            except Exception:
+                pass
+        threading.Thread(target=auto_del_single, args=(chat_id, mid), daemon=True).start()
+        print(f"🎙️ Sent single voice chat notification in {chat_id}. Auto-delete in 30m.")
+
+def tag_all_members_batches(chat_id: int, custom_text: str = "", thread_id: int = 0):
+    """تاگکردنی میمبەرەکان بە گروپی ٥ کەسی تەنها کاتێک ئەدمین بنووسێت @all"""
     c_key = str(chat_id)
     known_members = {}
     if "members" in state_data and c_key in state_data["members"]:
@@ -982,7 +1002,7 @@ def tag_all_members_for_voice_chat(chat_id: int, custom_text: str = "", thread_i
 
     sent_msg_ids = []
     
-    header_text = custom_text.strip() if custom_text.strip() else "🎙️ وەرن بەشداربن لە پەیوەندی دەنگی (Voice Chat) 🌸✨"
+    header_text = custom_text.strip() if custom_text.strip() else "🎙️ وەرن بەشداربن لە چات و کاڵ 🌸✨"
     if "@all" not in header_text.lower():
         header_text = f"{header_text} @all"
 
@@ -996,22 +1016,21 @@ def tag_all_members_for_voice_chat(chat_id: int, custom_text: str = "", thread_i
         if res and isinstance(res, dict) and res.get("result", {}).get("message_id"):
             sent_msg_ids.append(res["result"]["message_id"])
     else:
-        # کۆکردنەوەی هەموو تاگەکان لە تەنها یەک پەیامی پاک و ڕێک و پێکدا
         mentions = []
         for udata in non_admin_members:
             first = html.escape(udata.get("first_name", "هاوڕێ"))
             uid = udata.get("id")
             mentions.append(f'<a href="tg://user?id={uid}">{first}</a>')
 
-        tags_str = " , ".join(mentions)
-        msg_content = (
-            f"<b>{header_text}</b>\n\n"
-            f"👥 <b>ئەندامان:</b>\n{tags_str}\n\n"
-            f"⏳ <i>(ئەم پەیامە پاش ۳۰ خولەک بە خۆکاری دەسڕدرێتەوە)</i>"
-        )
-        res = send_message(chat_id, msg_content, 0, thread_id)
-        if res and isinstance(res, dict) and res.get("result", {}).get("message_id"):
-            sent_msg_ids.append(res["result"]["message_id"])
+        # دابەشکردنی تاگەکان بۆ ٥ ئەندام لە هەر پەیامێکدا
+        chunks = [mentions[i:i + 5] for i in range(0, len(mentions), 5)]
+        for chunk in chunks:
+            tags_str = " , ".join(chunk)
+            msg_content = f"<b>{header_text}</b>\n{tags_str}"
+            res = send_message(chat_id, msg_content, 0, thread_id)
+            if res and isinstance(res, dict) and res.get("result", {}).get("message_id"):
+                sent_msg_ids.append(res["result"]["message_id"])
+            time.sleep(1.5)
 
     # سڕینەوەی خۆکاری نامەی تاگ دوای ۳۰ خولەک (1800 چرکە)
     if sent_msg_ids:
@@ -1023,7 +1042,7 @@ def tag_all_members_for_voice_chat(chat_id: int, custom_text: str = "", thread_i
                 except Exception:
                     pass
         threading.Thread(target=auto_delete_tags, args=(chat_id, sent_msg_ids), daemon=True).start()
-        print(f"🎙️ Auto-tagged {len(non_admin_members)} members in 1 clean message in {chat_id}. Auto-delete in 30m.")
+        print(f"🎙️ Auto-tagged {len(non_admin_members)} members in 5-user batches in {chat_id}. Auto-delete in 30m.")
 
 def get_sticker_comment(sticker_obj: dict) -> str:
     if not sticker_obj:
@@ -1254,7 +1273,7 @@ def handle_command(msg: dict, text: str):
         send_message(chat_id, f"🆔 ئایدی ئەم چاتە: <code>{chat_id}</code>\n👤 ئایدی تۆ: <code>{user_id}</code> ✨", msg_id, thread_id)
         return
     elif cmd in ["/tagall", "/calltag", "/tag", "/all", "@all"]:
-        tag_all_members_for_voice_chat(chat_id, arg, thread_id)
+        tag_all_members_batches(chat_id, arg, thread_id)
         return
     elif cmd == "/rules":
         c_key = str(chat_id)
@@ -1536,19 +1555,19 @@ def handle_message(msg: dict):
         register_group(chat_id)
         record_group_member(chat_id, from_user)
 
-    # 🎙️ پەیوەندی دەنگی (Voice / Video Chat Started Notification & Auto Tag)
+    # 🎙️ پەیوەندی دەنگی (Voice / Video Chat Started Notification - بێ تاگکردن تەنها ١ پەیام)
     if any(k in msg for k in ["video_chat_started", "voice_chat_started"]):
-        print(f"🎙️ Voice chat started detected in {chat_id}! Tagging all members...")
-        tag_all_members_for_voice_chat(chat_id, "", thread_id)
+        print(f"🎙️ Voice chat started detected in {chat_id}! Sending single notification...")
+        send_voice_chat_notification(chat_id, thread_id)
         return
 
     text = msg.get("text") or msg.get("caption") or ""
     print(f"📩 [{chat_type.upper()}] {display_name} (ID: {user_id}): {text if text else '[Media/Sticker/Other]'}")
 
-    # 📢 تاگکردنی هەموو میمبەرەکان بە نووسینی @all لەگەڵ دەقی دڵخواز (تەنها بۆ ئەدمین)
+    # 📢 تاگکردنی هەموو میمبەرەکان ٥ بە ٥ بە نووسینی @all (تەنها بۆ ئەدمین)
     if "@all" in text.lower() and is_admin(chat_id, user_id):
         custom_txt = re.sub(r'(?i)@all', '', text).strip()
-        tag_all_members_for_voice_chat(chat_id, custom_txt, thread_id)
+        tag_all_members_batches(chat_id, custom_txt, thread_id)
         return
 
     # 🌸 بەخێرهاتنی ئەندامانی نوێ و دژە-بۆت (Anti-Bot)
