@@ -957,7 +957,7 @@ def record_group_member(chat_id: int, user_obj: dict):
     save_state()
 
 def tag_all_members_for_voice_chat(chat_id: int, custom_text: str = "", thread_id: int = 0):
-    """تاگکردنی میمبەرەکان بە گروپی ٥ کەسی هاوشێوەی Mention Robot و سڕینەوەی پاش ۳۰ خولەک"""
+    """تاگکردنی میمبەرەکان لە تەنها یەک نامەی شاز و ڕێک و پێکدا بێ دووبارەبوونەوە و سڕینەوەی پاش ۳۰ خولەک"""
     c_key = str(chat_id)
     known_members = {}
     if "members" in state_data and c_key in state_data["members"]:
@@ -996,33 +996,34 @@ def tag_all_members_for_voice_chat(chat_id: int, custom_text: str = "", thread_i
         if res and isinstance(res, dict) and res.get("result", {}).get("message_id"):
             sent_msg_ids.append(res["result"]["message_id"])
     else:
+        # کۆکردنەوەی هەموو تاگەکان لە تەنها یەک پەیامی پاک و ڕێک و پێکدا
         mentions = []
         for udata in non_admin_members:
             first = html.escape(udata.get("first_name", "هاوڕێ"))
             uid = udata.get("id")
             mentions.append(f'<a href="tg://user?id={uid}">{first}</a>')
 
-        # دابەشکردنی تاگەکان بۆ ٥ ئەندام لە هەر پەیامێکدا ڕێک وەک Mention Robot
-        chunks = [mentions[i:i + 5] for i in range(0, len(mentions), 5)]
-        for chunk in chunks:
-            tags_str = " , ".join(chunk)
-            msg_content = f"<b>{header_text}</b>\n{tags_str}"
-            res = send_message(chat_id, msg_content, 0, thread_id)
-            if res and isinstance(res, dict) and res.get("result", {}).get("message_id"):
-                sent_msg_ids.append(res["result"]["message_id"])
-            time.sleep(1.5)
+        tags_str = " , ".join(mentions)
+        msg_content = (
+            f"<b>{header_text}</b>\n\n"
+            f"👥 <b>ئەندامان:</b>\n{tags_str}\n\n"
+            f"⏳ <i>(ئەم پەیامە پاش ۳۰ خولەک بە خۆکاری دەسڕدرێتەوە)</i>"
+        )
+        res = send_message(chat_id, msg_content, 0, thread_id)
+        if res and isinstance(res, dict) and res.get("result", {}).get("message_id"):
+            sent_msg_ids.append(res["result"]["message_id"])
 
-    # سڕینەوەی خۆکاری نامەی تاگەکان دوای ۳۰ خولەک (1800 چرکە)
+    # سڕینەوەی خۆکاری نامەی تاگ دوای ۳۰ خولەک (1800 چرکە)
     if sent_msg_ids:
         def auto_delete_tags(cid, mids):
             time.sleep(1800)
             for mid in mids:
                 try:
                     delete_message(cid, mid)
-                except Exception as e:
+                except Exception:
                     pass
         threading.Thread(target=auto_delete_tags, args=(chat_id, sent_msg_ids), daemon=True).start()
-        print(f"🎙️ Auto-tagged {len(non_admin_members)} members in batches of 5 in {chat_id}. Auto-delete in 30m.")
+        print(f"🎙️ Auto-tagged {len(non_admin_members)} members in 1 clean message in {chat_id}. Auto-delete in 30m.")
 
 def get_sticker_comment(sticker_obj: dict) -> str:
     if not sticker_obj:
