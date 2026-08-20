@@ -1666,12 +1666,12 @@ def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int 
         channel_text = f"@{html.escape(group_username)} ✨" if group_username else f"تایبەت بە گروپی {group_title} ✨"
 
     welcome_caption = (
-        f"بەخێربێیت بۆ گروپی {group_title}، دووربە لە هەموو کێشەیەک 🌸\n"
-        f"گروپەکەمان بە بوونی تۆ ئاوەدانە 🏡\n"
-        f"بەشداری چات بە لەگەڵمان تا پێکەوە شاد بین 🥰\n\n"
-        f"👤 <b>ناوت:</b> {m_first}\n"
-        f"🏷️ <b>یوزەرت:</b> {username_display}\n"
-        f"📢 <b>چەناڵی {group_title}:</b> {channel_text}\n"
+        f"<b>بەخێربێیت بۆ گروپی {group_title}، دووربە لە هەموو کێشەیەک</b> 🌸\n"
+        f"<b>گروپەکەمان بە بوونی تۆ ئاوەدانە</b> 🏡\n"
+        f"<b>بەشداری چات بە لەگەڵمان تا پێکەوە شاد بین</b> 🥰\n\n"
+        f"👤 <b>ناوت: {m_first}</b>\n"
+        f"🏷️ <b>یوزەرت: {username_display}</b>\n"
+        f"📢 <b>چەناڵی {group_title}: {channel_text}</b>\n"
         f"👑 <b>ئۆنەری {group_title}:</b>\n"
         f"{owner_text}"
     )
