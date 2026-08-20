@@ -20,20 +20,37 @@ import main_bot
 app = Flask(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Background Scheduler Management
+#  Background Scheduler & Keep-Alive 24/7 Management
 # ═══════════════════════════════════════════════════════════════════════════════
 
 scheduler_thread = None
+keepalive_thread = None
 scheduler_lock = threading.Lock()
 
+def keep_alive_worker():
+    """Pings the web app every 3 minutes so PythonAnywhere WSGI worker never goes to sleep."""
+    import time
+    import requests
+    time.sleep(20)
+    while True:
+        try:
+            requests.get("https://ramanyousif2002.pythonanywhere.com/health", timeout=15)
+        except Exception:
+            pass
+        time.sleep(180)
+
 def ensure_scheduler_running():
-    """Make sure the background scheduler (mirror hours & prayer times) is running."""
-    global scheduler_thread
+    """Make sure the background scheduler (mirror hours & prayer times) and keep-alive are running."""
+    global scheduler_thread, keepalive_thread
     with scheduler_lock:
         if scheduler_thread is None or not scheduler_thread.is_alive():
             scheduler_thread = threading.Thread(target=main_bot.background_scheduler, daemon=True)
             scheduler_thread.start()
             print("⏰ Background scheduler (re)started!")
+        if keepalive_thread is None or not keepalive_thread.is_alive():
+            keepalive_thread = threading.Thread(target=keep_alive_worker, daemon=True)
+            keepalive_thread.start()
+            print("🔄 Keep-alive 24/7 pinger started!")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Flask Routes

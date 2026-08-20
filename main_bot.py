@@ -610,9 +610,10 @@ def register_group(chat_id: int):
 def clean_ai_text(text: str) -> str:
     if not text:
         return ""
+    # لابردنی تاگی بیرکردنەوە لە مۆدێلە ڕیزنینگەکان
+    text = re.sub(r'(?is)<think>.*?</think>', '', text)
     clean = re.sub(r'(?im)^\s*@?[a-zA-Z0-9_]+:\s*', '', text)
     clean = re.sub(r'(?im)^\s*(system note|translation note|note|translation)\s*[::-].*$', '', clean)
-    clean = re.sub(r'\([^()\r\n]*\)', '', clean)
     if re.search(r'[\u0900-\u097F]', clean):
         return ""
     return clean.strip()
@@ -630,15 +631,36 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     if smart:
         return smart
 
-    # 🌟 Try Google Gemini first (best Kurdish support)
+    # 🌟 ١. پەیوەندی بە مۆتۆری خێرای Groq (openai/gpt-oss-120b) بە تۆکنی تەواو بێ پچڕان
+    if groq_client:
+        models_to_try = [config.get("groqModel", "openai/gpt-oss-120b"), "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b"]
+        for g_model in models_to_try:
+            try:
+                res = groq_client.chat.completions.create(
+                    model=g_model,
+                    messages=[
+                        {"role": "system", "content": AI_SYSTEM_PROMPT},
+                        {"role": "user", "content": question}
+                    ],
+                    max_tokens=600,
+                    temperature=0.7
+                )
+                answer = res.choices[0].message.content
+                answer = clean_ai_text(answer)
+                if answer:
+                    return answer
+            except Exception as e:
+                print(f"Groq Model Error ({g_model}): {e}")
+
+    # 🌟 ۲. پشتیوانی دووەم (Google Gemini)
     if GEMINI_API_KEY:
-        for gem_model in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-flash-lite-latest"]:
+        for gem_model in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
                 body = {
                     "contents": [{"parts": [{"text": question}]}],
                     "systemInstruction": {"parts": [{"text": AI_SYSTEM_PROMPT}]},
-                    "generationConfig": {"maxOutputTokens": 200, "temperature": 0.8}
+                    "generationConfig": {"maxOutputTokens": 600, "temperature": 0.8}
                 }
                 r = requests.post(url, json=body, timeout=15)
                 if r.status_code == 200:
@@ -653,25 +675,6 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                     continue
             except Exception as e:
                 print(f"Gemini Error ({gem_model}): {e}")
-
-    # 🔄 Fallback to Groq
-    if groq_client:
-        try:
-            res = groq_client.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[
-                    {"role": "system", "content": AI_SYSTEM_PROMPT},
-                    {"role": "user", "content": question}
-                ],
-                max_tokens=150,
-                temperature=0.7
-            )
-            answer = res.choices[0].message.content
-            answer = clean_ai_text(answer)
-            if answer:
-                return answer
-        except Exception as e:
-            print("Groq Error:", e)
 
     return "گیان دەتوانیت دووبارە ڕوونی بکەیتەوە؟ لە خزمەتدام! 🌸😊"
 
