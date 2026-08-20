@@ -1495,7 +1495,7 @@ def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int 
         f"بەشداری چات بە لەگەڵمان تا پێکەوە شاد بین 🥰\n\n"
         f"👤 <b>ناوت:</b> {m_first}\n"
         f"🏷️ <b>یوزەرت:</b> {username_display}\n"
-        f"📢 <b>چەناڵی {group_title}:</b> {channel_text}\n\n"
+        f"📢 <b>چەناڵی {group_title}:</b> {channel_text}\n"
         f"👑 <b>ئۆنەری {group_title}:</b>\n"
         f"{owner_text}"
     )
