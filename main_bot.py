@@ -978,8 +978,150 @@ KURDISH_QUIZZES = [
         "question": "چییە شەوانە ئەگەر کلیلەکەی بسووڕێنیت دەرگا دادەخات بۆ پاراستنی ماڵ؟",
         "answers": ["قوفڵ", "کلیل", "qufl", "lock"],
         "display_answer": "قوفڵ 🔒"
+    },
+    # 🎭 مەتەڵە کۆمیدی و خۆش و پێکەنیناوییەکان (Comedy & Funny Riddles)
+    {
+        "question": "چییە سپییە، دەفڕێت و لە کاتی شەڕە چەقۆدا لە دەم دێتە دەرەوە؟ 😂",
+        "answers": ["ددان", "ددانە", "ddan", "tooth"],
+        "display_answer": "ددان کاتێک زلەیەکت لێ دەدەن! 🦷😂"
+    },
+    {
+        "question": "بۆچی مریشک ناتوانێت پێڵاو لەپێ بکات؟ 🐔😂",
+        "answers": ["قەیتان", "قەیتانی پێڵاو", "دەست", "دەستی نییە", "qaytan"],
+        "display_answer": "چونکە دەستی نییە قەیتانی پێڵاوەکەی ببەستێتەوە! 👟🐔😂"
+    },
+    {
+        "question": "چییە دەچێتە ناو سەلاجە و ئەگەر دەرگاکەی بکەیتەوە سارد دەبێت؟ 🐘😂",
+        "answers": ["فیل", "فیلەکە", "fil", "elephant"],
+        "display_answer": "فیلێک کە دەرگای سەلاجەکەی بۆ بکەیتەوە و بیخەیتە ناوی! 🐘🧊😂"
+    },
+    {
+        "question": "چییە کە بە هەڵە بنووسرێت ڕاستە، بەڵام کە بە ڕاستی بنووسرێت هەڵەیە؟ 🧠😂",
+        "answers": ["هەڵە", "وشەی هەڵە", "وشەی هه‌ڵه‌", "hala"],
+        "display_answer": "وشەی (هەڵە)! 📝😂"
+    },
+    {
+        "question": "چییە یەک گوێی هەیە بەڵام ئەگەر هەرچەندە هاواریش بکەیت نابیستێت؟ ☕😂",
+        "answers": ["فنجان", "فنجانی چا", "کوپ", "قۆری", "fnjan", "cup"],
+        "display_answer": "فنجانی چا یان کوپ! ☕👂😂"
+    },
+    {
+        "question": "بۆچی کاتژمێر دەست و پەنجەی هەیە بەڵام هەرگیز چەپڵە لێنادات؟ ⏰😂",
+        "answers": ["دڵ", "چەپڵە", "دەستی نییە", "پەنجە", "باتری", "chapla"],
+        "display_answer": "چونکە مۆسیقا ژەندن نازانێت و بێدەنگە! 👏⏰😂"
+    },
+    {
+        "question": "چییە دەتوانیت بە چاوی چەپت بیبینیت بەڵام هەرگیز بە چاوی ڕاستت نایبینیت؟ 👀😂",
+        "answers": ["چاوی ڕاست", "چاوی راست", "چاو", "chawi rast"],
+        "display_answer": "چاوی ڕاستت خۆت! 👁️😂"
+    },
+    {
+        "question": "چییە لە کۆتایی هەموو وتار و نامە و قسەیەکدا هەمیشە دێت؟ ✍️😂",
+        "answers": ["خاڵ", "خاڵە", "نوقتە", "point", "dot"],
+        "display_answer": "خاڵ (.) لە کۆتایی ڕستە! 🔴😂"
+    },
+    {
+        "question": "چییە بە دەنگی بەرز پێدەکەنێت بەڵام کاتێک دەمی دەکەیتەوە هیچ ددانی تێدا نییە؟ 👶😂",
+        "answers": ["منداڵ", "ساوا", "کۆرپە", "mndal", "baby"],
+        "display_answer": "منداڵی ساوا و شیرەخۆرە! 👶🍼😂"
+    },
+    {
+        "question": "چییە زۆر خێرا ڕادەکات بەڵام قاچی نییە، کاتێکیش پێت دەگات دڵت کەیفخۆش دەکات؟ 💸😂",
+        "answers": ["پارە", "موعاش", "ڕاتب", "مووچە", "para", "money"],
+        "display_answer": "پارە و مووچەی سەری مانگ! 💵💰😂"
+    },
+    {
+        "question": "بۆچی ماسی هەرگیز لە قوتابخانە و تاقیکردنەوە دەرناچێت؟ 🐟😂",
+        "answers": ["مێشک", "خوێندن", "ئاو", "پێنووس", "ژێر ئاو"],
+        "display_answer": "چونکە هەمیشە مێشکی لە ژێر ئاوە و دەفتەرەکەی تەڕ دەبێت! 🌊🐟😂"
+    },
+    {
+        "question": "چییە کاتێک باران دەبارێت یەکەم کەس دەچێتە ماڵەوە و دەخەوێت؟ 🐌😂",
+        "answers": ["کیسەڵ", "شەیتانۆکە", "حلزۆن", "kesal"],
+        "display_answer": "شەیتانۆکە (حلزۆن) دەچێتە ناو ماڵەکەی خۆی! 🐌🌧️😂"
+    },
+    {
+        "question": "چییە هەموو کەسێک دەتوانێت بە ئاسانی فڕێی بدات بەڵام زۆر بە زەحمەت دەتوانێت هەڵی بگریتەوە؟ 🗣️😂",
+        "answers": ["قسە", "قسەی ناشرین", "قسەی هەڵە", "نهێنی", "qsa"],
+        "display_answer": "قسەیەک کە لە دەم دەردەچێت! 💬😂"
+    },
+    {
+        "question": "چییە بە شەودا ئەگەر برسی بێت دێتە سەر پێستت و پێت دەڵێت وززززز؟ 🦟😂",
+        "answers": ["مێشولە", "مێشولەیە", "پشیلە", "meshula", "mosquito"],
+        "display_answer": "مێشولەی هاوینان! 🦟😂"
+    },
+    {
+        "question": "چییە کاتێک لە دەستت دەکەوێتە خوارەوە ناشکێت، بەڵام ئەگەر بیخەیتە ناو ئاو وون دەبێت؟ 📄😂",
+        "answers": ["کاغەز", "کلێنس", "پەڕە", "kaghaz", "tissue"],
+        "display_answer": "کاغەز یان کلێنس! 🧻😂"
+    },
+    {
+        "question": "چییە لە دایک دەبێت بە ڕەشی، بەکاردێت بە سووری، و فڕێدەدرێت بە خۆڵەمێشی؟ 🔥😂",
+        "answers": ["خەڵووز", "خەڵوز", "پشکۆ", "xaluz", "coal"],
+        "display_answer": "خەڵووزی نێرگەلە و کەباب! 🪵🔥😂"
+    },
+    {
+        "question": "بۆچی ئەستێرەکان تەنها بە شەودا دەردەکەون؟ ⭐😂",
+        "answers": ["خەو", "ڕۆژ", "خۆر", "شەرم", "ڕۆژدا کار دەکەن"],
+        "display_answer": "چونکە بە ڕۆژدا خەریکی خەوتن و پشوودانن! 😴⭐😂"
+    },
+    {
+        "question": "چییە لە ناو چێشتخانەدا هەموو کەسێک دەترسێنێت ئەگەر پەنجەی لێ بدەیت؟ 🌶️😂",
+        "answers": ["بیبەر", "بیبەری توند", "چەقۆ", "bebar", "pepper"],
+        "display_answer": "بیبەری تووند کە دەستت دەسوتێنێت! 🌶️🔥😂"
+    },
+    {
+        "question": "بۆچی فیل ناتوانێت پایسکل لێبخوڕێت؟ 🚲🐘😂",
+        "answers": ["قاچ", "قورسە", "پەنجە", "پایسکلی نییە", "زەنگ"],
+        "display_answer": "چونکە زەنگی پایسکلەکە بە خرتی فیل لێنادرێت! 🔔🐘😂"
+    },
+    {
+        "question": "چییە کاتێک لەگەڵ هاوڕێکانت دەخۆیت زۆر خۆشە بەڵام کاتێک بە تەنیا دەیخۆیت زوو تەواو دەبێت؟ 🍕😂",
+        "answers": ["پیتزا", "شیرینی", "کێک", "pizza", "xwardn"],
+        "display_answer": "پیتزای گەورەی هاوڕێیانە! 🍕😋😂"
+    },
+    {
+        "question": "چییە هەموو بەیانییەک بانگت دەکات و دەڵێت هەستە، بەڵام خۆی قاچی نییە و ناڕوات بۆ دەوام؟ ⏰😂",
+        "answers": ["مۆبایل", "ئاڵارم", "کاتژمێر", "alarm", "clock"],
+        "display_answer": "ئاڵارمی مۆبایل و کاتژمێر! ⏰😴😂"
+    },
+    {
+        "question": "چییە لە باخچەدا سەوزە، لە دوکاندا ڕەشە، و لە ماڵەوە کاتێک دەیخۆیتەوە سوورە؟ ☕😂",
+        "answers": ["چا", "چای", "چایە", "cha", "tea"],
+        "display_answer": "چای کوردی! 🫖☕😂"
     }
 ]
+
+def generate_ai_kurdish_riddle(is_comedy: bool = False) -> dict:
+    """دروستکردنی مەتەڵی نوێ و بێسنووری کوردی بە ژیریی دەستکرد (AI) - هەزاران مەتەڵی نوێ"""
+    if not groq_client:
+        return None
+    try:
+        topic_hint = "مەتەڵێکی زۆر کۆمیدی، گاڵتەجاڕی و پێکەنیناوی کوردی بێت 😂🎭" if is_comedy else "مەتەڵێکی کلتووری، فیکری یان زانستی کوردی بێت 🧠✨"
+        prompt = (
+            f"وەک پسپۆڕێکی کەلتووری و گاڵتەوگەپی کوردی، {topic_hint}.\n"
+            "پێویستە بە زمانی شیرینی کوردی (سۆرانی) بێت.\n"
+            "تەنها و تەنها JSON بگەڕێنەرەوە بەم فۆرماتە وردە:\n"
+            "{\n"
+            '  "question": "دەقی مەتەڵەکە بە کوردی",\n'
+            '  "answers": ["وەڵامی سەرەکی", "وەڵامی دووەم", "وەڵام بە لاتینی"],\n'
+            '  "display_answer": "وەڵامە تەواوەکە لەگەڵ ئیمۆجی و ڕوونکردنەوەی کورت"\n'
+            "}"
+        )
+        res = groq_client.chat.completions.create(
+            model=config.get("groqModel", "openai/gpt-oss-120b"),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.9,
+            max_tokens=220,
+            response_format={"type": "json_object"}
+        )
+        raw = res.choices[0].message.content.strip()
+        data = json.loads(raw)
+        if "question" in data and "answers" in data and "display_answer" in data:
+            return data
+    except Exception as e:
+        print(f"AI Riddle Gen Notice: {e}")
+    return None
 
 def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
     """بەڕێوەبردنی خولەکانی ٤ جۆری یارییە بەکۆمەڵەکان بە سیستەمی زیرەکی بێ-دووبارەبوونەوە"""
@@ -1073,21 +1215,29 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         send_message(chat_id, msg, 0, thread_id)
 
     elif game_type == 4:
-        # ❓ ٤. یاریی مەتەڵی کوردی (Riddles) بێ دووبارەبوونەوە
+        # ❓ ٤. یاریی مەتەڵی کوردی (Riddles) - تێکەڵەی سەدان مەتەڵی ئۆفلاین و دروستکردنی بێسنووری AI
         if "used_quizzes" not in state_data:
             state_data["used_quizzes"] = {}
         if c_key not in state_data["used_quizzes"]:
             state_data["used_quizzes"][c_key] = []
             
         used_set = set(state_data["used_quizzes"][c_key])
-        candidates = [q for q in KURDISH_QUIZZES if q["question"] not in used_set]
         
-        # ئەگەر هەموو مەتەڵەکان تەواوبوون، لە سەرەتاوە بە هەڕەمەکی دەست پێدەکاتەوە
-        if not candidates:
-            state_data["used_quizzes"][c_key] = []
-            candidates = list(KURDISH_QUIZZES)
+        # ۳۰٪ ئەگەری هەیە مەتەڵی نوێ بە AI دروست بکرێت ئەگەر ئینتەرنێت هەبێت
+        q = None
+        if random.random() < 0.35:
+            is_comedy_turn = random.random() < 0.5
+            ai_q = generate_ai_kurdish_riddle(is_comedy=is_comedy_turn)
+            if ai_q and ai_q.get("question") not in used_set:
+                q = ai_q
+                
+        if not q:
+            candidates = [item for item in KURDISH_QUIZZES if item["question"] not in used_set]
+            if not candidates:
+                state_data["used_quizzes"][c_key] = []
+                candidates = list(KURDISH_QUIZZES)
+            q = random.choice(candidates)
             
-        q = random.choice(candidates)
         state_data["used_quizzes"][c_key].append(q["question"])
         
         state_data["active_game"][c_key] = {
