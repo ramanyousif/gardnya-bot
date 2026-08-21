@@ -703,20 +703,306 @@ KURDISH_QUIZZES = [
         "question": "چییە ددانی زۆری هەیە بەڵام هەرگیز ناتوانێت گازی لێ بگرێت؟",
         "answers": ["شانە", "مەشانە", "شانه", "shana", "comb"],
         "display_answer": "شانەی قژ 💇‍♂️"
+    },
+    {
+        "question": "چییە ئەگەر نانی پێ بدەیت دەژی و گەشە دەکات، بەڵام ئەگەر ئاوی پێ بدەیت دەمرێت؟",
+        "answers": ["ئاگر", "پشکۆ", "agir", "fire"],
+        "display_answer": "ئاگر 🔥"
+    },
+    {
+        "question": "چییە بەردەوام بە دواتدا دەڕوات بەڵام هەرگیز ناتوانیت دەستی لێ بدەیت یان بیگریت؟",
+        "answers": ["سێبەر", "سێبەرەکەت", "سیبەر", "sebar", "shadow"],
+        "display_answer": "سێبەر 👤"
+    },
+    {
+        "question": "چییە تەنها کاتێک دەیشکێنیت دەتوانیت بەکاری بهێنیت و بیخۆیت؟",
+        "answers": ["هێلکە", "هێلکه", "هیلکە", "helka", "egg"],
+        "display_answer": "هێلکە 🥚"
+    },
+    {
+        "question": "چییە سەری دەبڕیت و لە جیاتی ئەو تۆ فرمێسک دەڕێژیت و بۆی دەگریت؟",
+        "answers": ["پیاز", "پیازە", "pyaz", "onion"],
+        "display_answer": "پیاز 🧅"
+    },
+    {
+        "question": "چییە پڕە لە کون بەڵام ئاو لە خۆیدا ڕادەگرێت؟",
+        "answers": ["ئیسفەنج", "ئسفەنج", "sponge", "isfanj"],
+        "display_answer": "ئیسفەنج 🧽"
+    },
+    {
+        "question": "چییە کلیلێکی زۆری هەیە بەڵام هیچ دەرگایەک ناکاتەوە؟",
+        "answers": ["پیانۆ", "پیانو", "ساز", "piano"],
+        "display_answer": "پیانۆ 🎹"
+    },
+    {
+        "question": "چییە پێش ئەوەی دایگیرسێنیت درێژە، بەڵام لە کاتی سووتان و بەکارهێناندا کورت دەبێتەوە؟",
+        "answers": ["مۆم", "مۆمە", "mom", "candle"],
+        "display_answer": "مۆم 🕯️"
+    },
+    {
+        "question": "چییە هەموو ژوورەکانی ماڵ دەگەڕێت و لە کۆتاییدا لە سووچێکدا دەوەستێت؟",
+        "answers": ["گسک", "گسکەدەم", "گسکە کارەبایی", "gsk", "broom"],
+        "display_answer": "گسک 🧹"
+    },
+    {
+        "question": "چییە پێستی سەوزە، ناوەکەی سوورە و دەنکەکانی ڕەشن؟",
+        "answers": ["شووتی", "شوتی", "shuti", "watermelon"],
+        "display_answer": "شووتی 🍉"
+    },
+    {
+        "question": "چییە شار و وڵاتی هەیە بێ خانووبەرە، ڕووباری هەیە بێ ئاو، و دارستانی هەیە بێ دار؟",
+        "answers": ["نەخشە", "نەخشه", "naxsha", "map"],
+        "display_answer": "نەخشەی جیهان 🗺️"
+    },
+    {
+        "question": "چییە قسەی لەگەڵ دەکەیت وەڵامت ناداتەوە، بەڵام هەموو ڕوخسارت وەک خۆت پیشان دەداتەوە؟",
+        "answers": ["ئاوێنە", "ئاوێنه", "awena", "mirror"],
+        "display_answer": "ئاوێنە 🪞"
+    },
+    {
+        "question": "چییە باڵی نییە بەڵام دەفڕێت، چاوی نییە بەڵام بە کوڵ دەگریت؟",
+        "answers": ["هەور", "ھەور", "hewr", "cloud"],
+        "display_answer": "هەور ☁️🌧️"
+    },
+    {
+        "question": "چییە بەردەوام دەڕوات و یەک چرکەش ناوەستێت، بەڵام هەرگیز لە شوێنی خۆی جوڵە ناکات؟",
+        "answers": ["کاتژمێر", "کات", "saat", "katjmer"],
+        "display_answer": "کاتژمێر ⏰"
+    },
+    {
+        "question": "چییە لە بەیانیاندا بە چوار پێ، لە نیوەڕۆدا بە دوو پێ، و لە ئێواراندا بە سێ پێ دەڕوات؟",
+        "answers": ["مرۆڤ", "ئادەمیزاد", "مروف", "mrov", "human"],
+        "display_answer": "مرۆڤ (منداڵی، گەنجی، پیری) 🚶‍♂️"
+    },
+    {
+        "question": "چییە هەرچەندە بیبەستیتەوە خێراتر دەڕوات؟",
+        "answers": ["پێڵاو", "قەیتان", "قەیتانی پێڵاو", "pelaw", "shoes"],
+        "display_answer": "پێڵاو (قەیتان) 👟"
+    },
+    {
+        "question": "چییە گەورە دەبێت بێ ئەوەی تەمەنی زیاد بکات، و بچووک دەبێتەوە بێ ئەوەی کەم ببێت؟",
+        "answers": ["مانگ", "مانگەشەو", "mang", "moon"],
+        "display_answer": "مانگ لە ئاسماندا 🌙"
+    },
+    {
+        "question": "چییە بە دەمدا دەچێت بەڵام قووتی نادەیت و تەنها دەیجوی؟",
+        "answers": ["بنێشت", "بنیست", "bnesht", "gum"],
+        "display_answer": "بنێشت 🍬"
+    },
+    {
+        "question": "چییە کاتێک ناوی دەهێنیت دەستبەجێ دەشکێت و لەناو دەچێت؟",
+        "answers": ["بێدەنگی", "سکووت", "بیدەنگی", "bedangi", "silence"],
+        "display_answer": "بێدەنگی 🤫"
+    },
+    {
+        "question": "چییە سەدان کونی هەیە بەڵام هیچ دەرگایەکی نییە و ئاردی پێدا دەبێژیت؟",
+        "answers": ["بێژنگ", "سۆزن", "بێژینگە", "bezhng", "sieve"],
+        "display_answer": "بێژنگ 🌾"
+    },
+    {
+        "question": "چییە هەموو ڕێبوار و ئۆتۆمبێلەکان بە سەریدا دەڕۆن بەڵام خۆی هەرگیز یەک هەنگاو ناجوڵێت؟",
+        "answers": ["شەقام", "ڕێگا", "کۆڵان", "جادە", "shaqam", "rega"],
+        "display_answer": "شەقام یان ڕێگا 🛣️"
+    },
+    {
+        "question": "چییە قەڵایەکی سوورە و سەربازەکانی ناوەوەی سپین؟",
+        "answers": ["دەم و ددان", "ددان", "دەم", "ddan", "teeth"],
+        "display_answer": "دەم و ددانەکان 👄🦷"
+    },
+    {
+        "question": "چییە ماڵەکەی لەسەر پشتیەتی و زۆر بە هێواشی دەڕوات؟",
+        "answers": ["کیسەڵ", "کیسەل", "کیسەڵە", "kesal", "turtle"],
+        "display_answer": "کیسەڵ 🐢"
+    },
+    {
+        "question": "چییە لە ناو ئاو دەژی و هەناسە دەدات بەڵام ئەگەر بێتە دەرەوەی ئاو دەمرێت؟",
+        "answers": ["ماسی", "ماسیە", "masi", "fish"],
+        "display_answer": "ماسی 🐟"
+    },
+    {
+        "question": "چییە خۆی نابینایە و چاوی نییە بەڵام ڕێگای ڕاست پیشانی کەسانی نابینا و بەساڵاچوو دەدات؟",
+        "answers": ["گۆچان", "دارعەسا", "عەسا", "gochan", "cane"],
+        "display_answer": "گۆچان (دارعەسا) 🦯"
+    },
+    {
+        "question": "چییە هەزاران سەرباز و کرێکاری هەیە بەڵام تەنها یەک شای مێینەی هەیە؟",
+        "answers": ["هەنگ", "شانەی هەنگ", "hang", "bee"],
+        "display_answer": "شانەی هەنگ 🐝🍯"
+    },
+    {
+        "question": "چییە بە ڕۆژدا پڕە لە پێ و بە شەودا کاتێک دەخەویت بەتاڵە؟",
+        "answers": ["پێڵاو", "کەوش", "pelaw", "shoes"],
+        "display_answer": "پێڵاو 👞"
+    },
+    {
+        "question": "چییە دەتوانیت لە دەستتدا بیگریت بەڵام ئەگەر ئاوی لێ بدەیت کەم دەبێتەوە و دەتوێتەوە؟",
+        "answers": ["سابوون", "سابون", "sabun", "soap"],
+        "display_answer": "سابوون 🧼"
+    },
+    {
+        "question": "چییە بێ باڵ دەفڕێت و بێ ددان پەردەی گوێت دەزرنگێنێتەوە و گەڵاکان دەلەرێنێت؟",
+        "answers": ["با", "ڕەشەبا", "شەماڵ", "ba", "wind"],
+        "display_answer": "با (ڕەشەبا) 💨"
+    },
+    {
+        "question": "چییە سەری هەیە و پێی نییە، پشتی هەیە و زگی نییە و لە هەموو ماڵێکدا لەسەری دادەنیشین؟",
+        "answers": ["کورسی", "مێز", "kursi", "chair"],
+        "display_answer": "کورسی 🪑"
+    },
+    {
+        "question": "چییە بێ ئەوەی یەک هەنگاو لە جێی خۆت بجوڵێیت دەتبات بۆ هەموو شوێنێکی دونیا؟",
+        "answers": ["خەیاڵ", "بیرکردنەوە", "خەو", "xayal", "thought"],
+        "display_answer": "خەیاڵ و بیرکردنەوە 💭✨"
+    },
+    {
+        "question": "چییە لە ناو ماڵدا دەبارێت بێ ئەوەی یەک هەور لە ئاسماندا هەبێت؟",
+        "answers": ["دووش", "حەمام", "دوش", "shower", "dush"],
+        "display_answer": "دووشی حەمام 🚿"
+    },
+    {
+        "question": "چییە کە کەم بێت شیرین و تەندروستە، بەڵام کە زۆر بێت تەمبەڵت دەکات؟",
+        "answers": ["خەو", "نووستن", "xaw", "sleep"],
+        "display_answer": "خەو 😴"
+    },
+    {
+        "question": "چییە هەموو مرۆڤێکی سەر زەوی هەیەتی و پەنجەکانی هی هیچ دوو کەسێک لە یەک ناچن؟",
+        "answers": ["پەنجەمۆر", "پەنجە مۆر", "دەستنیشان", "panjamor", "fingerprint"],
+        "display_answer": "پەنجەمۆر 🖐️🔍"
+    },
+    {
+        "question": "چییە لە ناو تەنووردا بە سپێتی دادەنرێت و کاتێک دەبرژێت بە سوورێتی و گەرمی دێتە دەرەوە؟",
+        "answers": ["نان", "نانە", "nan", "bread"],
+        "display_answer": "نان 🍞"
+    },
+    {
+        "question": "چییە پڕە لە سندووقی ئاودار و توێکڵێکی پڕتەقاڵی جوانی هەیە؟",
+        "answers": ["پڕتەقاڵ", "پرتەقال", "لیمۆ", "portaqal", "orange"],
+        "display_answer": "پڕتەقاڵ 🍊"
+    },
+    {
+        "question": "چییە سەری لە ئاسمانە و بەرزە، بەڵام ڕەگ و پێیەکانی لە قووڵایی زەویدان؟",
+        "answers": ["دار", "درەخت", "dar", "tree"],
+        "display_answer": "دار (درەخت) 🌳"
+    },
+    {
+        "question": "چییە باڵندە نییە و نافڕێت بەڵام پڕە لە پەڕ و لە ژێر سەرت دادەنێیت؟",
+        "answers": ["سەرین", "باڵنج", "بالنج", "sarin", "pillow"],
+        "display_answer": "سەرین (باڵنج) 🛏️"
+    },
+    {
+        "question": "چییە هەموو ڕۆژێک لە بەیانیدا لەدایک دەبێت و لە ئێواراندا ئاوا دەبێت و دەمرێت؟",
+        "answers": ["خۆر", "ڕۆژ", "هەتاو", "xor", "sun"],
+        "display_answer": "خۆر (هەتاو) ☀️"
+    },
+    {
+        "question": "چییە لە وەرزی زستاندا دەبارێت و چیایەکان سپیپۆش دەکات؟",
+        "answers": ["بەفر", "بەفرە", "bafr", "snow"],
+        "display_answer": "بەفر ❄️🏔️"
+    },
+    {
+        "question": "چییە لە هەموو ژوور و سووچێکی ماڵدا هەیە و لە هەر چوار لادا کۆتایی دێت؟",
+        "answers": ["گۆشە", "سووچ", "سوچ", "gosha", "corner"],
+        "display_answer": "گۆشە (سووچی ژوور) 📐"
+    },
+    {
+        "question": "چییە دوو برای دوانەن و بەردەوام دەبینن بەڵام هەرگیز ناتوانن یەکتری ببینن بێ ئاوێنە؟",
+        "answers": ["چاو", "چاوەکان", "chaw", "eyes"],
+        "display_answer": "چاوەکان 👀"
+    },
+    {
+        "question": "چییە لەسەر سەر دەڕوێت و بە بڕین درێژتر دەبێتەوە و نایەشێت؟",
+        "answers": ["قژ", "موو", "پرچ", "qzh", "hair"],
+        "display_answer": "قژ (پرچ) 💇"
+    },
+    {
+        "question": "چییە لە دڵی مرۆڤدایە و ئەگەر بۆ یەک چرکە بوەستێت ژیان کۆتایی دێت؟",
+        "answers": ["دڵ", "لێدانی دڵ", "dl", "heart"],
+        "display_answer": "دڵ ❤️"
+    },
+    {
+        "question": "چییە خواردنی هەمەجۆر دەخوات بێ ئەوەی قەڵەو بێت و دەبێتە سووتەمەنی؟",
+        "answers": ["ئۆتۆمبێل", "سەیارە", "car", "sayara"],
+        "display_answer": "ئۆتۆمبێل 🚗"
+    },
+    {
+        "question": "چییە دەتوانیت لە ڕێگەیەوە لەگەڵ کەسانی دوور لە خۆت بە دەنگ و ڕەنگ قسە بکەیت؟",
+        "answers": ["مۆبایل", "تەلەفۆن", "دەستەوانە", "mobile", "phone"],
+        "display_answer": "مۆبایل (تەلەفۆن) 📱"
+    },
+    {
+        "question": "چییە لە زستاندا خواردن سارد دەکات و لە هاویندا بەستوو دەیهێڵێتەوە؟",
+        "answers": ["سەلاجە", "فرێزەر", "بەفرگر", "salaja", "fridge"],
+        "display_answer": "سەلاجە (بەفرگر) 🧊❄️"
+    },
+    {
+        "question": "چییە پڕە لە چیرۆک و فیلم بێ ئەوەی مرۆڤ بێت و لە سەر دیوار هەڵواسراوە؟",
+        "answers": ["تەلەڤزیۆن", "تیڤی", "tv", "television"],
+        "display_answer": "تەلەڤزیۆن (TV) 📺"
+    },
+    {
+        "question": "چییە بە شەودا ئەستێرەکان دەدرەوشێنێتەوە و ڕۆژدا بە خۆر ڕووناک دەبێتەوە؟",
+        "answers": ["ئاسمان", "گەردوون", "asman", "sky"],
+        "display_answer": "ئاسمان 🌌"
+    },
+    {
+        "question": "چییە چوار پێی هەیە بەڵام ناتوانێت یەک هەنگاویش بهاوێژێت و قاپ و نانی لەسەر دادەنێیت؟",
+        "answers": ["مێز", "مێزی نانخواردن", "mez", "table"],
+        "display_answer": "مێز 🪵"
+    },
+    {
+        "question": "چییە کە بۆنی خۆشە و گوڵەباخ و نێرگز بەرهەمی دەهێنن؟",
+        "answers": ["گوڵ", "بۆن", "عەتر", "gul", "flower"],
+        "display_answer": "گوڵ 🌸💐"
+    },
+    {
+        "question": "چییە لە مانگی ڕەمەزاندا دەخورێت و بەناوبانگە بە خورمای بەسرە و بەغدا؟",
+        "answers": ["خورما", "خورمایە", "xurma", "dates"],
+        "display_answer": "خورما 🌴"
+    },
+    {
+        "question": "چییە مرۆڤ لە بێستاندا دەیکێڵێت و لە کۆتایی هاویندا ترێی لێ دەکاتەوە؟",
+        "answers": ["ڕەز", "مێو", "دارترێ", "rez", "vineyard"],
+        "display_answer": "ڕەز (مێوی ترێ) 🍇"
+    },
+    {
+        "question": "چییە کاتێک لە ئاگر دایبنێیت ئاوی تێدایە و چای پێ لێدەنێیت؟",
+        "answers": ["قۆری", "چایدان", "کتری", "qori", "kettle"],
+        "display_answer": "قۆری یان چایدان 🫖"
+    },
+    {
+        "question": "چییە لە دایک دەبێت بە سپێتی و دەتوێتەوە لە ناو چادا؟",
+        "answers": ["شەکر", "قەند", "shakar", "sugar"],
+        "display_answer": "شەکر (قەند) 🧂"
+    },
+    {
+        "question": "چییە شەوانە ئەگەر کلیلەکەی بسووڕێنیت دەرگا دادەخات بۆ پاراستنی ماڵ؟",
+        "answers": ["قوفڵ", "کلیل", "qufl", "lock"],
+        "display_answer": "قوفڵ 🔒"
     }
 ]
 
 def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
-    """بەڕێوەبردنی خولەکانی ٤ جۆری یارییە بەکۆمەڵەکان"""
+    """بەڕێوەبردنی خولەکانی ٤ جۆری یارییە بەکۆمەڵەکان بە سیستەمی زیرەکی بێ-دووبارەبوونەوە"""
     c_key = str(chat_id)
     if "active_game" not in state_data:
         state_data["active_game"] = {}
         
     if game_type == 1:
-        # 🧩 ۱. یاریی وشە تێکئاڵاوەکان (Unscramble)
-        prev = state_data["active_game"].get(c_key, {}).get("word", "")
-        candidates = [item for item in KURDISH_UNSCRAMBLE_WORDS if item["word"] != prev]
-        item = random.choice(candidates if candidates else KURDISH_UNSCRAMBLE_WORDS)
+        # 🧩 ۱. یاریی وشە تێکئاڵاوەکان (Unscramble) بێ دووبارەبوونەوە
+        if "used_unscramble" not in state_data:
+            state_data["used_unscramble"] = {}
+        if c_key not in state_data["used_unscramble"]:
+            state_data["used_unscramble"][c_key] = []
+            
+        used_set = set(state_data["used_unscramble"][c_key])
+        candidates = [item for item in KURDISH_UNSCRAMBLE_WORDS if item["word"] not in used_set]
+        if not candidates:
+            state_data["used_unscramble"][c_key] = []
+            candidates = list(KURDISH_UNSCRAMBLE_WORDS)
+            
+        item = random.choice(candidates)
+        state_data["used_unscramble"][c_key].append(item["word"])
+        
         state_data["active_game"][c_key] = {
             "game_type": 1,
             "word": item["word"],
@@ -736,10 +1022,21 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         send_message(chat_id, msg, 0, thread_id)
         
     elif game_type == 2:
-        # ⚡ ۲. یاریی ڕاستە یان هەڵەیە (True or False)
-        prev = state_data["active_game"].get(c_key, {}).get("question", "")
-        candidates = [item for item in KURDISH_TRUE_FALSE if item["question"] != prev]
-        item = random.choice(candidates if candidates else KURDISH_TRUE_FALSE)
+        # ⚡ ۲. یاریی ڕاستە یان هەڵەیە (True or False) بێ دووبارەبوونەوە
+        if "used_truefalse" not in state_data:
+            state_data["used_truefalse"] = {}
+        if c_key not in state_data["used_truefalse"]:
+            state_data["used_truefalse"][c_key] = []
+            
+        used_set = set(state_data["used_truefalse"][c_key])
+        candidates = [item for item in KURDISH_TRUE_FALSE if item["question"] not in used_set]
+        if not candidates:
+            state_data["used_truefalse"][c_key] = []
+            candidates = list(KURDISH_TRUE_FALSE)
+            
+        item = random.choice(candidates)
+        state_data["used_truefalse"][c_key].append(item["question"])
+        
         state_data["active_game"][c_key] = {
             "game_type": 2,
             "question": item["question"],
@@ -776,10 +1073,23 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         send_message(chat_id, msg, 0, thread_id)
 
     elif game_type == 4:
-        # ❓ ٤. یاریی مەتەڵی کوردی (Riddles)
-        prev = state_data["active_game"].get(c_key, {}).get("question", "")
-        candidates = [q for q in KURDISH_QUIZZES if q["question"] != prev]
-        q = random.choice(candidates if candidates else KURDISH_QUIZZES)
+        # ❓ ٤. یاریی مەتەڵی کوردی (Riddles) بێ دووبارەبوونەوە
+        if "used_quizzes" not in state_data:
+            state_data["used_quizzes"] = {}
+        if c_key not in state_data["used_quizzes"]:
+            state_data["used_quizzes"][c_key] = []
+            
+        used_set = set(state_data["used_quizzes"][c_key])
+        candidates = [q for q in KURDISH_QUIZZES if q["question"] not in used_set]
+        
+        # ئەگەر هەموو مەتەڵەکان تەواوبوون، لە سەرەتاوە بە هەڕەمەکی دەست پێدەکاتەوە
+        if not candidates:
+            state_data["used_quizzes"][c_key] = []
+            candidates = list(KURDISH_QUIZZES)
+            
+        q = random.choice(candidates)
+        state_data["used_quizzes"][c_key].append(q["question"])
+        
         state_data["active_game"][c_key] = {
             "game_type": 4,
             "question": q["question"],
