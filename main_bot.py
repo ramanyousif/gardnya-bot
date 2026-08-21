@@ -370,22 +370,31 @@ def send_message(chat_id: int, text: str, reply_to: int = 0, thread_id: int = 0,
         res = tg_call("sendMessage", body)
     return res
 
-def get_chat_photo_bytes(chat_id: int):
-    """ئەگەر گروپەکە وێنەی پڕۆفایلی هەبێت بە شێوەی باێت دایدەبەزێنێت"""
+def get_chat_latest_photo_bytes(chat_id: int, chat_info: dict = None):
+    """دابەزاندنی نوێترین وێنەی ڕاستەقینەی سەر گروپ لە تێلێگرام لە کاتی گۆڕین یان نوێکردنەوە"""
     try:
-        chat_res = tg_call("getChat", {"chat_id": chat_id})
-        photo_id = chat_res.get("result", {}).get("photo", {}).get("big_file_id") if chat_res else None
+        if not chat_info or not chat_info.get("photo"):
+            chat_res = tg_call("getChat", {"chat_id": chat_id})
+            chat_info = chat_res.get("result", {}) if chat_res else {}
+            
+        photo_info = chat_info.get("photo", {}) if chat_info else {}
+        photo_id = photo_info.get("big_file_id") or photo_info.get("small_file_id")
+        
         if photo_id:
             file_res = tg_call("getFile", {"file_id": photo_id})
             if file_res and file_res.get("ok"):
-                f_path = file_res["result"]["file_path"]
-                url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{f_path}"
-                resp = requests.get(url, timeout=15)
-                if resp.status_code == 200:
-                    return resp.content
+                f_path = file_res.get("result", {}).get("file_path")
+                if f_path:
+                    url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{f_path}"
+                    resp = requests.get(url, timeout=15)
+                    if resp.status_code == 200 and len(resp.content) > 100:
+                        return resp.content
     except Exception as e:
-        print(f"Error fetching group photo bytes: {e}")
+        print(f"Error fetching group live photo bytes ({chat_id}): {e}")
     return None
+
+def get_chat_photo_bytes(chat_id: int):
+    return get_chat_latest_photo_bytes(chat_id)
 
 def send_photo(chat_id: int, photo_source, caption: str, reply_to: int = 0, thread_id: int = 0):
     try:
@@ -2184,15 +2193,14 @@ def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int 
         send_photo(chat_id, user_photo_bytes, welcome_caption, msg_id, thread_id)
         print(f"👋 Sent dynamic welcome card with USER photo to: {m_first} ({username_display})")
     else:
-        # ۳. ئەگەر بەکارهێنەر وێنەی دانەنابوو، وێنەی گروپەکە دادەنێت
-        group_photo_bytes = get_chat_photo_bytes(chat_id)
+        # ۳. ئەگەر بەکارهێنەر وێنەی پڕۆفایلی دانەنابوو، وێنەی نوێ و ڕاستەقینەی سەر گروپەکە دادەنێت
+        group_photo_bytes = get_chat_latest_photo_bytes(chat_id, chat_info)
         if group_photo_bytes:
             send_photo(chat_id, group_photo_bytes, welcome_caption, msg_id, thread_id)
-            print(f"👋 Sent dynamic welcome card with GROUP photo to: {m_first} ({username_display})")
+            print(f"👋 Sent dynamic welcome card with LIVE GROUP photo to: {m_first} ({username_display})")
         else:
-            pat_mat_img = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pat_mat.jpg")
-            send_photo(chat_id, pat_mat_img, welcome_caption, msg_id, thread_id)
-            print(f"👋 Sent dynamic welcome card with DEFAULT photo to: {m_first} ({username_display})")
+            send_message(chat_id, welcome_caption, msg_id, thread_id)
+            print(f"👋 Sent dynamic welcome card (text) to: {m_first} ({username_display})")
 
 def handle_chat_member_update(data: dict):
     if not data:
