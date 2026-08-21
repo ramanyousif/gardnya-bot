@@ -2271,6 +2271,38 @@ def forward_pv_to_owner(sender_user: dict, user_text: str, bot_reply: str = ""):
     send_message(owner_id, report)
     print(f"📬 Forwarded PV chat from {s_name} to owner ({owner_id})")
 
+def normalize_kurdish(s: str) -> str:
+    """ڕێکخستن و یەکسانکردنی پیت و دەنگە کوردی و عەرەبییەکان بۆ لێکتێگەیشتنی تەواوی وەڵامەکان"""
+    if not s:
+        return ""
+    s = s.strip().lower()
+    # Normalize common Kurdish/Arabic glyph variants
+    s = s.replace("ك", "ک").replace("ي", "ی").replace("ى", "ی").replace("ھ", "ه").replace("ە", "ه").replace("ێ", "ی").replace("ة", "ه")
+    # Remove punctuation and special symbols
+    s = re.sub(r'[^\w\s]', '', s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+def is_quiz_answer_match(user_text: str, valid_answers: list) -> bool:
+    """پشکنینی زیرەکانەی وەڵامی بەکارهێنەر لەگەڵ لیستی وەڵامە دروستەکان"""
+    if not user_text or not valid_answers:
+        return False
+    norm_user = normalize_kurdish(user_text)
+    user_words = norm_user.split()
+    
+    for ans in valid_answers:
+        norm_ans = normalize_kurdish(ans)
+        if not norm_ans:
+            continue
+        if norm_ans == norm_user:
+            return True
+        if norm_ans in user_words:
+            return True
+        if re.search(r'\b' + re.escape(norm_ans) + r'\b', norm_user):
+            return True
+        if len(norm_ans) >= 3 and norm_ans in norm_user:
+            return True
+    return False
+
 def handle_message(msg: dict):
     if not msg or "chat" not in msg:
         return
@@ -2398,14 +2430,21 @@ def handle_message(msg: dict):
     if "active_game" in state_data and c_key in state_data["active_game"] and text:
         curr_game = state_data["active_game"][c_key]
         g_type = curr_game.get("game_type", 1)
-        clean_text = text.strip().lower()
+        clean_text = text.strip()
         
+        is_reply_to_bot = False
+        if "reply_to_message" in msg and msg["reply_to_message"]:
+            replied_from = msg["reply_to_message"].get("from", {})
+            if replied_from.get("id") == BOT_ID or replied_from.get("is_bot"):
+                is_reply_to_bot = True
+
         # 🧩 یاریی یەکەم: وشە تێکئاڵاوەکان (Game 1)
         if g_type == 1:
             answers = curr_game.get("answers", [])
-            if any(ans in clean_text for ans in answers) or clean_text == curr_game.get("word", "").lower():
+            target_word = curr_game.get("word", "")
+            if is_quiz_answer_match(clean_text, answers) or is_quiz_answer_match(clean_text, [target_word]):
                 pts = add_user_quiz_point(chat_id, user_id)
-                disp = curr_game.get("display", "")
+                disp = curr_game.get("display", target_word)
                 win_msg = (
                     f"🎉 <b>ئافەرین {display_name} گیان! وشەکەت دۆزییەوە!</b> 👏🌟\n\n"
                     f"✅ <b>وشەی ڕاست:</b> {disp}\n"
@@ -2414,6 +2453,7 @@ def handle_message(msg: dict):
                 )
                 send_message(chat_id, win_msg, msg_id, thread_id)
                 curr_game["answers"] = []
+                curr_game["word"] = ""
                 save_state()
                 def auto_next_g1():
                     time.sleep(3)
@@ -2421,16 +2461,20 @@ def handle_message(msg: dict):
                         send_next_game_round(chat_id, 1, thread_id)
                 threading.Thread(target=auto_next_g1, daemon=True).start()
                 return
+            elif is_reply_to_bot or len(clean_text.split()) <= 3:
+                send_message(chat_id, f"❌ <b>وشەکە دروست نییە {display_name} گیان!</b> پیتەکان جارێکی تر تاقی بکەرەوە 🧩🤔🌸", msg_id, thread_id)
+                return
 
         # ⚡ یاریی دووەم: ڕاست یان هەڵە (Game 2)
         elif g_type == 2:
             correct_ans = curr_game.get("correct_ans", "")
             info = curr_game.get("info", "")
-            user_said_true = any(k in clean_text for k in ["ڕاست", "راست", "rast", "true", "t", "1"])
-            user_said_false = any(k in clean_text for k in ["هەڵە", "هەلە", "hala", "false", "f", "0"])
+            norm_c = normalize_kurdish(clean_text)
+            user_said_true = any(k in norm_c for k in ["ڕاست", "راست", "rast", "true", "t", "1"])
+            user_said_false = any(k in norm_c for k in ["هەڵە", "هەلە", "hala", "false", "f", "0"])
             
             if user_said_true or user_said_false:
-                is_correct = (user_said_true and correct_ans == "ڕاست") or (user_said_false and correct_ans == "هەڵە")
+                is_correct = (user_said_true and "ڕاست" in correct_ans) or (user_said_false and "هەڵە" in correct_ans)
                 if is_correct:
                     pts = add_user_quiz_point(chat_id, user_id)
                     win_msg = (
@@ -2442,6 +2486,7 @@ def handle_message(msg: dict):
                     )
                     send_message(chat_id, win_msg, msg_id, thread_id)
                     curr_game["aliases"] = []
+                    curr_game["correct_ans"] = ""
                     save_state()
                     def auto_next_g2():
                         time.sleep(3)
@@ -2450,9 +2495,8 @@ def handle_message(msg: dict):
                     threading.Thread(target=auto_next_g2, daemon=True).start()
                     return
                 else:
-                    if "reply_to_message" in msg or len(clean_text) <= 6:
-                        send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> کێ دەتوانێت وەڵامی دروست بداتەوە؟ 🤔🌸", msg_id, thread_id)
-                        return
+                    send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> کێ دەتوانێت وەڵامی دروست بداتەوە؟ 🤔🌸", msg_id, thread_id)
+                    return
 
         # 🎯 یاریی سێیەم: دۆزینەوەی ژمارەی نهێنی (Game 3)
         elif g_type == 3:
@@ -2488,7 +2532,7 @@ def handle_message(msg: dict):
         # ❓ یاریی چوارەم: مەتەڵی کوردی (Game 4 / Quiz)
         elif g_type == 4:
             answers = curr_game.get("answers", [])
-            if any(ans in clean_text for ans in answers):
+            if is_quiz_answer_match(clean_text, answers):
                 pts = add_user_quiz_point(chat_id, user_id)
                 disp_ans = curr_game.get("display_answer", "")
                 win_msg = (
@@ -2506,12 +2550,16 @@ def handle_message(msg: dict):
                         send_next_game_round(chat_id, 4, thread_id)
                 threading.Thread(target=auto_next_g4, daemon=True).start()
                 return
+            elif is_reply_to_bot or len(clean_text.split()) <= 4:
+                send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> کەمێکی تر بیری لێ بکەرەوە یان کێ دەتوانێت وەڵامی دروست بداتەوە؟ 🤔🌸", msg_id, thread_id)
+                return
 
     # پشتیوانی مەتەڵی کۆن بۆ active_quiz
     if "active_quiz" in state_data and c_key in state_data["active_quiz"] and text:
         curr_quiz = state_data["active_quiz"][c_key]
-        clean_ans = text.strip().lower()
-        if any(ans in clean_ans for ans in curr_quiz.get("answers", [])):
+        clean_ans = text.strip()
+        answers = curr_quiz.get("answers", [])
+        if is_quiz_answer_match(clean_ans, answers):
             pts = add_user_quiz_point(chat_id, user_id)
             disp_ans = curr_quiz.get("display_answer", "")
             win_msg = (
@@ -2528,6 +2576,9 @@ def handle_message(msg: dict):
                 if "active_quiz" in state_data and c_key in state_data["active_quiz"]:
                     send_next_game_round(chat_id, 4, thread_id)
             threading.Thread(target=auto_next_quiz_thread, daemon=True).start()
+            return
+        elif ("reply_to_message" in msg and msg["reply_to_message"]) or len(clean_ans.split()) <= 4:
+            send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> کەمێکی تر بیری لێ بکەرەوە 🤔🌸", msg_id, thread_id)
             return
 
     # 💬 وەڵامدانەوەی AI بە کوردییەکی زۆر ڕوخۆش و پڕ ئیمۆجی
