@@ -12,6 +12,7 @@ import random
 import threading
 import datetime
 import base64
+import difflib
 import requests
 from pathlib import Path
 
@@ -2367,32 +2368,107 @@ def normalize_kurdish(s: str) -> str:
     if not s:
         return ""
     s = s.strip().lower()
-    # Normalize common Kurdish/Arabic glyph variants
+    # Remove zero-width characters and tatweel
+    s = re.sub(r'[\u200b\u200c\u200d\u200e\u200f\ufeffـ]', '', s)
+    # Remove arabic diacritics
+    s = re.sub(r'[\u064b-\u065f\u0670]', '', s)
+    # Normalize common Kurdish/Arabic glyph variants (وەک مۆبایل / موبایل، ئەسپ / ئەسب، هتد)
     s = s.replace("ك", "ک").replace("ي", "ی").replace("ى", "ی").replace("ھ", "ه").replace("ە", "ه").replace("ێ", "ی").replace("ة", "ه")
+    s = s.replace("ۆ", "و").replace("وو", "و").replace("ڕ", "ر").replace("ڵ", "ل").replace("ڤ", "ف")
     # Remove punctuation and special symbols
     s = re.sub(r'[^\w\s]', '', s)
     return re.sub(r'\s+', ' ', s).strip()
 
-def is_quiz_answer_match(user_text: str, valid_answers: list) -> bool:
-    """پشکنینی زیرەکانەی وەڵامی بەکارهێنەر لەگەڵ لیستی وەڵامە دروستەکان"""
+def get_word_stems(w: str) -> list:
+    """وەرگرتنی ڕەگی وشە بە لابردنی پاشگرە باوەکانی کوردی وەک (ە، ەکە، ێک، ێکە، ان، مان، تان، یان، ی)"""
+    if not w:
+        return []
+    stems = [w]
+    suffixes = ["هکه", "یکه", "یان", "مان", "تان", "ان", "یک", "که", "ه", "ی", "دا", "را"]
+    for suf in suffixes:
+        if len(w) > len(suf) + 2 and w.endswith(suf):
+            stems.append(w[:-len(suf)])
+    return list(set(stems))
+
+def evaluate_quiz_answer(user_text: str, valid_answers: list) -> str:
+    """
+    پشکنینی پێشکەوتووی وەڵامی بەکارهێنەر:
+    دەگەڕێنێتەوە:
+    - 'exact': وەڵامی تەواو ڕاست (یاخود لێکچوونی زۆر زۆر بەرز یان پیتێکی کەم فەرق)
+    - 'close': زۆر لێی نزیک بووەتەوە بەڵام کەمێکی مابوو (نزیکت کردەوە)
+    - 'wrong': وەڵامی هەڵە
+    """
     if not user_text or not valid_answers:
-        return False
+        return "wrong"
+        
     norm_user = normalize_kurdish(user_text)
+    if not norm_user:
+        return "wrong"
+        
     user_words = norm_user.split()
+    user_stems = []
+    for uw in user_words:
+        user_stems.extend(get_word_stems(uw))
+        
+    max_similarity = 0.0
+    is_partially_contained = False
     
     for ans in valid_answers:
         norm_ans = normalize_kurdish(ans)
         if not norm_ans:
             continue
+            
+        ans_words = norm_ans.split()
+        ans_stems = []
+        for aw in ans_words:
+            ans_stems.extend(get_word_stems(aw))
+            
+        # ١. پشکنینی یەکسانیی تەواو
         if norm_ans == norm_user:
-            return True
+            return "exact"
+            
+        # ۲. پشکنینی ڕەگی وشەکان (Stems)
+        if any(us in ans_stems for us in user_stems) or any(as_ in user_stems for as_ in ans_stems):
+            return "exact"
+            
+        # ۳. پشکنینی وشە لەناو ڕستە یان ڕیپڵای
         if norm_ans in user_words:
-            return True
+            return "exact"
+            
         if re.search(r'\b' + re.escape(norm_ans) + r'\b', norm_user):
-            return True
+            return "exact"
+            
         if len(norm_ans) >= 3 and norm_ans in norm_user:
-            return True
-    return False
+            return "exact"
+            
+        # ٤. پشکنینی ڕێژەی لێکچوونی پیتەکان (Similarity Ratio)
+        sim = difflib.SequenceMatcher(None, norm_user, norm_ans).ratio()
+        if sim > max_similarity:
+            max_similarity = sim
+            
+        # ئەگەر وشەکە درێژ بوو و تەنها ۱ پیت جیاواز بوو ➔ ڕاست دادەنرێت
+        if len(norm_ans) >= 4 and sim >= 0.80:
+            return "exact"
+            
+        # پشکنینی وشەکانی ناو وەڵام
+        for uw in user_words:
+            for aw in ans_words:
+                w_sim = difflib.SequenceMatcher(None, uw, aw).ratio()
+                if w_sim > max_similarity:
+                    max_similarity = w_sim
+                if len(aw) >= 4 and w_sim >= 0.80:
+                    return "exact"
+                if len(aw) >= 3 and (uw in aw or aw in uw):
+                    is_partially_contained = True
+
+    # ٥. ئەگەر بەکارهێنەر زۆر نزیک بووبێتەوە (نێوان 0.52 تا 0.79 یان پیتەکانی لەیەک چوو بن)
+    if max_similarity >= 0.52 or is_partially_contained:
+        return "close"
+        
+    return "wrong"
+
+def is_quiz_answer_match(user_text: str, valid_answers: list) -> bool:
+    return evaluate_quiz_answer(user_text, valid_answers) == "exact"
 
 def handle_message(msg: dict):
     if not msg or "chat" not in msg:
@@ -2541,7 +2617,8 @@ def handle_message(msg: dict):
             if g_type == 1:
                 answers = curr_game.get("answers", [])
                 target_word = curr_game.get("word", "")
-                if is_quiz_answer_match(clean_text, answers) or is_quiz_answer_match(clean_text, [target_word]):
+                eval_res = evaluate_quiz_answer(clean_text, answers + [target_word])
+                if eval_res == "exact":
                     pts = add_user_quiz_point(chat_id, user_id)
                     disp = curr_game.get("display", target_word)
                     win_msg = (
@@ -2559,6 +2636,9 @@ def handle_message(msg: dict):
                         if "active_game" in state_data and c_key in state_data["active_game"]:
                             send_next_game_round(chat_id, 1, thread_id)
                     threading.Thread(target=auto_next_g1, daemon=True).start()
+                    return
+                elif eval_res == "close":
+                    send_message(chat_id, f"🤏 <b>زۆر زۆر لێی نزیک بوویتەوە {display_name} گیان!</b> کەمێکی تر پیتەکان ڕێکبخە تەواو دەبێت! 🧩😃🌸", msg_id, thread_id)
                     return
                 else:
                     send_message(chat_id, f"❌ <b>وشەکە دروست نییە {display_name} گیان!</b> پیتەکان جارێکی تر تاقی بکەرەوە 🧩🤔🌸", msg_id, thread_id)
@@ -2606,30 +2686,35 @@ def handle_message(msg: dict):
                 if digits:
                     guess = int(digits[0])
                     secret = curr_game.get("secret", 50)
-                    if 1 <= guess <= 100:
-                        if guess < secret:
-                            send_message(chat_id, f"⬆️ ژمارە نهێنییەکە <b>بەرزترە</b> لە {guess}! ({display_name}) 🌸", msg_id, thread_id)
-                            return
-                        elif guess > secret:
-                            send_message(chat_id, f"⬇️ ژمارە نهێنییەکە <b>نزمترە</b> لە {guess}! ({display_name}) 🌸", msg_id, thread_id)
-                            return
-                        else:
-                            pts = add_user_quiz_point(chat_id, user_id)
-                            win_msg = (
-                                f"🎉 <b>ئافەرین {display_name} گیان! ژمارە نهێنییەکەت دۆزییەوە!</b> 👏🌟\n\n"
-                                f"🎯 <b>ژمارەی نهێنی:</b> {secret}\n"
-                                f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی خاڵەکانت: <b>{pts} خاڵ</b> ✨\n\n"
-                                f"⏳ <i>گەڕی نوێی ژمارە لە چەند چرکەیەکی تردا دەست پێدەکات...</i> 🔢🌸"
-                            )
-                            send_message(chat_id, win_msg, msg_id, thread_id)
-                            curr_game["secret"] = -1
-                            save_state()
-                            def auto_next_g3():
-                                time.sleep(3)
-                                if "active_game" in state_data and c_key in state_data["active_game"]:
-                                    send_next_game_round(chat_id, 3, thread_id)
-                            threading.Thread(target=auto_next_g3, daemon=True).start()
-                            return
+                    diff = abs(guess - secret)
+                    if guess == secret:
+                        pts = add_user_quiz_point(chat_id, user_id)
+                        win_msg = (
+                            f"🎉 <b>ئافەرین {display_name} گیان! ژمارە نهێنییەکەت دۆزییەوە!</b> 👏🌟\n\n"
+                            f"🎯 <b>ژمارەی نهێنی:</b> {secret}\n"
+                            f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی خاڵەکانت: <b>{pts} خاڵ</b> ✨\n\n"
+                            f"⏳ <i>گەڕی نوێی ژمارە لە چەند چرکەیەکی تردا دەست پێدەکات...</i> 🔢🌸"
+                        )
+                        send_message(chat_id, win_msg, msg_id, thread_id)
+                        curr_game["secret"] = -1
+                        save_state()
+                        def auto_next_g3():
+                            time.sleep(3)
+                            if "active_game" in state_data and c_key in state_data["active_game"]:
+                                send_next_game_round(chat_id, 3, thread_id)
+                        threading.Thread(target=auto_next_g3, daemon=True).start()
+                        return
+                    elif diff <= 4:
+                        # زۆر زۆر نزیکە (تەنها چەند ژمارەیەکی کەم فەرقە)
+                        hint_dir = "بەرزترە ⬆️" if guess < secret else "نزمترە ⬇️"
+                        send_message(chat_id, f"🔥 <b>زۆر زۆر لێی نزیکی {display_name} گیان!</b> ژمارەکە تەنها کەمێک {hint_dir} لە {guess}! 🤏😃🌸", msg_id, thread_id)
+                        return
+                    elif guess < secret:
+                        send_message(chat_id, f"⬆️ ژمارە نهێنییەکە <b>بەرزترە</b> لە {guess}! ({display_name}) 🌸", msg_id, thread_id)
+                        return
+                    elif guess > secret:
+                        send_message(chat_id, f"⬇️ ژمارە نهێنییەکە <b>نزمترە</b> لە {guess}! ({display_name}) 🌸", msg_id, thread_id)
+                        return
                 else:
                     send_message(chat_id, f"🔢 <b>تکایە ژمارەیەک بنووسە {display_name} گیان! (١ تا ١٠٠)</b> 🎯🌸", msg_id, thread_id)
                     return
@@ -2637,7 +2722,8 @@ def handle_message(msg: dict):
             # ❓ ٤. یاریی مەتەڵی کوردی (Game 4 / Quiz)
             elif g_type == 4:
                 answers = curr_game.get("answers", [])
-                if is_quiz_answer_match(clean_text, answers):
+                eval_res = evaluate_quiz_answer(clean_text, answers)
+                if eval_res == "exact":
                     pts = add_user_quiz_point(chat_id, user_id)
                     disp_ans = curr_game.get("display_answer", "")
                     win_msg = (
@@ -2654,6 +2740,9 @@ def handle_message(msg: dict):
                         if "active_game" in state_data and c_key in state_data["active_game"]:
                             send_next_game_round(chat_id, 4, thread_id)
                     threading.Thread(target=auto_next_g4, daemon=True).start()
+                    return
+                elif eval_res == "close":
+                    send_message(chat_id, f"🤏 <b>زۆر زۆر لێی نزیک بوویتەوە {display_name} گیان!</b> کەمێکی تر تەواوی بکە یان وشەکەی ڕێک بخە! 😃🌸", msg_id, thread_id)
                     return
                 else:
                     send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> کەمێکی تر بیری لێ بکەرەوە یان کێ دەتوانێت وەڵامی دروست بداتەوە؟ 🤔🌸", msg_id, thread_id)
