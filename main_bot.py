@@ -1123,6 +1123,70 @@ KURDISH_QUIZZES = [
     }
 ]
 
+def generate_ai_kurdish_unscramble() -> dict:
+    """دروستکردنی وشەی نوێی تێکئاڵاو بە ژیریی دەستکرد (AI) - وشەی بێسنوور"""
+    if not groq_client:
+        return None
+    try:
+        prompt = (
+            "وەک پسپۆڕێکی زمانی کوردی، وشەیەکی ناوداری کوردی (ناوی شار، میوە، ئاژەڵ، وڵات یان شتومەک) بە زمانی کوردی (سۆرانی) دروست بکە.\n"
+            "پیتەکانی بە خاڵ یان هێڵ لە یەکتر جیا بکەرەوە بە شێوەی تێکەڵاو (scrambled).\n"
+            "تەنها و تەنها JSON بگەڕێنەرەوە بەم فۆرماتە:\n"
+            "{\n"
+            '  "word": "سلێمانی",\n'
+            '  "scrambled": "ی • ل • م • ا • ن • ی • س",\n'
+            '  "category": "ناوی شارێکی دڵڕفێنی باشووری کوردستانە 🌸",\n'
+            '  "answers": ["سلێمانی", "سلیمانی", "slemani"]\n'
+            "}"
+        )
+        res = groq_client.chat.completions.create(
+            model=config.get("groqModel", "openai/gpt-oss-120b"),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.85,
+            max_tokens=200,
+            response_format={"type": "json_object"}
+        )
+        raw = res.choices[0].message.content.strip()
+        data = json.loads(raw)
+        if "word" in data and "scrambled" in data and "category" in data and "answers" in data:
+            return data
+    except Exception as e:
+        print(f"AI Unscramble Gen Notice: {e}")
+    return None
+
+def generate_ai_kurdish_truefalse() -> dict:
+    """دروستکردنی پرسیاری نوێی ڕاست یان هەڵە بە ژیریی دەستکرد (AI) - زانیاریی بێسنوور"""
+    if not groq_client:
+        return None
+    try:
+        prompt = (
+            "وەک پسپۆڕێکی زانیاری گشتی و زانستی و کلتووری، پرسیارێکی زۆر سەرنجڕاکێشی (ڕاست یان هەڵە) بە زمانی شیرینی کوردی (سۆرانی) دروست بکە.\n"
+            "وەڵامەکەی دەبێت تەنها 'ڕاست' یان 'هەڵە' بێت لەگەڵ ڕوونکردنەوەی زانستی.\n"
+            "تەنها و تەنها JSON بگەڕێنەرەوە بەم فۆرماتە:\n"
+            "{\n"
+            '  "question": "دەقی پرسیارەکە بە کوردی؟",\n'
+            '  "answer": "ڕاست",\n'
+            '  "aliases": ["ڕاست", "راست", "rast", "true", "1"],\n'
+            '  "info": "ڕوونکردنەوەی کورتی زانستی لەسەر بابەتەکە 💡"\n'
+            "}"
+        )
+        res = groq_client.chat.completions.create(
+            model=config.get("groqModel", "openai/gpt-oss-120b"),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.85,
+            max_tokens=200,
+            response_format={"type": "json_object"}
+        )
+        raw = res.choices[0].message.content.strip()
+        data = json.loads(raw)
+        if "question" in data and "answer" in data and "info" in data:
+            if "aliases" not in data:
+                data["aliases"] = ["ڕاست", "راست", "rast", "true"] if "ڕاست" in data["answer"] else ["هەڵە", "هەلە", "hala", "false"]
+            return data
+    except Exception as e:
+        print(f"AI TrueFalse Gen Notice: {e}")
+    return None
+
 def generate_ai_kurdish_riddle(is_comedy: bool = False) -> dict:
     """دروستکردنی مەتەڵی نوێ و بێسنووری کوردی بە ژیریی دەستکرد (AI) - هەزاران مەتەڵی نوێ"""
     if not groq_client:
@@ -1155,60 +1219,88 @@ def generate_ai_kurdish_riddle(is_comedy: bool = False) -> dict:
     return None
 
 def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
-    """بەڕێوەبردنی خولەکانی ٤ جۆری یارییە بەکۆمەڵەکان بە سیستەمی زیرەکی بێ-دووبارەبوونەوە"""
+    """بەڕێوەبردنی خولەکانی ٤ جۆری یارییە بەکۆمەڵەکان بە سیستەمی زیرەکی بێ-دووبارەبوونەوە و ژیریی دەستکرد"""
     c_key = str(chat_id)
     if "active_game" not in state_data:
         state_data["active_game"] = {}
         
     if game_type == 1:
-        # 🧩 ۱. یاریی وشە تێکئاڵاوەکان (Unscramble) بێ دووبارەبوونەوە
+        # 🧩 ۱. یاریی وشە تێکئاڵاوەکان (Unscramble) - تێکەڵەی ئۆفلاین و دروستکردنی AI
         if "used_unscramble" not in state_data:
             state_data["used_unscramble"] = {}
         if c_key not in state_data["used_unscramble"]:
             state_data["used_unscramble"][c_key] = []
             
         used_set = set(state_data["used_unscramble"][c_key])
-        candidates = [item for item in KURDISH_UNSCRAMBLE_WORDS if item["word"] not in used_set]
-        if not candidates:
-            state_data["used_unscramble"][c_key] = []
-            candidates = list(KURDISH_UNSCRAMBLE_WORDS)
+        
+        item = None
+        if random.random() < 0.35:
+            ai_item = generate_ai_kurdish_unscramble()
+            if ai_item and ai_item.get("word") not in used_set:
+                item = ai_item
+                
+        if not item:
+            candidates = [it for it in KURDISH_UNSCRAMBLE_WORDS if it["word"] not in used_set]
+            if not candidates:
+                state_data["used_unscramble"][c_key] = []
+                candidates = list(KURDISH_UNSCRAMBLE_WORDS)
+            item = random.choice(candidates)
             
-        item = random.choice(candidates)
         state_data["used_unscramble"][c_key].append(item["word"])
+        
+        msg = (
+            "🧩 <b>یاریی وشە تێکئاڵاوەکان (Game 1):</b>\n\n"
+            f"❓ پیتەکان ڕێکبخە بۆ دۆزینەوەی وشەکە:\n"
+            f"<b>[ {item['scrambled']} ]</b>\n\n"
+            f"🏷️ <b>ڕێنمایی:</b> {item['category']}\n\n"
+            f"💡 <b>بۆ وەڵامدانەوە، ڕیپڵای (Reply) ئەم پەیامە بکە!</b> 🏆✨\n\n"
+            f"<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
+        )
+        res = send_message(chat_id, msg, 0, thread_id)
+        g_mid = res.get("result", {}).get("message_id", 0) if res else 0
         
         state_data["active_game"][c_key] = {
             "game_type": 1,
             "word": item["word"],
             "answers": [a.lower() for a in item["answers"]],
             "display": item["word"],
+            "msg_id": g_mid,
             "time": time.time()
         }
         save_state()
-        msg = (
-            "🧩 <b>یاریی وشە تێکئاڵاوەکان (Game 1):</b>\n\n"
-            f"❓ پیتەکان ڕێکبخە بۆ دۆزینەوەی وشەکە:\n"
-            f"<b>[ {item['scrambled']} ]</b>\n\n"
-            f"🏷️ <b>ڕێنمایی:</b> {item['category']}\n\n"
-            f"💡 کێ یەکەم کەس دەتوانێت وشە دروستەکە بنووسێت بۆ بردنەوەی خاڵ؟ 🏆✨\n\n"
-            f"<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
-        )
-        send_message(chat_id, msg, 0, thread_id)
         
     elif game_type == 2:
-        # ⚡ ۲. یاریی ڕاستە یان هەڵەیە (True or False) بێ دووبارەبوونەوە
+        # ⚡ ۲. یاریی ڕاستە یان هەڵەیە (True or False) - تێکەڵەی ئۆفلاین و دروستکردنی AI
         if "used_truefalse" not in state_data:
             state_data["used_truefalse"] = {}
         if c_key not in state_data["used_truefalse"]:
             state_data["used_truefalse"][c_key] = []
             
         used_set = set(state_data["used_truefalse"][c_key])
-        candidates = [item for item in KURDISH_TRUE_FALSE if item["question"] not in used_set]
-        if not candidates:
-            state_data["used_truefalse"][c_key] = []
-            candidates = list(KURDISH_TRUE_FALSE)
+        
+        item = None
+        if random.random() < 0.35:
+            ai_tf = generate_ai_kurdish_truefalse()
+            if ai_tf and ai_tf.get("question") not in used_set:
+                item = ai_tf
+                
+        if not item:
+            candidates = [it for it in KURDISH_TRUE_FALSE if it["question"] not in used_set]
+            if not candidates:
+                state_data["used_truefalse"][c_key] = []
+                candidates = list(KURDISH_TRUE_FALSE)
+            item = random.choice(candidates)
             
-        item = random.choice(candidates)
         state_data["used_truefalse"][c_key].append(item["question"])
+        
+        msg = (
+            "⚡ <b>یاریی ڕاستە یان هەڵەیە؟ (Game 2):</b>\n\n"
+            f"❓ <b>{item['question']}</b>\n\n"
+            f"💡 <b>بۆ وەڵامدانەوە، ڕیپڵای (Reply) ئەم پەیامە بکە و بنووسە ڕاست یان هەڵە!</b> 🏆✨\n\n"
+            f"<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
+        )
+        res = send_message(chat_id, msg, 0, thread_id)
+        g_mid = res.get("result", {}).get("message_id", 0) if res else 0
         
         state_data["active_game"][c_key] = {
             "game_type": 2,
@@ -1216,34 +1308,31 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
             "correct_ans": item["answer"],
             "aliases": [a.lower() for a in item["aliases"]],
             "info": item["info"],
+            "msg_id": g_mid,
             "time": time.time()
         }
         save_state()
-        msg = (
-            "⚡ <b>یاریی ڕاستە یان هەڵەیە؟ (Game 2):</b>\n\n"
-            f"❓ <b>{item['question']}</b>\n\n"
-            f"💡 تەنها بنووسە <b>ڕاست</b> یان <b>هەڵە</b> بۆ بردنەوەی خاڵ! 🏆✨\n\n"
-            f"<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
-        )
-        send_message(chat_id, msg, 0, thread_id)
 
     elif game_type == 3:
         # 🎯 ۳. یاریی مەزندەکردنی ژمارەی نهێنی (Guess Number 1-100)
         secret = random.randint(1, 100)
+        msg = (
+            "🎯 <b>یاریی دۆزینەوەی ژمارەی نهێنی (Game 3):</b>\n\n"
+            "🔢 من ژمارەیەکی نهێنیم لە نێوان <b>(١ تا ١٠٠)</b> هەڵبژاردووە!\n\n"
+            "💡 <b>بۆ وەڵامدانەوە، ڕیپڵای (Reply) ئەم پەیامە بکە و ژمارەکەت بنووسە!</b> 🏆✨\n\n"
+            "<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
+        )
+        res = send_message(chat_id, msg, 0, thread_id)
+        g_mid = res.get("result", {}).get("message_id", 0) if res else 0
+        
         state_data["active_game"][c_key] = {
             "game_type": 3,
             "secret": secret,
             "attempts": 0,
+            "msg_id": g_mid,
             "time": time.time()
         }
         save_state()
-        msg = (
-            "🎯 <b>یاریی دۆزینەوەی ژمارەی نهێنی (Game 3):</b>\n\n"
-            "🔢 من ژمارەیەکی نهێنیم لە نێوان <b>(١ تا ١٠٠)</b> هەڵبژاردووە!\n\n"
-            "💡 ژمارەیەک لە ناو چات بنووسن، پێتان دەڵێم بەرزترە یان نزمتر تا دەیدۆزنەوە! 🏆✨\n\n"
-            "<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
-        )
-        send_message(chat_id, msg, 0, thread_id)
 
     elif game_type == 4:
         # ❓ ٤. یاریی مەتەڵی کوردی (Riddles) - تێکەڵەی سەدان مەتەڵی ئۆفلاین و دروستکردنی بێسنووری AI
@@ -1254,7 +1343,6 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
             
         used_set = set(state_data["used_quizzes"][c_key])
         
-        # ۳۰٪ ئەگەری هەیە مەتەڵی نوێ بە AI دروست بکرێت ئەگەر ئینتەرنێت هەبێت
         q = None
         if random.random() < 0.35:
             is_comedy_turn = random.random() < 0.5
@@ -1271,21 +1359,24 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
             
         state_data["used_quizzes"][c_key].append(q["question"])
         
+        msg = (
+            "❓ <b>مەتەڵی کوردی (Game 4):</b>\n\n"
+            f"❓ <b>{q['question']}</b>\n\n"
+            f"💡 <b>بۆ وەڵامدانەوە، ڕیپڵای (Reply) ئەم پەیامە بکە و وەڵامەکەت بنووسە!</b> 🏆✨\n\n"
+            f"<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
+        )
+        res = send_message(chat_id, msg, 0, thread_id)
+        g_mid = res.get("result", {}).get("message_id", 0) if res else 0
+        
         state_data["active_game"][c_key] = {
             "game_type": 4,
             "question": q["question"],
             "answers": [a.lower() for a in q["answers"]],
             "display_answer": q["display_answer"],
+            "msg_id": g_mid,
             "time": time.time()
         }
         save_state()
-        msg = (
-            "❓ <b>مەتەڵی کوردی (Game 4):</b>\n\n"
-            f"❓ <b>{q['question']}</b>\n\n"
-            f"💡 کێ یەکەم کەس دەتوانێت وەڵامەکەی بنووسێت بۆ بەدەستهێنانی خاڵ؟ 🏆✨\n\n"
-            f"<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
-        )
-        send_message(chat_id, msg, 0, thread_id)
 
 def register_group(chat_id: int):
     if "groups" not in state_data:
@@ -2425,161 +2516,148 @@ def handle_message(msg: dict):
                 print(f"🤖 Reacted to sticker from {display_name}: {stk_reply}")
                 return
 
-    # 🎮 پشکنینی وەڵامی یارییە بەکۆمەڵەکان (Game 1, Game 2, Game 3, Game 4)
+    # 🎮 پشکنینی وەڵامی یارییە بەکۆمەڵەکان (تەنها کاتێک بەکارهێنەر ڕیپڵای پەیامی یارییەکە دەکات)
     c_key = str(chat_id)
     if "active_game" in state_data and c_key in state_data["active_game"] and text:
         curr_game = state_data["active_game"][c_key]
-        g_type = curr_game.get("game_type", 1)
-        clean_text = text.strip()
         
-        is_reply_to_bot = False
+        is_reply_to_game = False
         if "reply_to_message" in msg and msg["reply_to_message"]:
-            replied_from = msg["reply_to_message"].get("from", {})
-            if replied_from.get("id") == BOT_ID or replied_from.get("is_bot"):
-                is_reply_to_bot = True
-
-        # 🧩 یاریی یەکەم: وشە تێکئاڵاوەکان (Game 1)
-        if g_type == 1:
-            answers = curr_game.get("answers", [])
-            target_word = curr_game.get("word", "")
-            if is_quiz_answer_match(clean_text, answers) or is_quiz_answer_match(clean_text, [target_word]):
-                pts = add_user_quiz_point(chat_id, user_id)
-                disp = curr_game.get("display", target_word)
-                win_msg = (
-                    f"🎉 <b>ئافەرین {display_name} گیان! وشەکەت دۆزییەوە!</b> 👏🌟\n\n"
-                    f"✅ <b>وشەی ڕاست:</b> {disp}\n"
-                    f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی خاڵەکانت: <b>{pts} خاڵ</b> ✨\n\n"
-                    f"⏳ <i>وشەی نوێ لە چەند چرکەیەکی تردا دێت...</i> 🧩🌸"
-                )
-                send_message(chat_id, win_msg, msg_id, thread_id)
-                curr_game["answers"] = []
-                curr_game["word"] = ""
-                save_state()
-                def auto_next_g1():
-                    time.sleep(3)
-                    if "active_game" in state_data and c_key in state_data["active_game"]:
-                        send_next_game_round(chat_id, 1, thread_id)
-                threading.Thread(target=auto_next_g1, daemon=True).start()
-                return
-            elif is_reply_to_bot or len(clean_text.split()) <= 3:
-                send_message(chat_id, f"❌ <b>وشەکە دروست نییە {display_name} گیان!</b> پیتەکان جارێکی تر تاقی بکەرەوە 🧩🤔🌸", msg_id, thread_id)
-                return
-
-        # ⚡ یاریی دووەم: ڕاست یان هەڵە (Game 2)
-        elif g_type == 2:
-            correct_ans = curr_game.get("correct_ans", "")
-            info = curr_game.get("info", "")
-            norm_c = normalize_kurdish(clean_text)
-            user_said_true = any(k in norm_c for k in ["ڕاست", "راست", "rast", "true", "t", "1"])
-            user_said_false = any(k in norm_c for k in ["هەڵە", "هەلە", "hala", "false", "f", "0"])
+            replied_msg = msg["reply_to_message"]
+            replied_from = replied_msg.get("from", {})
+            replied_id = replied_from.get("id", 0)
+            replied_mid = replied_msg.get("message_id", 0)
+            game_mid = curr_game.get("msg_id", 0)
             
-            if user_said_true or user_said_false:
-                is_correct = (user_said_true and "ڕاست" in correct_ans) or (user_said_false and "هەڵە" in correct_ans)
-                if is_correct:
+            if replied_id == BOT_ID or replied_from.get("is_bot") or (game_mid > 0 and replied_mid == game_mid):
+                is_reply_to_game = True
+
+        # ئەگەر بەکارهێنەر ڕیپڵای یارییەکەی کردبێت ➔ پشکنین بۆ وەڵامەکە دەکات
+        if is_reply_to_game:
+            g_type = curr_game.get("game_type", 1)
+            clean_text = text.strip()
+            
+            # 🧩 ۱. یاریی وشە تێکئاڵاوەکان (Game 1)
+            if g_type == 1:
+                answers = curr_game.get("answers", [])
+                target_word = curr_game.get("word", "")
+                if is_quiz_answer_match(clean_text, answers) or is_quiz_answer_match(clean_text, [target_word]):
                     pts = add_user_quiz_point(chat_id, user_id)
+                    disp = curr_game.get("display", target_word)
                     win_msg = (
-                        f"🎉 <b>ئافەرین {display_name} گیان! وەڵامەکەت زۆر دروستە!</b> 👏🌟\n\n"
-                        f"✅ <b>وەڵامی ڕاست:</b> {correct_ans}\n"
-                        f"ℹ️ <b>زانیاری:</b> {info}\n"
+                        f"🎉 <b>ئافەرین {display_name} گیان! وشەکەت دۆزییەوە!</b> 👏🌟\n\n"
+                        f"✅ <b>وشەی ڕاست:</b> {disp}\n"
                         f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی خاڵەکانت: <b>{pts} خاڵ</b> ✨\n\n"
-                        f"⏳ <i>پرسیاری نوێ لە چەند چرکەیەکی تردا دێت...</i> ⚡🌸"
+                        f"⏳ <i>وشەی نوێ لە چەند چرکەیەکی تردا دێت...</i> 🧩🌸"
                     )
                     send_message(chat_id, win_msg, msg_id, thread_id)
-                    curr_game["aliases"] = []
-                    curr_game["correct_ans"] = ""
+                    curr_game["answers"] = []
+                    curr_game["word"] = ""
                     save_state()
-                    def auto_next_g2():
+                    def auto_next_g1():
                         time.sleep(3)
                         if "active_game" in state_data and c_key in state_data["active_game"]:
-                            send_next_game_round(chat_id, 2, thread_id)
-                    threading.Thread(target=auto_next_g2, daemon=True).start()
+                            send_next_game_round(chat_id, 1, thread_id)
+                    threading.Thread(target=auto_next_g1, daemon=True).start()
                     return
                 else:
-                    send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> کێ دەتوانێت وەڵامی دروست بداتەوە؟ 🤔🌸", msg_id, thread_id)
+                    send_message(chat_id, f"❌ <b>وشەکە دروست نییە {display_name} گیان!</b> پیتەکان جارێکی تر تاقی بکەرەوە 🧩🤔🌸", msg_id, thread_id)
                     return
 
-        # 🎯 یاریی سێیەم: دۆزینەوەی ژمارەی نهێنی (Game 3)
-        elif g_type == 3:
-            digits = re.findall(r'\b\d+\b', text)
-            if digits:
-                guess = int(digits[0])
-                secret = curr_game.get("secret", 50)
-                if 1 <= guess <= 100:
-                    if guess < secret:
-                        send_message(chat_id, f"⬆️ ژمارە نهێنییەکە <b>بەرزترە</b> لە {guess}! ({display_name}) 🌸", msg_id, thread_id)
-                        return
-                    elif guess > secret:
-                        send_message(chat_id, f"⬇️ ژمارە نهێنییەکە <b>نزمترە</b> لە {guess}! ({display_name}) 🌸", msg_id, thread_id)
-                        return
-                    else:
+            # ⚡ ۲. یاریی ڕاست یان هەڵە (Game 2)
+            elif g_type == 2:
+                correct_ans = curr_game.get("correct_ans", "")
+                info = curr_game.get("info", "")
+                norm_c = normalize_kurdish(clean_text)
+                user_said_true = any(k in norm_c for k in ["ڕاست", "راست", "rast", "true", "t", "1"])
+                user_said_false = any(k in norm_c for k in ["هەڵە", "هەلە", "hala", "false", "f", "0"])
+                
+                if user_said_true or user_said_false:
+                    is_correct = (user_said_true and "ڕاست" in correct_ans) or (user_said_false and "هەڵە" in correct_ans)
+                    if is_correct:
                         pts = add_user_quiz_point(chat_id, user_id)
                         win_msg = (
-                            f"🎉 <b>ئافەرین {display_name} گیان! ژمارە نهێنییەکەت دۆزییەوە!</b> 👏🌟\n\n"
-                            f"🎯 <b>ژمارەی نهێنی:</b> {secret}\n"
+                            f"🎉 <b>ئافەرین {display_name} گیان! وەڵامەکەت زۆر دروستە!</b> 👏🌟\n\n"
+                            f"✅ <b>وەڵامی ڕاست:</b> {correct_ans}\n"
+                            f"ℹ️ <b>زانیاری:</b> {info}\n"
                             f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی خاڵەکانت: <b>{pts} خاڵ</b> ✨\n\n"
-                            f"⏳ <i>گەڕی نوێی ژمارە لە چەند چرکەیەکی تردا دەست پێدەکات...</i> 🔢🌸"
+                            f"⏳ <i>پرسیاری نوێ لە چەند چرکەیەکی تردا دێت...</i> ⚡🌸"
                         )
                         send_message(chat_id, win_msg, msg_id, thread_id)
-                        curr_game["secret"] = -1
+                        curr_game["aliases"] = []
+                        curr_game["correct_ans"] = ""
                         save_state()
-                        def auto_next_g3():
+                        def auto_next_g2():
                             time.sleep(3)
                             if "active_game" in state_data and c_key in state_data["active_game"]:
-                                send_next_game_round(chat_id, 3, thread_id)
-                        threading.Thread(target=auto_next_g3, daemon=True).start()
+                                send_next_game_round(chat_id, 2, thread_id)
+                        threading.Thread(target=auto_next_g2, daemon=True).start()
                         return
+                    else:
+                        send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> کێ دەتوانێت وەڵامی دروست بداتەوە؟ 🤔🌸", msg_id, thread_id)
+                        return
+                else:
+                    send_message(chat_id, f"❌ <b>تکایە بنووسە ڕاست یان هەڵە {display_name} گیان!</b> ⚡🤔🌸", msg_id, thread_id)
+                    return
 
-        # ❓ یاریی چوارەم: مەتەڵی کوردی (Game 4 / Quiz)
-        elif g_type == 4:
-            answers = curr_game.get("answers", [])
-            if is_quiz_answer_match(clean_text, answers):
-                pts = add_user_quiz_point(chat_id, user_id)
-                disp_ans = curr_game.get("display_answer", "")
-                win_msg = (
-                    f"🎉 <b>ئافەرین {display_name} گیان! وەڵامەکەت زۆر دروستە!</b> 👏🌟\n\n"
-                    f"✅ <b>وەڵام:</b> {disp_ans}\n"
-                    f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی گشتی خاڵەکانت: <b>{pts} خاڵ</b> ✨\n\n"
-                    f"⏳ <i>مەتەڵی نوێ لە چەند چرکەیەکی تردا دێت...</i> ❓🌸"
-                )
-                send_message(chat_id, win_msg, msg_id, thread_id)
-                curr_game["answers"] = []
-                save_state()
-                def auto_next_g4():
-                    time.sleep(3)
-                    if "active_game" in state_data and c_key in state_data["active_game"]:
-                        send_next_game_round(chat_id, 4, thread_id)
-                threading.Thread(target=auto_next_g4, daemon=True).start()
-                return
-            elif is_reply_to_bot or len(clean_text.split()) <= 4:
-                send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> کەمێکی تر بیری لێ بکەرەوە یان کێ دەتوانێت وەڵامی دروست بداتەوە؟ 🤔🌸", msg_id, thread_id)
-                return
+            # 🎯 ۳. یاریی دۆزینەوەی ژمارەی نهێنی (Game 3)
+            elif g_type == 3:
+                digits = re.findall(r'\b\d+\b', text)
+                if digits:
+                    guess = int(digits[0])
+                    secret = curr_game.get("secret", 50)
+                    if 1 <= guess <= 100:
+                        if guess < secret:
+                            send_message(chat_id, f"⬆️ ژمارە نهێنییەکە <b>بەرزترە</b> لە {guess}! ({display_name}) 🌸", msg_id, thread_id)
+                            return
+                        elif guess > secret:
+                            send_message(chat_id, f"⬇️ ژمارە نهێنییەکە <b>نزمترە</b> لە {guess}! ({display_name}) 🌸", msg_id, thread_id)
+                            return
+                        else:
+                            pts = add_user_quiz_point(chat_id, user_id)
+                            win_msg = (
+                                f"🎉 <b>ئافەرین {display_name} گیان! ژمارە نهێنییەکەت دۆزییەوە!</b> 👏🌟\n\n"
+                                f"🎯 <b>ژمارەی نهێنی:</b> {secret}\n"
+                                f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی خاڵەکانت: <b>{pts} خاڵ</b> ✨\n\n"
+                                f"⏳ <i>گەڕی نوێی ژمارە لە چەند چرکەیەکی تردا دەست پێدەکات...</i> 🔢🌸"
+                            )
+                            send_message(chat_id, win_msg, msg_id, thread_id)
+                            curr_game["secret"] = -1
+                            save_state()
+                            def auto_next_g3():
+                                time.sleep(3)
+                                if "active_game" in state_data and c_key in state_data["active_game"]:
+                                    send_next_game_round(chat_id, 3, thread_id)
+                            threading.Thread(target=auto_next_g3, daemon=True).start()
+                            return
+                else:
+                    send_message(chat_id, f"🔢 <b>تکایە ژمارەیەک بنووسە {display_name} گیان! (١ تا ١٠٠)</b> 🎯🌸", msg_id, thread_id)
+                    return
 
-    # پشتیوانی مەتەڵی کۆن بۆ active_quiz
-    if "active_quiz" in state_data and c_key in state_data["active_quiz"] and text:
-        curr_quiz = state_data["active_quiz"][c_key]
-        clean_ans = text.strip()
-        answers = curr_quiz.get("answers", [])
-        if is_quiz_answer_match(clean_ans, answers):
-            pts = add_user_quiz_point(chat_id, user_id)
-            disp_ans = curr_quiz.get("display_answer", "")
-            win_msg = (
-                f"🎉 <b>ئافەرین {display_name} گیان! وەڵامەکەت زۆر دروستە!</b> 👏🌟\n\n"
-                f"✅ <b>وەڵام:</b> {disp_ans}\n"
-                f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی خاڵەکانت: <b>{pts} خاڵ</b> ✨\n\n"
-                f"⏳ <i>مەتەڵی نوێ لە چەند چرکەیەکی تردا دێت...</i> 🎮🌸"
-            )
-            send_message(chat_id, win_msg, msg_id, thread_id)
-            curr_quiz["answers"] = []
-            save_state()
-            def auto_next_quiz_thread():
-                time.sleep(3)
-                if "active_quiz" in state_data and c_key in state_data["active_quiz"]:
-                    send_next_game_round(chat_id, 4, thread_id)
-            threading.Thread(target=auto_next_quiz_thread, daemon=True).start()
-            return
-        elif ("reply_to_message" in msg and msg["reply_to_message"]) or len(clean_ans.split()) <= 4:
-            send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> کەمێکی تر بیری لێ بکەرەوە 🤔🌸", msg_id, thread_id)
-            return
+            # ❓ ٤. یاریی مەتەڵی کوردی (Game 4 / Quiz)
+            elif g_type == 4:
+                answers = curr_game.get("answers", [])
+                if is_quiz_answer_match(clean_text, answers):
+                    pts = add_user_quiz_point(chat_id, user_id)
+                    disp_ans = curr_game.get("display_answer", "")
+                    win_msg = (
+                        f"🎉 <b>ئافەرین {display_name} گیان! وەڵامەکەت زۆر دروستە!</b> 👏🌟\n\n"
+                        f"✅ <b>وەڵام:</b> {disp_ans}\n"
+                        f"🏆 <b>+١ خاڵت بەدەستهێنا!</b> کۆی گشتی خاڵەکانت: <b>{pts} خاڵ</b> ✨\n\n"
+                        f"⏳ <i>مەتەڵی نوێ لە چەند چرکەیەکی تردا دێت...</i> ❓🌸"
+                    )
+                    send_message(chat_id, win_msg, msg_id, thread_id)
+                    curr_game["answers"] = []
+                    save_state()
+                    def auto_next_g4():
+                        time.sleep(3)
+                        if "active_game" in state_data and c_key in state_data["active_game"]:
+                            send_next_game_round(chat_id, 4, thread_id)
+                    threading.Thread(target=auto_next_g4, daemon=True).start()
+                    return
+                else:
+                    send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> کەمێکی تر بیری لێ بکەرەوە یان کێ دەتوانێت وەڵامی دروست بداتەوە؟ 🤔🌸", msg_id, thread_id)
+                    return
 
     # 💬 وەڵامدانەوەی AI بە کوردییەکی زۆر ڕوخۆش و پڕ ئیمۆجی
     # مەرج: ئەگەر مرۆڤێک ڕیپڵای مرۆڤێکی تر بکات، بوتەکە بێدەنگ دەبێت و تەداخول ناکات
