@@ -538,7 +538,7 @@ def purge_chat_messages(chat_id: int, start_msg_id: int, count: int = 20):
         except Exception:
             pass
 
-def add_user_quiz_point(chat_id: int, user_id: int) -> int:
+def add_user_quiz_point(chat_id: int, user_id: int, user_name: str = "") -> int:
     c_key = str(chat_id)
     u_key = str(user_id)
     if "quiz_scores" not in state_data:
@@ -547,6 +547,12 @@ def add_user_quiz_point(chat_id: int, user_id: int) -> int:
         state_data["quiz_scores"][c_key] = {}
     current = state_data["quiz_scores"][c_key].get(u_key, 0) + 1
     state_data["quiz_scores"][c_key][u_key] = current
+    
+    if "user_names" not in state_data:
+        state_data["user_names"] = {}
+    if user_name:
+        state_data["user_names"][u_key] = user_name
+        
     save_state()
     return current
 
@@ -1680,6 +1686,9 @@ def record_group_member(chat_id: int, user_obj: dict):
         "username": username,
         "last_seen": int(time.time())
     }
+    if "user_names" not in state_data:
+        state_data["user_names"] = {}
+    state_data["user_names"][str(u_id)] = first
     save_state()
 
 def send_voice_chat_notification(chat_id: int, thread_id: int = 0):
@@ -2087,19 +2096,45 @@ def handle_command(msg: dict, text: str):
         else:
             send_message(chat_id, "ℹ️ لە ئێستادا هیچ یارییەکی چالاک دانەنراوە! دەتوانیت بە <code>/game1</code> تا <code>/game4</code> یاری دەستپێبکەیت 🎮🌸", msg_id, thread_id)
         return
-    elif cmd in ["/points", "/score", "/scores"]:
+    elif cmd in ["/points", "/score", "/scores", "/top"]:
         c_key = str(chat_id)
         scores = state_data.get("quiz_scores", {}).get(c_key, {})
         my_pts = scores.get(str(user_id), 0)
-        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
-        board = f"🏆 <b>ڕیزبەندیی پاڵەوانانی یاری لەم گروپەدا:</b>\n\n"
-        medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:10]
+        board = "🏆 <b>ڕیزبەندیی پاڵەوانانی یاری لەم گروپەدا:</b>\n\n"
+        medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+        
+        user_names = state_data.get("user_names", {})
+        members_map = state_data.get("members", {}).get(c_key, {})
+        
         if sorted_scores:
             for idx, (uid, pts) in enumerate(sorted_scores):
-                board += f"{medals[idx]} بەکارهێنەر <code>{uid}</code>: <b>{pts} خاڵ</b>\n"
+                medal_icon = medals[idx] if idx < len(medals) else f"#{idx+1}"
+                u_name = user_names.get(str(uid))
+                if not u_name and str(uid) in members_map:
+                    u_name = members_map[str(uid)].get("first_name")
+                    
+                if not u_name:
+                    try:
+                        cm_res = tg_call("getChatMember", {"chat_id": chat_id, "user_id": int(uid)})
+                        if cm_res and cm_res.get("ok"):
+                            cm_user = cm_res.get("result", {}).get("user", {})
+                            u_name = get_display_name(cm_user)
+                            if "user_names" not in state_data:
+                                state_data["user_names"] = {}
+                            state_data["user_names"][str(uid)] = u_name
+                            save_state()
+                    except Exception:
+                        pass
+                
+                if not u_name:
+                    u_name = f"پاڵەوان {idx+1}"
+                    
+                board += f"{medal_icon} <b>{html.escape(u_name)}</b>: <b>{pts} خاڵ</b> 🌟\n"
         else:
-            board += "تائێستا کەس خاڵی تۆمار نەکردووە! یەکەم کەس بە بە فەرمانی <code>/game</code> 🎮\n"
-        board += f"\n👤 خاڵەکانی تۆ ({display_name}): <b>{my_pts} خاڵ</b> 🌟"
+            board += "تائێستا کەس خاڵی تۆمار نەکردووە! یەکەم کەس بە بە فەرمانی <code>/game1</code> تا <code>/game4</code> 🎮\n"
+            
+        board += f"\n👤 <b>خاڵەکانی تۆ ({html.escape(display_name)}):</b> <b>{my_pts} خاڵ</b> ✨"
         send_message(chat_id, board, msg_id, thread_id)
         return
 
@@ -2619,7 +2654,7 @@ def handle_message(msg: dict):
                 target_word = curr_game.get("word", "")
                 eval_res = evaluate_quiz_answer(clean_text, answers + [target_word])
                 if eval_res == "exact":
-                    pts = add_user_quiz_point(chat_id, user_id)
+                    pts = add_user_quiz_point(chat_id, user_id, display_name)
                     disp = curr_game.get("display", target_word)
                     win_msg = (
                         f"🎉 <b>ئافەرین {display_name} گیان! وشەکەت دۆزییەوە!</b> 👏🌟\n\n"
@@ -2655,7 +2690,7 @@ def handle_message(msg: dict):
                 if user_said_true or user_said_false:
                     is_correct = (user_said_true and "ڕاست" in correct_ans) or (user_said_false and "هەڵە" in correct_ans)
                     if is_correct:
-                        pts = add_user_quiz_point(chat_id, user_id)
+                        pts = add_user_quiz_point(chat_id, user_id, display_name)
                         win_msg = (
                             f"🎉 <b>ئافەرین {display_name} گیان! وەڵامەکەت زۆر دروستە!</b> 👏🌟\n\n"
                             f"✅ <b>وەڵامی ڕاست:</b> {correct_ans}\n"
@@ -2688,7 +2723,7 @@ def handle_message(msg: dict):
                     secret = curr_game.get("secret", 50)
                     diff = abs(guess - secret)
                     if guess == secret:
-                        pts = add_user_quiz_point(chat_id, user_id)
+                        pts = add_user_quiz_point(chat_id, user_id, display_name)
                         win_msg = (
                             f"🎉 <b>ئافەرین {display_name} گیان! ژمارە نهێنییەکەت دۆزییەوە!</b> 👏🌟\n\n"
                             f"🎯 <b>ژمارەی نهێنی:</b> {secret}\n"
@@ -2724,7 +2759,7 @@ def handle_message(msg: dict):
                 answers = curr_game.get("answers", [])
                 eval_res = evaluate_quiz_answer(clean_text, answers)
                 if eval_res == "exact":
-                    pts = add_user_quiz_point(chat_id, user_id)
+                    pts = add_user_quiz_point(chat_id, user_id, display_name)
                     disp_ans = curr_game.get("display_answer", "")
                     win_msg = (
                         f"🎉 <b>ئافەرین {display_name} گیان! وەڵامەکەت زۆر دروستە!</b> 👏🌟\n\n"
