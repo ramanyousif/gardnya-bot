@@ -452,7 +452,7 @@ def is_user_subscribed_to_channel(channel_identifier: str, user_id: int) -> bool
 force_join_cooldowns = {}
 
 def send_force_join_card(chat_id: int, user_id: int, display_name: str, channel_identifier: str, thread_id: int = 0):
-    """دروستکردن و ناردنی کارتی شیک و فەرمی بۆ ئیجباری جۆینکردنی چەناڵ بە دیزاینی جوان"""
+    """دروستکردن و ناردنی کارتی شیک و تایبەتی بۆت بۆ ئیجباری جۆینکردن بە تاگکردنی بەکارهێنەر"""
     clean_ch = channel_identifier.strip().lstrip("@")
     channel_link = f"https://t.me/{clean_ch}"
     group_link = "https://t.me/pat_u_mat_gruop"
@@ -464,18 +464,24 @@ def send_force_join_card(chat_id: int, user_id: int, display_name: str, channel_
         ch_title = f"@{clean_ch}"
     ch_title_escaped = html.escape(ch_title)
     
+    # تاگکردنی ڕاستەوخۆ و کلیکداری بەکارهێنەر (Clickable User Mention Link)
+    user_mention = f'<a href="tg://user?id={user_id}">{html.escape(display_name)}</a>'
+    
     caption = (
-        f"❖ ¦ <b>تۆ ئەندام نیت لەم کەناڵە {ch_title_escaped}</b> •\n\n"
-        f"❖ ¦ <b>ناتوانی چات بکەیت لەم گرووپە</b> •\n\n"
-        f"❖ ¦ <b>سەرەتا پێویستە جۆینی کەناڵ بکەیت</b> •\n\n"
-        f"❖ ¦ <b>ئەگەر جۆین نەکەیت ئەوا چاتەکەت دەسڕمەوە و ئاگادارت دەکەمەوە</b> •\n\n"
-        f"❖ ¦ <b>کەناڵی گرووپ @{clean_ch} 🌸</b> •"
+        f"👑 <b>ئاگاداری بۆ بەڕێز:</b> {user_mention} ✨\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🔒 <b>بۆ چاتکردن، سەرەتا پێویستە جۆینی کەناڵەکەمان بکەیت:</b>\n\n"
+        f"📢 <b>کەناڵ:</b> <b>{ch_title_escaped}</b>\n"
+        f"🏷️ <b>یوزەر:</b> <code>@{clean_ch}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"⚠️ <i>تا جۆین نەکەیت ناتوانیت پەیام بنێریت و چاتەکانت دەسڕدرێنەوە.</i>\n\n"
+        f"🌸 <b>پاش جۆینکردن، دەتوانیت بە ئازادی لەگەڵمان بەشدار بیت</b> 🥰"
     )
     
     markup = {
         "inline_keyboard": [
             [
-                {"text": "ئێرە دابگرە بۆ جۆین کردن ✅", "url": channel_link}
+                {"text": "📢 جۆینکردنی چەناڵ • ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ ✅", "url": channel_link}
             ],
             [
                 {"text": "👑 ɢʀᴏᴜᴘ ᴘᴀᴛ & ᴍᴀᴛ 👑", "url": group_link}
