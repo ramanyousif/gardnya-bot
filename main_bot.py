@@ -452,16 +452,24 @@ def is_user_subscribed_to_channel(channel_identifier: str, user_id: int) -> bool
 force_join_cooldowns = {}
 
 def send_force_join_card(chat_id: int, user_id: int, display_name: str, channel_identifier: str, thread_id: int = 0):
-    """دروستکردن و ناردنی کارتی شیک و فەرمی بۆ ئیجباری جۆینکردنی چەناڵ بە دوگمەی شوشەیی"""
+    """دروستکردن و ناردنی کارتی شیک و فەرمی بۆ ئیجباری جۆینکردنی چەناڵ بە دیزاینی جوان"""
     clean_ch = channel_identifier.strip().lstrip("@")
     channel_link = f"https://t.me/{clean_ch}"
     group_link = "https://t.me/pat_u_mat_gruop"
     
+    # وەرگرتنی ناوی فەرمیی چەناڵ لە تێلێگرام
+    ch_res = tg_call("getChat", {"chat_id": f"@{clean_ch}"})
+    ch_title = ch_res.get("result", {}).get("title") if ch_res else ""
+    if not ch_title:
+        ch_title = f"@{clean_ch}"
+    ch_title_escaped = html.escape(ch_title)
+    
     caption = (
-        f"<b>ئەندامی بەڕێز {html.escape(display_name)}</b> ✨\n\n"
-        f"<b>بۆ ئەوەی بتوانیت لەم گروپەدا بە ئازادی چات بکەیت، سەرەتا پێویستە جۆینی چەناڵەکەمان بکەیت.</b>\n\n"
-        f"📢 <b>چەناڵ:</b> @{clean_ch}\n\n"
-        f"<i>پاش جۆینکردن، دەتوانیت لەگەڵمان بەشدار بیت</i> 🌸"
+        f"❖ ¦ <b>تۆ ئەندام نیت لەم کەناڵە {ch_title_escaped}</b> •\n\n"
+        f"❖ ¦ <b>ناتوانی چات بکەیت لەم گرووپە</b> •\n\n"
+        f"❖ ¦ <b>سەرەتا پێویستە جۆینی کەناڵ بکەیت</b> •\n\n"
+        f"❖ ¦ <b>ئەگەر جۆین نەکەیت ئەوا چاتەکەت دەسڕمەوە و ئاگادارت دەکەمەوە</b> •\n\n"
+        f"❖ ¦ <b>کەناڵی گرووپ @{clean_ch} 🌸</b> •"
     )
     
     markup = {
