@@ -466,14 +466,16 @@ def send_force_join_card(chat_id: int, user_id: int, display_name: str, channel_
     
     # تاگکردنی ڕاستەوخۆ و کلیکداری بەکارهێنەر (Clickable User Mention Link)
     user_mention = f'<a href="tg://user?id={user_id}">{html.escape(display_name)}</a>'
+    # لینکی کلیکداری چەناڵ بۆ ئەوەی ڕاستەوخۆ چەناڵەکە بکاتەوە
+    channel_mention = f'<a href="{channel_link}">@{clean_ch}</a>'
     
     caption = (
         f"👑 <b>ئاگاداری بۆ بەڕێز:</b> {user_mention} ✨\n"
-        f"──────────\n"
+        f"⋆┈┈┈┈┈┈┈┈┈⋆\n"
         f"🔒 <b>بۆ چاتکردن، سەرەتا پێویستە جۆینی کەناڵەکەمان بکەیت:</b>\n\n"
         f"📢 <b>کەناڵ:</b> <b>{ch_title_escaped}</b>\n"
-        f"🏷️ <b>یوزەر:</b> <code>@{clean_ch}</code>\n"
-        f"──────────\n"
+        f"🏷️ <b>یوزەر:</b> {channel_mention}\n"
+        f"⋆┈┈┈┈┈┈┈┈┈⋆\n"
         f"⚠️ <i>تا جۆین نەکەیت ناتوانیت پەیام بنێریت و چاتەکانت دەسڕدرێنەوە.</i>\n\n"
         f"🌸 <b>پاش جۆینکردن، دەتوانیت بە ئازادی لەگەڵمان بەشدار بیت</b> 🥰"
     )
@@ -489,14 +491,15 @@ def send_force_join_card(chat_id: int, user_id: int, display_name: str, channel_
         ]
     }
     
-    # دابەزاندنی نوێترین وێنەی سەر پڕۆفایلی چەناڵ بە شێوەی ڕاستەوخۆ
-    ch_photo_bytes = get_channel_live_photo_bytes(channel_identifier)
-    if ch_photo_bytes:
-        send_photo(chat_id, ch_photo_bytes, caption, 0, thread_id, reply_markup=markup)
+    # ١. دابەزاندنی نوێترین وێنەی سەر پڕۆفایلی ئەو گروپەی لێی بەکاردەهێنرێت
+    group_photo_bytes = get_chat_latest_photo_bytes(chat_id)
+    if group_photo_bytes:
+        send_photo(chat_id, group_photo_bytes, caption, 0, thread_id, reply_markup=markup)
     else:
-        group_photo_bytes = get_chat_latest_photo_bytes(chat_id)
-        if group_photo_bytes:
-            send_photo(chat_id, group_photo_bytes, caption, 0, thread_id, reply_markup=markup)
+        # ۲. ئەگەر گروپەکە وێنەی نەبوو، وێنەی چەناڵەکە دابنێ
+        ch_photo_bytes = get_channel_live_photo_bytes(channel_identifier)
+        if ch_photo_bytes:
+            send_photo(chat_id, ch_photo_bytes, caption, 0, thread_id, reply_markup=markup)
         else:
             send_message(chat_id, caption, 0, thread_id, reply_markup=markup)
 
