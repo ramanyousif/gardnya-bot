@@ -355,7 +355,7 @@ if me_data and me_data.get("ok"):
     BOT_ID = me_data["result"]["id"]
     print(f"Bot authenticated as: @{me_data['result'].get('username', 'bot')} (ID: {BOT_ID})")
 
-def send_message(chat_id: int, text: str, reply_to: int = 0, thread_id: int = 0, parse_mode: str = "HTML"):
+def send_message(chat_id: int, text: str, reply_to: int = 0, thread_id: int = 0, parse_mode: str = "HTML", reply_markup: dict = None):
     body = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
     if parse_mode:
         body["parse_mode"] = parse_mode
@@ -364,6 +364,8 @@ def send_message(chat_id: int, text: str, reply_to: int = 0, thread_id: int = 0,
         body["allow_sending_without_reply"] = True
     if thread_id > 0:
         body["message_thread_id"] = thread_id
+    if reply_markup:
+        body["reply_markup"] = reply_markup
     res = tg_call("sendMessage", body)
     if not res or not res.get("ok"):
         # Fallback without parse_mode if HTML entity formatting fails
@@ -397,7 +399,94 @@ def get_chat_latest_photo_bytes(chat_id: int, chat_info: dict = None):
 def get_chat_photo_bytes(chat_id: int):
     return get_chat_latest_photo_bytes(chat_id)
 
-def send_photo(chat_id: int, photo_source, caption: str, reply_to: int = 0, thread_id: int = 0):
+def get_channel_live_photo_bytes(channel_identifier: str):
+    """دابەزاندنی ڕاستەوخۆ و نوێی وێنەی پڕۆفایلی چەناڵ بە شێوەی باێت لە سێرڤەری تێلێگرام"""
+    if not channel_identifier:
+        return None
+    try:
+        clean_ch = channel_identifier.strip()
+        if not clean_ch.startswith("@") and not clean_ch.startswith("-100"):
+            clean_ch = f"@{clean_ch}"
+        
+        chat_res = tg_call("getChat", {"chat_id": clean_ch})
+        if chat_res and chat_res.get("ok"):
+            photo_info = chat_res.get("result", {}).get("photo", {})
+            photo_id = photo_info.get("big_file_id") or photo_info.get("small_file_id")
+            if photo_id:
+                file_res = tg_call("getFile", {"file_id": photo_id})
+                if file_res and file_res.get("ok"):
+                    f_path = file_res.get("result", {}).get("file_path")
+                    if f_path:
+                        url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{f_path}"
+                        resp = requests.get(url, timeout=15)
+                        if resp.status_code == 200 and len(resp.content) > 100:
+                            return resp.content
+    except Exception as e:
+        print(f"Error fetching channel live photo ({channel_identifier}): {e}")
+    return None
+
+def is_user_subscribed_to_channel(channel_identifier: str, user_id: int) -> bool:
+    """پشکنینی ئەوەی ئایا بەکارهێنەر جۆینی چەناڵەکەی کردووە یان نا"""
+    if not channel_identifier or not user_id:
+        return True
+    try:
+        clean_ch = channel_identifier.strip()
+        if not clean_ch.startswith("@") and not clean_ch.startswith("-100"):
+            clean_ch = f"@{clean_ch}"
+            
+        res = tg_call("getChatMember", {"chat_id": clean_ch, "user_id": user_id})
+        if res and res.get("ok"):
+            status = res.get("result", {}).get("status", "")
+            if status in ["member", "administrator", "creator", "restricted"]:
+                return True
+            else:
+                return False
+        else:
+            print(f"Channel sub check error for {user_id} in {clean_ch}: {res}")
+            return False
+    except Exception as e:
+        print(f"is_user_subscribed_to_channel error: {e}")
+        return False
+
+# کۆگای کاتی ڕێگری لە سپامکردنی کارتی جۆین
+force_join_cooldowns = {}
+
+def send_force_join_card(chat_id: int, user_id: int, display_name: str, channel_identifier: str, thread_id: int = 0):
+    """دروستکردن و ناردنی کارتی شیک و فەرمی بۆ ئیجباری جۆینکردنی چەناڵ بە دوگمەی شوشەیی"""
+    clean_ch = channel_identifier.strip().lstrip("@")
+    channel_link = f"https://t.me/{clean_ch}"
+    group_link = "https://t.me/pat_u_mat_gruop"
+    
+    caption = (
+        f"<b>ئەندامی بەڕێز {html.escape(display_name)}</b> ✨\n\n"
+        f"<b>بۆ ئەوەی بتوانیت لەم گروپەدا بە ئازادی چات بکەیت، سەرەتا پێویستە جۆینی چەناڵەکەمان بکەیت.</b>\n\n"
+        f"📢 <b>چەناڵ:</b> @{clean_ch}\n\n"
+        f"<i>پاش جۆینکردن، دەتوانیت لەگەڵمان بەشدار بیت</i> 🌸"
+    )
+    
+    markup = {
+        "inline_keyboard": [
+            [
+                {"text": "ئێرە دابگرە بۆ جۆین کردن ✅", "url": channel_link}
+            ],
+            [
+                {"text": "👑 ɢʀᴏᴜᴘ ᴘᴀᴛ & ᴍᴀᴛ 👑", "url": group_link}
+            ]
+        ]
+    }
+    
+    # دابەزاندنی نوێترین وێنەی سەر پڕۆفایلی چەناڵ بە شێوەی ڕاستەوخۆ
+    ch_photo_bytes = get_channel_live_photo_bytes(channel_identifier)
+    if ch_photo_bytes:
+        send_photo(chat_id, ch_photo_bytes, caption, 0, thread_id, reply_markup=markup)
+    else:
+        group_photo_bytes = get_chat_latest_photo_bytes(chat_id)
+        if group_photo_bytes:
+            send_photo(chat_id, group_photo_bytes, caption, 0, thread_id, reply_markup=markup)
+        else:
+            send_message(chat_id, caption, 0, thread_id, reply_markup=markup)
+
+def send_photo(chat_id: int, photo_source, caption: str, reply_to: int = 0, thread_id: int = 0, reply_markup: dict = None):
     try:
         data = {
             "chat_id": str(chat_id),
@@ -409,15 +498,17 @@ def send_photo(chat_id: int, photo_source, caption: str, reply_to: int = 0, thre
             data["allow_sending_without_reply"] = "true"
         if thread_id > 0:
             data["message_thread_id"] = str(thread_id)
+        if reply_markup:
+            data["reply_markup"] = json.dumps(reply_markup)
         
-        # 1. If photo_source is raw bytes (downloaded group avatar)
+        # 1. If photo_source is raw bytes (downloaded group avatar or channel avatar)
         if isinstance(photo_source, bytes):
-            files = {"photo": ("group_photo.jpg", photo_source)}
+            files = {"photo": ("photo.jpg", photo_source)}
             r = requests.post(f"{API_BASE}/sendPhoto", data=data, files=files, timeout=30)
             res = r.json()
             if not res.get("ok"):
                 data.pop("parse_mode", None)
-                r = requests.post(f"{API_BASE}/sendPhoto", data=data, files={"photo": ("group_photo.jpg", photo_source)}, timeout=30)
+                r = requests.post(f"{API_BASE}/sendPhoto", data=data, files={"photo": ("photo.jpg", photo_source)}, timeout=30)
                 return r.json()
             return res
         
@@ -434,10 +525,10 @@ def send_photo(chat_id: int, photo_source, caption: str, reply_to: int = 0, thre
                     return r.json()
                 return res
         else:
-            return send_message(chat_id, caption, reply_to, thread_id)
+            return send_message(chat_id, caption, reply_to, thread_id, reply_markup=reply_markup)
     except Exception as e:
         print(f"sendPhoto Error: {e}")
-        return send_message(chat_id, caption, reply_to, thread_id)
+        return send_message(chat_id, caption, reply_to, thread_id, reply_markup=reply_markup)
 
 def delete_message(chat_id: int, message_id: int):
     return tg_call("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
@@ -2249,6 +2340,66 @@ def handle_command(msg: dict, text: str):
         unban_user(chat_id, target_uid)
         send_message(chat_id, f"✅ بەکارهێنەر بە ئایدی `{target_uid}` ئازاد کرا 🌸", msg_id, thread_id)
 
+    elif cmd in ["/setchannel", "/set_channel", "/channel_set"]:
+        if not is_admin(chat_id, user_id):
+            send_message(chat_id, "⚠️ ئەم فەرمانە تەنها بۆ ئەدمینەکانی گروپە! 🌸", msg_id, thread_id)
+            return
+        if not arg:
+            help_txt = (
+                "📢 <b>ڕێنمایی پەیوەستکردنی چەناڵ بۆ ئیجباری جۆین:</b>\n\n"
+                "تکایە یوزەرنەیمی چەناڵەکە لەگەڵ فەرمانەکە بنووسە:\n"
+                "نموونە: <code>/setchannel @mshell9</code>\n\n"
+                "<i>تێبینی: پێویستە بۆتەکە لەناو چەناڵەکەدا ئەدمین (Admin) بێت بۆ پشکنینی ئەندامەکان.</i> 🌸"
+            )
+            send_message(chat_id, help_txt, msg_id, thread_id)
+            return
+        
+        ch_target = arg.strip().split()[0]
+        if not ch_target.startswith("@") and not ch_target.startswith("-100"):
+            ch_target = f"@{ch_target}"
+            
+        test_res = tg_call("getChat", {"chat_id": ch_target})
+        if not test_res or not test_res.get("ok"):
+            send_message(chat_id, f"⚠️ نەتوانرا زانیاریی چەناڵی <code>{html.escape(ch_target)}</code> وەربگیرێت!\nتکایە دڵنیابە لە ڕاستیی یوزەرنەیم و بۆتەکە لە چەناڵەکە ئەدمین کراوە 🌸", msg_id, thread_id)
+            return
+            
+        ch_title = test_res.get("result", {}).get("title", ch_target)
+        if "force_channel" not in state_data:
+            state_data["force_channel"] = {}
+        state_data["force_channel"][str(chat_id)] = ch_target
+        save_state()
+        
+        succ_msg = (
+            f"✅ <b>چەناڵی گروپ بە سەرکەوتوویی پەیوەست کرا!</b> 🎉\n\n"
+            f"📢 <b>ناوی چەناڵ:</b> {html.escape(ch_title)}\n"
+            f"🏷️ <b>یوزەرنەیم:</b> {html.escape(ch_target)}\n\n"
+            f"🔒 <i>لە ئێستاوە هەموو ئەندامێکی نا-ئەدمین دەبێت جۆینی ئەم چەناڵە بکات تا بتوانێت لە گروپ چات بکات.</i> 🌸"
+        )
+        send_message(chat_id, succ_msg, msg_id, thread_id)
+        return
+
+    elif cmd in ["/delchannel", "/unsetchannel", "/removechannel"]:
+        if not is_admin(chat_id, user_id):
+            send_message(chat_id, "⚠️ ئەم فەرمانە تەنها بۆ ئەدمینەکانی گروپە! 🌸", msg_id, thread_id)
+            return
+        c_key = str(chat_id)
+        if "force_channel" in state_data and c_key in state_data["force_channel"]:
+            del state_data["force_channel"][c_key]
+            save_state()
+            send_message(chat_id, "✅ مەرجی ئیجباری جۆینکردنی چەناڵ بۆ ئەم گروپە بە سەرکەوتوویی ناچالاک کرا! 🔓🌸", msg_id, thread_id)
+        else:
+            send_message(chat_id, "ℹ️ لە ئێستادا هیچ چەناڵێک بۆ ئەم گروپە دانەنراوە! 🌸", msg_id, thread_id)
+        return
+
+    elif cmd in ["/channel", "/getchannel"]:
+        c_key = str(chat_id)
+        current_ch = state_data.get("force_channel", {}).get(c_key)
+        if current_ch:
+            send_message(chat_id, f"📢 <b>چەناڵی پەیوەستکراوی ئەم گروپە:</b> <code>{html.escape(current_ch)}</code> 🌸\nبۆ سڕینەوە: <code>/delchannel</code>", msg_id, thread_id)
+        else:
+            send_message(chat_id, "ℹ️ هیچ چەناڵێک بۆ ئیجباری جۆین لەم گروپە دانەنراوە.\nبۆ دانان ئەدمین دەتوانێت بنووسێت: <code>/setchannel @username</code> 🌸", msg_id, thread_id)
+        return
+
 def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int = 0):
     if not user or user.get("is_bot"):
         return
@@ -2609,6 +2760,22 @@ def handle_message(msg: dict):
             send_message(chat_id, f"🚫 {display_name} بەهۆی دووبارەکردنەوەی سەرپێچی، بۆ ماوەی {AUTO_MUTE_MINUTES} خولەک لە چاتکردن بێدەنگ کرا! 🔇")
             print(f"🚫 Muted {display_name} for {AUTO_MUTE_MINUTES} minutes")
         return
+
+    # 📢 پشکنینی ئیجباری جۆینکردنی چەناڵ بۆ ئەندامانی نا-ئەدمین (Force Subscribe Check)
+    if chat_type in ["group", "supergroup"] and not is_user_admin:
+        group_req_channel = state_data.get("force_channel", {}).get(str(chat_id))
+        if group_req_channel:
+            is_subbed = is_user_subscribed_to_channel(group_req_channel, user_id)
+            if not is_subbed:
+                delete_message(chat_id, msg_id)
+                cd_key = f"{chat_id}_{user_id}"
+                now_t = time.time()
+                last_card_t = force_join_cooldowns.get(cd_key, 0)
+                if now_t - last_card_t > 25:
+                    force_join_cooldowns[cd_key] = now_t
+                    send_force_join_card(chat_id, user_id, display_name, group_req_channel, thread_id)
+                print(f"🔒 Force-Join: Deleted message from non-subscribed user {display_name} in chat {chat_id}")
+                return
 
     # 🎭 کاتێک ئەندامێک ستیکەری ئاسایی دەنێرێت (وەڵامدانەوەی شیرین و پەیوەندیدار)
     if "sticker" in msg:
