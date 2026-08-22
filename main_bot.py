@@ -469,11 +469,11 @@ def send_force_join_card(chat_id: int, user_id: int, display_name: str, channel_
     
     caption = (
         f"👑 <b>ئاگاداری بۆ بەڕێز:</b> {user_mention} ✨\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"──────────\n"
         f"🔒 <b>بۆ چاتکردن، سەرەتا پێویستە جۆینی کەناڵەکەمان بکەیت:</b>\n\n"
         f"📢 <b>کەناڵ:</b> <b>{ch_title_escaped}</b>\n"
         f"🏷️ <b>یوزەر:</b> <code>@{clean_ch}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"──────────\n"
         f"⚠️ <i>تا جۆین نەکەیت ناتوانیت پەیام بنێریت و چاتەکانت دەسڕدرێنەوە.</i>\n\n"
         f"🌸 <b>پاش جۆینکردن، دەتوانیت بە ئازادی لەگەڵمان بەشدار بیت</b> 🥰"
     )
@@ -481,7 +481,7 @@ def send_force_join_card(chat_id: int, user_id: int, display_name: str, channel_
     markup = {
         "inline_keyboard": [
             [
-                {"text": "📢 جۆینکردنی چەناڵ • ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ ✅", "url": channel_link}
+                {"text": "ئێرە دابگرە بۆ جۆین کردن ✅", "url": channel_link}
             ],
             [
                 {"text": "👑 ɢʀᴏᴜᴘ ᴘᴀᴛ & ᴍᴀᴛ 👑", "url": group_link}
