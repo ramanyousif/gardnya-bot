@@ -450,6 +450,34 @@ def is_user_subscribed_to_channel(channel_identifier: str, user_id: int) -> bool
 
 # کۆگای کاتی ڕێگری لە سپامکردنی کارتی جۆین
 force_join_cooldowns = {}
+# کۆگای ئایدی پەیامی کارتی جۆینی هەر بەکارهێنەرێک لە هەر گروپ بۆ سڕینەوە کاتی جۆینکردن
+force_join_card_msgs = state_data.setdefault("force_join_card_msgs", {})
+
+def delete_force_join_card(chat_id: int, user_id: int) -> bool:
+    """سڕینەوەی کارتی جۆینی بەکارهێنەر دوای ئەوەی جۆینی چەناڵەکە دەکات."""
+    cd_key = f"{chat_id}_{user_id}"
+    card_mid = force_join_card_msgs.get(cd_key)
+    if not card_mid:
+        return False
+
+    deleted = delete_message(chat_id, card_mid)
+    if deleted and deleted.get("ok"):
+        force_join_card_msgs.pop(cd_key, None)
+        force_join_cooldowns.pop(cd_key, None)
+        save_state()
+        print(f"✅ Force-Join: Deleted completed join card for user {user_id} in chat {chat_id}")
+        return True
+    return False
+
+def channel_update_matches_identifier(chat: dict, channel_identifier: str) -> bool:
+    """بەراوردکردنی چەناڵی update لەگەڵ چەناڵی دانراوی گروپ."""
+    configured = str(channel_identifier or "").strip().lower()
+    if not configured:
+        return False
+    if configured == str(chat.get("id", "")):
+        return True
+    username = str(chat.get("username", "")).strip().lower().lstrip("@")
+    return bool(username and configured.lstrip("@") == username)
 
 def send_force_join_card(chat_id: int, user_id: int, display_name: str, channel_identifier: str, thread_id: int = 0):
     """دروستکردن و ناردنی کارتی شیک و تایبەتی بۆت بۆ ئیجباری جۆینکردن بە تاگکردنی بەکارهێنەر"""
@@ -490,18 +518,38 @@ def send_force_join_card(chat_id: int, user_id: int, display_name: str, channel_
             ]
         ]
     }
-    
+
+    # سڕینەوەی کارتی کۆنی جۆین ئەگەر هەبێت
+    cd_key = f"{chat_id}_{user_id}"
+    old_card_mid = force_join_card_msgs.get(cd_key)
+    if old_card_mid:
+        try:
+            old_deleted = delete_message(chat_id, old_card_mid)
+            if old_deleted and old_deleted.get("ok"):
+                force_join_card_msgs.pop(cd_key, None)
+                save_state()
+        except Exception:
+            pass
+
     # ١. دابەزاندنی نوێترین وێنەی سەر پڕۆفایلی ئەو گروپەی لێی بەکاردەهێنرێت
+    sent_res = None
     group_photo_bytes = get_chat_latest_photo_bytes(chat_id)
     if group_photo_bytes:
-        send_photo(chat_id, group_photo_bytes, caption, 0, thread_id, reply_markup=markup)
+        sent_res = send_photo(chat_id, group_photo_bytes, caption, 0, thread_id, reply_markup=markup)
     else:
         # ۲. ئەگەر گروپەکە وێنەی نەبوو، وێنەی چەناڵەکە دابنێ
         ch_photo_bytes = get_channel_live_photo_bytes(channel_identifier)
         if ch_photo_bytes:
-            send_photo(chat_id, ch_photo_bytes, caption, 0, thread_id, reply_markup=markup)
+            sent_res = send_photo(chat_id, ch_photo_bytes, caption, 0, thread_id, reply_markup=markup)
         else:
-            send_message(chat_id, caption, 0, thread_id, reply_markup=markup)
+            sent_res = send_message(chat_id, caption, 0, thread_id, reply_markup=markup)
+
+    # تۆمارکردنی ئایدی پەیامی کارتی جۆین بۆ سڕینەوەی کاتی جۆینکردن
+    if sent_res and sent_res.get("ok"):
+        card_mid = sent_res.get("result", {}).get("message_id")
+        if card_mid:
+            force_join_card_msgs[cd_key] = card_mid
+            save_state()
 
 def send_photo(chat_id: int, photo_source, caption: str, reply_to: int = 0, thread_id: int = 0, reply_markup: dict = None):
     try:
@@ -2512,6 +2560,19 @@ def handle_chat_member_update(data: dict):
     new_member_obj = data.get("new_chat_member", {})
     new_status = new_member_obj.get("status")
     user = new_member_obj.get("user", {})
+    user_id = user.get("id")
+
+    # کاتێک بەکارهێنەر جۆینی چەناڵی داواکراو دەکات، کارتی جۆینەکەی لە گروپ بسڕەوە
+    if (
+        chat.get("type") == "channel"
+        and user_id
+        and old_status in ["left", "kicked"]
+        and new_status in ["member", "administrator", "creator"]
+    ):
+        for group_id, required_channel in state_data.get("force_channel", {}).items():
+            if channel_update_matches_identifier(chat, required_channel):
+                delete_force_join_card(int(group_id), user_id)
+        return
     
     # User joined the group via link, invite, or direct join
     if old_status in ["left", "kicked", "restricted"] and new_status in ["member", "administrator"]:
@@ -2793,6 +2854,7 @@ def handle_message(msg: dict):
                     send_force_join_card(chat_id, user_id, display_name, group_req_channel, thread_id)
                 print(f"🔒 Force-Join: Deleted message from non-subscribed user {display_name} in chat {chat_id}")
                 return
+            delete_force_join_card(chat_id, user_id)
 
     # 🎭 کاتێک ئەندامێک ستیکەری ئاسایی دەنێرێت (وەڵامدانەوەی شیرین و پەیوەندیدار)
     if "sticker" in msg:
