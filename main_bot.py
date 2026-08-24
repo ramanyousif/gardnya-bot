@@ -743,6 +743,61 @@ KURDISH_UNSCRAMBLE_WORDS = [
     {"word": "زێراب", "scrambled": "ر • ا • ز • ێ • ب", "category": "ڕووبار و جۆگەی ئاو 🌊", "answers": ["زێراب", "زیراب"]}
 ]
 
+# کۆگای فراوانی وشە بۆ ئەو کاتەی خزمەتگوزاریی AI کاتییەک وەڵام نادات
+EXTRA_KURDISH_UNSCRAMBLE_WORDS = [
+    ("قوتابخانە", "شوێنی خوێندن و فێربوون 🏫"), ("زانکۆ", "شوێنی خوێندنی باڵا 🎓"),
+    ("نەخۆشخانە", "شوێنی چارەسەری نەخۆشان 🏥"), ("دەرمانخانە", "شوێنی کڕینی دەرمان 💊"),
+    ("مامۆستا", "پیشەی فێرکردن 👩‍🏫"), ("قوتابی", "کەسێک کە دەخوێنێت 📚"),
+    ("ئەندازیار", "پیشەی دیزاین و دروستکردن 📐"), ("پزیشک", "پیشەی چارەسەری نەخۆشی 🩺"),
+    ("جوتیار", "پیشەی کشتوکاڵ 🚜"), ("دارتاش", "پیشەی کارکردن بە دار 🪵"),
+    ("ئاسنگەر", "پیشەی کارکردن بە ئاسن 🔨"), ("دروومان", "پیشەی دروستکردنی جل 🧵"),
+    ("ڕووبار", "ئاوێکی بەردەوام ڕادەکات 🌊"), ("تاڤگە", "ئاو لە بەرزاییەوە دەڕژێت 💦"),
+    ("کانیاو", "سەرچاوەی سروشتی ئاو 💧"), ("دارستان", "شوێنێکی پڕ لە دار 🌲"),
+    ("ئەشکەوت", "شوێنێکی سروشتی ناو شاخ 🪨"), ("ڕەنگینکەوان", "دوای باران لە ئاسمان دەردەکەوێت 🌈"),
+    ("ئەستێرە", "لە شەودا لە ئاسمان دەدرەوشێتەوە ⭐"), ("ئاسمان", "لە سەرووی زەوییە ☁️"),
+    ("هەور", "هەڵگری دڵۆپەکانی بارانە ☁️"), ("باران", "دڵۆپی ئاو لە ئاسمانەوە 🌧️"),
+    ("بەفر", "بارینی سپیی زستان ❄️"), ("برووسکە", "ڕووناکییەکی خێرای ئاسمان ⚡"),
+    ("هەورەتریشقە", "دەنگی بەهێزی کاتی باران 🌩️"), ("پڵنگ", "ئاژەڵێکی کێویی خالدار 🐆"),
+    ("گورگ", "ئاژەڵێکی کێویی بەهێز 🐺"), ("ڕێوی", "ئاژەڵێکی زیرەکی کێویی 🦊"),
+    ("کەروێشک", "ئاژەڵێکی بچووک و خێرا 🐇"), ("ئاسک", "ئاژەڵێکی جوانی کێویی 🦌"),
+    ("ئەسپ", "ئاژەڵێک بۆ سواری 🐎"), ("هەڵۆ", "باڵندەیەکی بەهێزی بەرزفڕ 🦅"),
+    ("کەو", "باڵندەیەکی کێویی کوردستان 🐦"), ("کۆتر", "باڵندەیەکی ئاشتی 🕊️"),
+    ("چۆلەکە", "باڵندەیەکی بچووک 🐤"), ("ماسی", "گیاندارێک لە ئاو دەژی 🐟"),
+    ("کیسەڵ", "گیاندارێکی خاوەن قەڵغان 🐢"), ("پرتەقاڵ", "میوەیەکی نارنجی 🍊"),
+    ("شووتی", "میوەیەکی سەوز و ناوسوور 🍉"), ("کالەک", "میوەیەکی شیرینی هاوین 🍈"),
+    ("ترێ", "میوەیەکی دەنکەدەنک 🍇"), ("هەنجیر", "میوەیەکی شیرین و ناسک 🌿"),
+    ("گوێز", "میوەیەکی وشکی خاوەن توێکڵ 🌰"), ("بادەم", "جۆرێک میوەی وشک 🌰"),
+    ("خیار", "سەوزەیەکی درێژ و سەوز 🥒"), ("تەماتە", "سەوزەیەکی سوور 🍅"),
+    ("پەتاتە", "سەوزەیەکی ژێرزەوی 🥔"), ("پیاز", "سەوزەیەک فرمێسک دەڕێژێنێت 🧅"),
+    ("گێزەر", "سەوزەیەکی نارنجی 🥕"), ("بیبەر", "سەوزەیەکی توند یان شیرین 🌶️"),
+    ("هەنگوین", "خواردنێکی شیرین کە هەنگ دروستی دەکات 🍯"), ("پەنیر", "خواردنێک لە شیر دروست دەبێت 🧀"),
+    ("کتێب", "سەرچاوەی زانیاری و خوێندن 📖"), ("قەڵەم", "ئامرازێک بۆ نووسین ✏️"),
+    ("دەفتەر", "پەڕەی کۆکراوە بۆ نووسین 📒"), ("پەنجەرە", "ڕووناکی لێوە دێتە ژوورەوە 🪟"),
+    ("دەرگا", "ڕێگای چوونە ژوورەوە 🚪"), ("کورسی", "کەلەپوورێک بۆ دانیشتن 🪑"),
+    ("سەرین", "لە کاتی خەودا سەر لەسەری دادەنێین 🛏️"), ("پەتوو", "لە سەرمادا خۆمانی پێ دادەپۆشین 🧣"),
+    ("مۆبایل", "ئامێرێک بۆ پەیوەندی و چات 📱"), ("کۆمپیوتەر", "ئامێرێکی ئەلیکترۆنی بۆ کارکردن 💻"),
+    ("ئۆتۆمبێل", "ئامرازێک بۆ گواستنەوە 🚗"), ("فڕۆکە", "لە ئاسماندا دەفڕێت ✈️"),
+    ("پاسکیل", "ئامرازێکی دوو تایە بۆ سواری 🚲"), ("کاتژمێر", "کات پیشان دەدات ⌚"),
+    ("کلیل", "دەرگا و قوفڵ پێ دەکرێتەوە 🔑"), ("باخچە", "شوێنێکی پڕ لە گوڵ و دار 🌷"),
+    ("ئازادی", "مافی ژیان و هەڵبژاردن 🕊️"), ("هاوڕێیەتی", "پەیوەندییەکی جوانی نێوان مرۆڤەکان 🤝"),
+    ("خۆشەویستی", "هەستێکی جوان و بەهێز ❤️"), ("سەرکەوتن", "گەیشتن بە ئامانج 🏆"),
+    ("داهاتوو", "کاتی دوای ئێستا 🔮"), ("بیرکاری", "زانستی ژمارە و چارەسەر ➗"),
+    ("تەکنەلۆجیا", "زانستی ئامێر و نوێکاری 🤖"), ("ژینگە", "سروشت و دەوروبەری ژیان 🌍")
+]
+
+for _word, _category in EXTRA_KURDISH_UNSCRAMBLE_WORDS:
+    if not any(item["word"] == _word for item in KURDISH_UNSCRAMBLE_WORDS):
+        _letters = [char for char in _word if not char.isspace()]
+        _mixed = _letters[1::2] + _letters[::2]
+        if _mixed == _letters:
+            _mixed.reverse()
+        KURDISH_UNSCRAMBLE_WORDS.append({
+            "word": _word,
+            "scrambled": " • ".join(_mixed),
+            "category": _category,
+            "answers": [_word]
+        })
+
 KURDISH_TRUE_FALSE = [
     {
         "question": "ئایا نەهەنگی شین گەورەترین گیانداری سەر زەوییە لە مێژوودا؟",
@@ -1463,40 +1518,47 @@ def request_game_ai_json(prompt: str, max_tokens: int = 300, temperature: float 
     if groq_client:
         models = [config.get("groqModel", GROQ_MODEL), GROQ_MODEL, "openai/gpt-oss-120b"]
         for model_name in dict.fromkeys(m for m in models if m):
-            try:
-                res = groq_client.chat.completions.create(
-                    model=model_name,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    response_format={"type": "json_object"}
-                )
-                parsed = parse_ai_json(res.choices[0].message.content)
-                if parsed:
-                    return parsed
-            except Exception as e:
-                print(f"Game AI Groq Notice ({model_name}): {e}")
+            # هەندێک مۆدێل response_format وەرناگرن؛ بۆیە بە هەردوو شێوەکە هەوڵ دەدرێت
+            for use_json_mode in [True, False]:
+                try:
+                    request_args = {
+                        "model": model_name,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": temperature,
+                        "max_tokens": max_tokens
+                    }
+                    if use_json_mode:
+                        request_args["response_format"] = {"type": "json_object"}
+                    res = groq_client.chat.completions.create(**request_args)
+                    parsed = parse_ai_json(res.choices[0].message.content)
+                    if parsed:
+                        return parsed
+                except Exception as e:
+                    mode = "json" if use_json_mode else "plain"
+                    print(f"Game AI Groq Notice ({model_name}/{mode}): {e}")
 
     if GEMINI_API_KEY:
         for model_name in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
-                body = {
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "maxOutputTokens": max_tokens,
-                        "temperature": temperature,
-                        "responseMimeType": "application/json"
+                for use_json_mode in [True, False]:
+                    generation_config = {"maxOutputTokens": max_tokens, "temperature": temperature}
+                    if use_json_mode:
+                        generation_config["responseMimeType"] = "application/json"
+                    body = {
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": generation_config
                     }
-                }
-                response = requests.post(url, json=body, timeout=20)
-                if response.status_code == 200:
-                    candidates = response.json().get("candidates", [])
-                    if candidates:
-                        raw = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                        parsed = parse_ai_json(raw)
-                        if parsed:
-                            return parsed
+                    response = requests.post(url, json=body, timeout=20)
+                    if response.status_code == 200:
+                        candidates = response.json().get("candidates", [])
+                        if candidates:
+                            raw = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                            parsed = parse_ai_json(raw)
+                            if parsed:
+                                return parsed
+                    elif response.status_code not in [400, 429]:
+                        break
             except Exception as e:
                 print(f"Game AI Gemini Notice ({model_name}): {e}")
     return None
@@ -3036,6 +3098,11 @@ def handle_message(msg: dict):
             
             record_group_member(chat_id, member)
             handle_new_member(chat_id, member, msg_id, thread_id)
+
+    # ناسینەوەی Next بەبێ / بۆ گواستنەوە بۆ خولی نوێ (تەنها بۆ ئەدمین)
+    if text.strip().lower() in ["next", "نێکست", "دواتر"] and is_user_admin:
+        handle_command(msg, "/next")
+        return
 
     # فرمانەکان
     if text.startswith("/"):
