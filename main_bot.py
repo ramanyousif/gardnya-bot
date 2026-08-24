@@ -1580,11 +1580,75 @@ def game_content_is_new(value: str, used_items, similarity_limit: float = 0.91) 
             return False
     return True
 
-def generate_ai_kurdish_unscramble(used_words=None) -> dict:
+GAME_EMOJI_PATTERN = re.compile(
+    "[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F\u200D]+",
+    flags=re.UNICODE
+)
+
+def strip_game_emojis(value: str) -> str:
+    """لابردنی ئیمۆجی لە پرسیار و ڕێنمایی تا وەڵامەکە ئاشکرا نەکات."""
+    clean = GAME_EMOJI_PATTERN.sub("", str(value or ""))
+    return re.sub(r"\s+", " ", clean).strip()
+
+GAME_DIFFICULTY_CONFIG = {
+    "easy": ("ئاسان", "پرسیارەکە زۆر ڕوون و سادە بێت و وەڵامەکە بە ئاسانی بدۆزرێتەوە"),
+    "medium": ("مامناوەند", "پرسیارەکە پێویستی بە کەمێک بیرکردنەوە هەبێت، بەڵام گومڕاکەر نەبێت"),
+    "hard": ("قورس", "پرسیارەکە ورد و بیرخەرەوە بێت و وەڵامەکە بە ئاسانی ئاشکرا نەبێت"),
+    "expert": ("زۆر قورس", "پرسیارەکە زۆر زیرەکانە، لۆژیکی و گومڕاکەر بێت و دۆزینەوەی وەڵامەکە زەحمەت بێت")
+}
+
+def reset_game_difficulty(chat_id: int, game_type: int):
+    c_key = str(chat_id)
+    sessions = state_data.setdefault("game_session_rounds", {})
+    sessions.setdefault(c_key, {})[str(game_type)] = 0
+    clear_game_generation_retry(chat_id, game_type)
+    save_state()
+
+def get_game_difficulty(chat_id: int, game_type: int):
+    c_key = str(chat_id)
+    rounds = int(state_data.get("game_session_rounds", {}).get(c_key, {}).get(str(game_type), 0))
+    if rounds < 3:
+        level = "easy"
+    elif rounds < 7:
+        level = "medium"
+    elif rounds < 12:
+        level = "hard"
+    else:
+        level = "expert"
+    label, instruction = GAME_DIFFICULTY_CONFIG[level]
+    return level, label, instruction, rounds + 1
+
+def advance_game_difficulty(chat_id: int, game_type: int):
+    c_key = str(chat_id)
+    sessions = state_data.setdefault("game_session_rounds", {})
+    game_rounds = sessions.setdefault(c_key, {})
+    game_rounds[str(game_type)] = int(game_rounds.get(str(game_type), 0)) + 1
+
+def choose_by_game_difficulty(candidates: list, difficulty: str, text_field: str):
+    """کۆگای offlineیش بە پێی درێژی و ئاڵۆزیی ناوەڕۆک ئاستبەندی دەکات."""
+    if not candidates:
+        return None
+    ordered = sorted(candidates, key=lambda item: len(strip_game_emojis(item.get(text_field, ""))))
+    count = len(ordered)
+    if difficulty == "easy":
+        pool = ordered[:max(1, count // 3)]
+    elif difficulty == "medium":
+        start, end = count // 4, max(count // 4 + 1, (count * 3) // 4)
+        pool = ordered[start:end]
+    elif difficulty == "hard":
+        pool = ordered[max(0, count // 2):]
+    else:
+        pool = ordered[max(0, (count * 3) // 4):]
+    return random.choice(pool or ordered)
+
+def generate_ai_kurdish_unscramble(used_words=None, difficulty: str = "easy") -> dict:
     """دروستکردنی وشەی نوێی تێکئاڵاو بە Groq/Gemini و ڕێگری لە دووبارەبوونەوە."""
+    _, difficulty_instruction = GAME_DIFFICULTY_CONFIG.get(difficulty, GAME_DIFFICULTY_CONFIG["easy"])
     prompt = (
         "وەک پسپۆڕێکی زمانی کوردی، یەک وشەی ناوداری دروست و باوی کوردی سۆرانی دروست بکە؛ "
         "بابەتەکان بگۆڕە: کوردستان، سروشت، زانست، ئاژەڵ، میوە، شار، پیشە، کەلەپوور و شتومەک.\n"
+        f"ئاستی ئەم خولە: {difficulty_instruction}.\n"
+        "لە category و هەموو ڕێنماییەکاندا هیچ ئیمۆجییەک مەخە، چونکە ئیمۆجی نابێت وەڵامەکە ئاشکرا بکات.\n"
         "وشەکە نابێت لە لیستی بەکارهاتووی خوارەوە بێت و نابێت هاوشێوەی ئەوان بێت:\n"
         f"{game_history_hint(used_words)}\n"
         "تەنها JSON بگەڕێنەرەوە: "
@@ -1594,14 +1658,20 @@ def generate_ai_kurdish_unscramble(used_words=None) -> dict:
     data = request_game_ai_json(prompt, 260, 1.0)
     if not isinstance(data, dict):
         return None
-    word = str(data.get("word", "")).strip()
+    word = strip_game_emojis(data.get("word", ""))
     answers = data.get("answers")
     if not word or not isinstance(answers, list) or not answers or not game_content_is_new(word, used_words, 1.0):
         return None
-    data["answers"] = [str(a).strip() for a in answers if str(a).strip()]
+    word_length = len([char for char in word if not char.isspace()])
+    if ((difficulty == "easy" and word_length > 6)
+            or (difficulty == "medium" and not 5 <= word_length <= 9)
+            or (difficulty == "hard" and word_length < 7)
+            or (difficulty == "expert" and word_length < 9)):
+        return None
+    data["answers"] = [strip_game_emojis(a) for a in answers if strip_game_emojis(a)]
     if word not in data["answers"]:
         data["answers"].insert(0, word)
-    data["category"] = str(data.get("category") or "وشەیەکی کوردییە 🌸")
+    data["category"] = strip_game_emojis(data.get("category")) or "وشەیەکی کوردییە"
     letters = [char for char in word if not char.isspace()]
     if len(letters) > 1:
         original_letters = list(letters)
@@ -1612,11 +1682,14 @@ def generate_ai_kurdish_unscramble(used_words=None) -> dict:
     data["scrambled"] = " • ".join(letters)
     return data
 
-def generate_ai_kurdish_truefalse(used_questions=None) -> dict:
+def generate_ai_kurdish_truefalse(used_questions=None, difficulty: str = "easy") -> dict:
     """دروستکردنی پرسیاری تازەی ڕاست/هەڵە بە Groq/Gemini."""
+    _, difficulty_instruction = GAME_DIFFICULTY_CONFIG.get(difficulty, GAME_DIFFICULTY_CONFIG["easy"])
     prompt = (
         "پرسیارێکی نوێ، ڕوون و سەرنجڕاکێشی ڕاست یان هەڵە بە کوردی سۆرانی دروست بکە. "
         "لە نێوان زانست، مێژوو، جوگرافیا، تەکنەلۆجیا، سروشت، تەندروستیی گشتی و کەلتووردا بابەتەکە بگۆڕە. "
+        f"ئاستی ئەم خولە: {difficulty_instruction}. "
+        "لە پرسیارەکەدا هیچ ئیمۆجییەک مەخە و هیچ نیشانەیەک مەدە کە وەڵام ئاشکرا بکات. "
         "زانیارییەکە دەبێت دڵنیابێت و پرسیارەکە نابێت دووبارە یان هاوشێوەی لیستی خوارەوە بێت:\n"
         f"{game_history_hint(used_questions)}\n"
         "تەنها JSON بگەڕێنەرەوە: "
@@ -1625,23 +1698,35 @@ def generate_ai_kurdish_truefalse(used_questions=None) -> dict:
     data = request_game_ai_json(prompt, 280, 0.95)
     if not isinstance(data, dict):
         return None
-    question = str(data.get("question", "")).strip()
+    question = strip_game_emojis(data.get("question", ""))
     raw_answer = str(data.get("answer", "")).strip()
     answer = "هەڵە" if "هەڵ" in raw_answer or raw_answer.lower() in ["false", "0"] else "ڕاست"
     if not question or not data.get("info") or not game_content_is_new(question, used_questions):
+        return None
+    data["question"] = question
+    data["info"] = strip_game_emojis(data.get("info"))
+    if not data["info"]:
         return None
     data["answer"] = answer
     data["aliases"] = (["ڕاست", "راست", "rast", "true", "t", "1"] if answer == "ڕاست"
                        else ["هەڵە", "هەلە", "hala", "false", "f", "0"])
     return data
 
-def generate_ai_number_challenge(used_challenges=None) -> dict:
+def generate_ai_number_challenge(used_challenges=None, difficulty: str = "easy") -> dict:
     """دروستکردنی خولی تازەی یاریی ژمارە بە AI، بە مەودا و ڕێنماییی جیاواز."""
+    _, difficulty_instruction = GAME_DIFFICULTY_CONFIG.get(difficulty, GAME_DIFFICULTY_CONFIG["easy"])
+    range_instruction = {
+        "easy": "مەوداکە نزیکەی 50 ژمارە بێت و clue زۆر یارمەتیدەر بێت",
+        "medium": "مەوداکە نزیکەی 150 ژمارە بێت و clue مامناوەند بێت",
+        "hard": "مەوداکە 300 تا 400 ژمارە بێت و clue تەنها ئاماژەیەکی بچووک بدات",
+        "expert": "مەوداکە 500 تا 1000 ژمارە بێت و clue زۆر نهێنی و لۆژیکی بێت"
+    }.get(difficulty, "مەوداکە نزیکەی 50 ژمارە بێت")
     prompt = (
         "خولێکی نوێی یاریی دۆزینەوەی ژمارە بە کوردی سۆرانی دروست بکە. "
         "min و max و ژمارەی نهێنی secret دیاری بکە؛ جیاوازی max و min لە 50 کەمتر و لە 500 زیاتر نەبێت. "
         "clue ڕێنماییەکی کورت و دروست بێت (وەک تاک/جووت، نزیکبوونەوە، یان تایبەتمەندییەکی ژمارەیی)، "
-        "بەڵام ژمارە نهێنییەکە ئاشکرا مەکە. خولەکە نابێت دووبارەی ئەمانە بێت:\n"
+        f"ئاستی ئەم خولە: {difficulty_instruction}؛ {range_instruction}. "
+        "بەڵام ژمارە نهێنییەکە ئاشکرا مەکە و لە clueدا هیچ ئیمۆجییەک مەخە. خولەکە نابێت دووبارەی ئەمانە بێت:\n"
         f"{game_history_hint(used_challenges)}\n"
         "تەنها JSON بگەڕێنەرەوە: "
         '{"min":1,"max":200,"secret":137,"clue":"ڕێنماییەکی کورت"}'
@@ -1655,7 +1740,7 @@ def generate_ai_number_challenge(used_challenges=None) -> dict:
         secret = int(data.get("secret"))
     except (TypeError, ValueError):
         return None
-    clue = str(data.get("clue", "")).strip()
+    clue = strip_game_emojis(data.get("clue", ""))
     if minimum >= maximum or maximum - minimum < 20 or maximum - minimum > 1000:
         return None
     if secret < minimum or secret > maximum or str(secret) in clue:
@@ -1665,30 +1750,37 @@ def generate_ai_number_challenge(used_challenges=None) -> dict:
         return None
     return {"min": minimum, "max": maximum, "secret": secret, "clue": clue, "key": challenge_key}
 
-def generate_ai_kurdish_riddle(is_comedy: bool = False, used_questions=None, used_answers=None) -> dict:
+def generate_ai_kurdish_riddle(is_comedy: bool = False, used_questions=None, used_answers=None, difficulty: str = "easy") -> dict:
     """دروستکردنی مەتەڵی نوێ و بێکۆتایی بە Groq/Gemini و مێژووی بێ-دووبارەبوونەوە."""
+    _, difficulty_instruction = GAME_DIFFICULTY_CONFIG.get(difficulty, GAME_DIFFICULTY_CONFIG["easy"])
     topic_hint = ("مەتەڵێکی کۆمیدی و پێکەنیناوی پاک" if is_comedy
                   else "مەتەڵێکی فیکری، کەلتووری، لۆژیکی یان زانستی")
     prompt = (
         f"وەک مەتەڵسازێکی کورد، {topic_hint} بە زمانی شیرینی کوردی سۆرانی دروست بکە. "
         "مەتەڵەکە دەبێت وەڵامێکی ڕوون و دادپەروەرانەی هەبێت. "
+        f"ئاستی ئەم خولە: {difficulty_instruction}. "
+        "لە دەقی مەتەڵەکەدا هیچ ئیمۆجییەک مەخە و هیچ نیشانەیەک مەدە کە وەڵامەکە ئاشکرا بکات. "
         "نابێت دووبارە یان زۆر هاوشێوەی هیچ مەتەڵێکی لیستی خوارەوە بێت:\n"
         f"{game_history_hint(used_questions)}\n"
         "هەروەها وەڵامی سەرەکی نابێت هیچ یەکێک لەم وەڵامە بەکارهاتووانە بێت:\n"
         f"{game_history_hint(used_answers, 50)}\n"
         "تەنها JSON بگەڕێنەرەوە: "
         '{"question":"مەتەڵ", "answers":["وەڵامی سەرەکی","شێوازی تر","لاتینی"], '
-        '"display_answer":"وەڵامی تەواو لەگەڵ ئیمۆجی"}'
+        '"display_answer":"وەڵامی تەواو"}'
     )
     data = request_game_ai_json(prompt, 320, 1.0)
     if not isinstance(data, dict):
         return None
-    question = str(data.get("question", "")).strip()
+    question = strip_game_emojis(data.get("question", ""))
     answers = data.get("answers")
     if (not question or not isinstance(answers, list) or not answers
             or not data.get("display_answer") or not game_content_is_new(question, used_questions)):
         return None
-    data["answers"] = [str(a).strip() for a in answers if str(a).strip()]
+    data["question"] = question
+    data["display_answer"] = strip_game_emojis(data.get("display_answer"))
+    data["answers"] = [strip_game_emojis(a) for a in answers if strip_game_emojis(a)]
+    if not data["answers"] or not data["display_answer"]:
+        return None
     return data
 
 # هەوڵدانەوەی خۆکار ئەگەر هەردوو خزمەتگوزاریی AI کاتییەک وەڵام نەدەن
@@ -1742,6 +1834,7 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
     c_key = str(chat_id)
     if "active_game" not in state_data:
         state_data["active_game"] = {}
+    difficulty, difficulty_label, _, round_number = get_game_difficulty(chat_id, game_type)
         
     if game_type == 1:
         # 🧩 ۱. یاریی وشە تێکئاڵاوەکان (Unscramble) - تێکەڵەی ئۆفلاین و دروستکردنی AI
@@ -1755,7 +1848,7 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         item = None
         # AI سەرەکییە؛ ئەگەر پرسیاری دووبارە دروست کرد جارێکی تر هەوڵ دەدات
         for _ in range(2):
-            ai_item = generate_ai_kurdish_unscramble(state_data["used_unscramble"][c_key])
+            ai_item = generate_ai_kurdish_unscramble(state_data["used_unscramble"][c_key], difficulty)
             if ai_item and game_content_is_new(ai_item.get("word"), used_set, 1.0):
                 item = ai_item
                 break
@@ -1766,7 +1859,7 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
                 if game_content_is_new(it["word"], used_set, 1.0)
             ]
             if candidates:
-                item = random.choice(candidates)
+                item = choose_by_game_difficulty(candidates, difficulty, "word")
 
         if not item:
             wait_for_fresh_ai_round(chat_id, game_type, thread_id)
@@ -1774,12 +1867,14 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
 
         clear_game_generation_retry(chat_id, game_type)
         state_data["used_unscramble"][c_key].append(item["word"])
+        safe_category = html.escape(strip_game_emojis(item.get("category", "")))
         
         msg = (
             "🧩 <b>یاریی وشە تێکئاڵاوەکان (Game 1):</b>\n\n"
             f"❓ پیتەکان ڕێکبخە بۆ دۆزینەوەی وشەکە:\n"
             f"<b>[ {item['scrambled']} ]</b>\n\n"
-            f"🏷️ <b>ڕێنمایی:</b> {item['category']}\n\n"
+            f"<b>ئاست:</b> {difficulty_label} | <b>خول:</b> {round_number}\n"
+            f"🏷️ <b>ڕێنمایی:</b> {safe_category}\n\n"
             f"💡 <b>بۆ وەڵامدانەوە، ڕیپڵای (Reply) ئەم پەیامە بکە!</b> 🏆✨\n\n"
             f"<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
         )
@@ -1791,9 +1886,11 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
             "word": item["word"],
             "answers": [a.lower() for a in item["answers"]],
             "display": item["word"],
+            "difficulty": difficulty,
             "msg_id": g_mid,
             "time": time.time()
         }
+        advance_game_difficulty(chat_id, game_type)
         save_state()
         
     elif game_type == 2:
@@ -1807,7 +1904,7 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         
         item = None
         for _ in range(2):
-            ai_tf = generate_ai_kurdish_truefalse(state_data["used_truefalse"][c_key])
+            ai_tf = generate_ai_kurdish_truefalse(state_data["used_truefalse"][c_key], difficulty)
             if ai_tf and game_content_is_new(ai_tf.get("question"), used_set):
                 item = ai_tf
                 break
@@ -1818,18 +1915,20 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
                 if game_content_is_new(it["question"], used_set)
             ]
             if candidates:
-                item = random.choice(candidates)
+                item = choose_by_game_difficulty(candidates, difficulty, "question")
 
         if not item:
             wait_for_fresh_ai_round(chat_id, game_type, thread_id)
             return
 
         clear_game_generation_retry(chat_id, game_type)
-        state_data["used_truefalse"][c_key].append(item["question"])
+        safe_question = strip_game_emojis(item["question"])
+        state_data["used_truefalse"][c_key].append(safe_question)
         
         msg = (
             "⚡ <b>یاریی ڕاستە یان هەڵەیە؟ (Game 2):</b>\n\n"
-            f"❓ <b>{item['question']}</b>\n\n"
+            f"<b>ئاست:</b> {difficulty_label} | <b>خول:</b> {round_number}\n\n"
+            f"❓ <b>{html.escape(safe_question)}</b>\n\n"
             f"💡 <b>بۆ وەڵامدانەوە، ڕیپڵای (Reply) ئەم پەیامە بکە و بنووسە ڕاست یان هەڵە!</b> 🏆✨\n\n"
             f"<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
         )
@@ -1838,13 +1937,15 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         
         state_data["active_game"][c_key] = {
             "game_type": 2,
-            "question": item["question"],
+            "question": safe_question,
             "correct_ans": item["answer"],
             "aliases": [a.lower() for a in item["aliases"]],
-            "info": item["info"],
+            "info": strip_game_emojis(item["info"]),
+            "difficulty": difficulty,
             "msg_id": g_mid,
             "time": time.time()
         }
+        advance_game_difficulty(chat_id, game_type)
         save_state()
 
     elif game_type == 3:
@@ -1857,7 +1958,7 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         used_challenges = state_data["used_number_challenges"][c_key]
         challenge = None
         for _ in range(2):
-            ai_challenge = generate_ai_number_challenge(used_challenges)
+            ai_challenge = generate_ai_number_challenge(used_challenges, difficulty)
             if ai_challenge and game_content_is_new(ai_challenge.get("key"), used_challenges, 1.0):
                 challenge = ai_challenge
                 break
@@ -1865,11 +1966,19 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         # fallbackـێکی بێسنووری ناوخۆیی؛ تەنها ئەگەر AI کاتییەک وەڵام نەدات
         if not challenge:
             round_no = len(used_challenges) + 1
+            span_by_difficulty = {"easy": 50, "medium": 150, "hard": 350, "expert": 800}
             minimum = 1 + ((round_no - 1) // 100) * 100
-            maximum = minimum + 199
+            maximum = minimum + span_by_difficulty[difficulty]
             for _ in range(100):
                 secret = random.randint(minimum, maximum)
-                clue = "ژمارەکە جووتە" if secret % 2 == 0 else "ژمارەکە تاکە"
+                if difficulty == "easy":
+                    clue = f"لە {max(minimum, secret - 5)} گەورەتر و لە {min(maximum, secret + 5)} بچووکترە"
+                elif difficulty == "medium":
+                    clue = "ژمارەکە جووتە" if secret % 2 == 0 else "ژمارەکە تاکە"
+                elif difficulty == "hard":
+                    clue = f"کۆی ژمارەکانی ناوی ژمارەکە {sum(int(digit) for digit in str(secret))} دەبێت"
+                else:
+                    clue = "ڕێنماییی زیادە نییە؛ بە لۆژیک و هەوڵ دۆزییەوە"
                 challenge_key = f"round-{round_no}:{minimum}:{maximum}:{secret}:{clue}"
                 if game_content_is_new(challenge_key, used_challenges, 1.0):
                     challenge = {
@@ -1893,8 +2002,9 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         clue = challenge["clue"]
         msg = (
             "🎯 <b>یاریی دۆزینەوەی ژمارەی نهێنی (Game 3):</b>\n\n"
+            f"<b>ئاست:</b> {difficulty_label} | <b>خول:</b> {round_number}\n\n"
             f"🔢 AI ژمارەیەکی نهێنی لە نێوان <b>({minimum} تا {maximum})</b> هەڵبژاردووە!\n"
-            f"🧠 <b>ڕێنمایی:</b> {html.escape(clue)}\n\n"
+            f"🧠 <b>ڕێنمایی:</b> {html.escape(strip_game_emojis(clue))}\n\n"
             "💡 <b>بۆ وەڵامدانەوە، ڕیپڵای (Reply) ئەم پەیامە بکە و ژمارەکەت بنووسە!</b> 🏆✨\n\n"
             "<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
         )
@@ -1907,10 +2017,12 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
             "min": minimum,
             "max": maximum,
             "challenge_key": challenge["key"],
+            "difficulty": difficulty,
             "attempts": 0,
             "msg_id": g_mid,
             "time": time.time()
         }
+        advance_game_difficulty(chat_id, game_type)
         save_state()
 
     elif game_type == 4:
@@ -1933,7 +2045,8 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
             ai_q = generate_ai_kurdish_riddle(
                 is_comedy=is_comedy_turn,
                 used_questions=state_data["used_quizzes"][c_key],
-                used_answers=state_data["used_quiz_answers"][c_key]
+                used_answers=state_data["used_quiz_answers"][c_key],
+                difficulty=difficulty
             )
             ai_primary_answer = str((ai_q or {}).get("answers", [""])[0]).strip().lower()
             if (ai_q and game_content_is_new(ai_q.get("question"), used_set)
@@ -1948,19 +2061,21 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
                 and game_content_is_new(str(item["answers"][0]).lower(), used_answer_set, 1.0)
             ]
             if candidates:
-                q = random.choice(candidates)
+                q = choose_by_game_difficulty(candidates, difficulty, "question")
 
         if not q:
             wait_for_fresh_ai_round(chat_id, game_type, thread_id)
             return
 
         clear_game_generation_retry(chat_id, game_type)
-        state_data["used_quizzes"][c_key].append(q["question"])
+        safe_question = strip_game_emojis(q["question"])
+        state_data["used_quizzes"][c_key].append(safe_question)
         state_data["used_quiz_answers"][c_key].append(str(q["answers"][0]).strip().lower())
         
         msg = (
             "❓ <b>مەتەڵی کوردی (Game 4):</b>\n\n"
-            f"❓ <b>{q['question']}</b>\n\n"
+            f"<b>ئاست:</b> {difficulty_label} | <b>خول:</b> {round_number}\n\n"
+            f"❓ <b>{html.escape(safe_question)}</b>\n\n"
             f"💡 <b>بۆ وەڵامدانەوە، ڕیپڵای (Reply) ئەم پەیامە بکە و وەڵامەکەت بنووسە!</b> 🏆✨\n\n"
             f"<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
         )
@@ -1969,12 +2084,14 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         
         state_data["active_game"][c_key] = {
             "game_type": 4,
-            "question": q["question"],
+            "question": safe_question,
             "answers": [a.lower() for a in q["answers"]],
-            "display_answer": q["display_answer"],
+            "display_answer": strip_game_emojis(q["display_answer"]),
+            "difficulty": difficulty,
             "msg_id": g_mid,
             "time": time.time()
         }
+        advance_game_difficulty(chat_id, game_type)
         save_state()
 
 def register_group(chat_id: int):
@@ -2630,15 +2747,19 @@ def handle_command(msg: dict, text: str):
         send_message(chat_id, games_menu, msg_id, thread_id)
         return
     elif cmd in ["/game1", "/unscramble", "/wsha"]:
+        reset_game_difficulty(chat_id, 1)
         send_next_game_round(chat_id, 1, thread_id)
         return
     elif cmd in ["/game2", "/truefalse", "/rast"]:
+        reset_game_difficulty(chat_id, 2)
         send_next_game_round(chat_id, 2, thread_id)
         return
     elif cmd in ["/game3", "/guess", "/number"]:
+        reset_game_difficulty(chat_id, 3)
         send_next_game_round(chat_id, 3, thread_id)
         return
     elif cmd in ["/game4", "/quiz"]:
+        reset_game_difficulty(chat_id, 4)
         send_next_game_round(chat_id, 4, thread_id)
         return
     elif cmd in ["/stop", "/cancel", "/closequiz", "/closegame"]:
