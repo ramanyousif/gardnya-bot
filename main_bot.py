@@ -618,6 +618,15 @@ def is_admin(chat_id: int, user_id: int) -> bool:
         return status in ["creator", "administrator"]
     return False
 
+def is_message_from_admin(chat_id: int, user_id: int, msg: dict) -> bool:
+    """ناسینەوە و پاراستنی پەیامی ئەدمین، ئۆنەر، یان پەیامی نێردراو بە ناوی چاتێک."""
+    # Telegram ناسنامەی کەسی ئەدمین نادات کاتێک بە ناوی گروپ یان چەناڵ پەیام دەنێرێت.
+    # بوونی sender_chat نیشانەی ئەو جۆرە پەیامەیە و نابێت پشکنینی سڕینەوەیی لەسەری جێبەجێ بکرێت.
+    sender_chat = msg.get("sender_chat") or {}
+    if sender_chat.get("id"):
+        return True
+    return is_admin(chat_id, user_id)
+
 def add_user_warning(chat_id: int, user_id: int) -> int:
     c_key = str(chat_id)
     u_key = str(user_id)
@@ -2118,6 +2127,7 @@ def handle_command(msg: dict, text: str):
     from_user = msg.get("from") or msg.get("sender_chat") or {"id": chat_id, "title": chat.get("title", "Admin")}
     user_id = from_user.get("id", chat_id)
     display_name = get_display_name(from_user)
+    is_user_admin = chat.get("type") in ["group", "supergroup"] and is_message_from_admin(chat_id, user_id, msg)
 
     parts = text.strip().split(maxsplit=1)
     cmd = parts[0].split("@")[0].lower()
@@ -2125,7 +2135,7 @@ def handle_command(msg: dict, text: str):
 
     # 🛡️ لە گروپەکاندا: تەواوی فرمانەکان (یاری، مەتەڵ، ئاسایش، ڕێکخستن) تەنها لە ئەدمین وەردەگیرێن
     if chat.get("type") in ["group", "supergroup"]:
-        if not is_admin(chat_id, user_id):
+        if not is_user_admin:
             print(f"🚫 Ignored command '{cmd}' from non-admin member: {display_name} ({user_id})")
             return
 
@@ -2748,6 +2758,7 @@ def handle_message(msg: dict):
     from_user = msg.get("from") or msg.get("sender_chat") or {"id": chat_id, "title": chat.get("title", "Admin")}
     user_id = from_user.get("id", chat_id)
     display_name = get_display_name(from_user)
+    is_user_admin = chat_type in ["group", "supergroup"] and is_message_from_admin(chat_id, user_id, msg)
 
     # Register group for broadcasts and record active member
     if chat_type in ["group", "supergroup"]:
@@ -2764,7 +2775,7 @@ def handle_message(msg: dict):
     print(f"📩 [{chat_type.upper()}] {display_name} (ID: {user_id}): {text if text else '[Media/Sticker/Other]'}")
 
     # 📢 تاگکردنی هەموو میمبەرەکان ٥ بە ٥ بە نووسینی @all (تەنها بۆ ئەدمین)
-    if "@all" in text.lower() and is_admin(chat_id, user_id):
+    if "@all" in text.lower() and is_user_admin:
         custom_txt = re.sub(r'(?i)@all', '', text).strip()
         tag_all_members_batches(chat_id, custom_txt, thread_id)
         return
@@ -2774,7 +2785,7 @@ def handle_message(msg: dict):
         for member in msg["new_chat_members"]:
             if member.get("is_bot"):
                 # ئەگەر بۆت بوو و ئەو کەسەی زیادی کردووە ئەدمین نەبوو ➔ دەرکردنی بۆت
-                if not is_admin(chat_id, user_id):
+                if not is_user_admin:
                     ban_user(chat_id, member["id"])
                     unban_user(chat_id, member["id"])
                     delete_message(chat_id, msg_id)
@@ -2803,23 +2814,23 @@ def handle_message(msg: dict):
 
     # 🛡️ پشکنینی سکوریتی توند بۆ هەموو نامەکان (ستیکەر، گیف، وێنە، ڤیدیۆ)
     violation = ""
-    is_user_admin = is_admin(chat_id, user_id)
 
-    # ١. پشکنینی ستیکەری سێکسی بە AI Vision (تەنانەت ئەگەر ئەدمینیش بێت)
-    if config.get("blockNSFWStickers", True) and "sticker" in msg and is_nsfw_sticker(msg["sticker"]):
+    # پەیامی ئەدمین و ئۆنەر بە هیچ شێوەیەک لەلایەن پاراستنی ئۆتۆماتیکییەوە ناسڕدرێتەوە
+    # ١. پشکنینی ستیکەری سێکسی بە AI Vision
+    if not is_user_admin and config.get("blockNSFWStickers", True) and "sticker" in msg and is_nsfw_sticker(msg["sticker"]):
         violation = "ناردنی ستیکەری نەشیاو و سێکسی 🔞"
     # ۲. پشکنینی وێنەی سێکسی بە AI Vision
-    elif "photo" in msg and is_nsfw_photo(msg):
+    elif not is_user_admin and "photo" in msg and is_nsfw_photo(msg):
         violation = "ناردنی وێنەی نەشیاو و سێکسی 🔞"
     # ۳. پشکنینی ڤیدیۆی سێکسی بە AI Vision
-    elif ("video" in msg or "video_note" in msg):
+    elif not is_user_admin and ("video" in msg or "video_note" in msg):
         vid = msg.get("video") or msg.get("video_note") or {}
         thumb = vid.get("thumbnail") or vid.get("thumb") or {}
         check_id = thumb.get("file_id") or ""
         if check_id and check_nsfw_with_ai_vision(check_id):
             violation = "ناردنی ڤیدیۆی نەشیاو و سێکسی 🔞"
     # ٤. پشکنینی گیف و فایلی نەشیاو بە AI Vision
-    elif config.get("blockNSFWGIFs", True) and ("animation" in msg or "document" in msg) and is_nsfw_animation_or_media(msg, text):
+    elif not is_user_admin and config.get("blockNSFWGIFs", True) and ("animation" in msg or "document" in msg) and is_nsfw_animation_or_media(msg, text):
         violation = "ناردنی گیف یان فایلی نەشیاو 🔞"
     # ٥. پشکنینی لینک و سپام (بۆ نا-ئەدمین)
     elif not is_user_admin and config.get("blockLinks", True) and contains_link_or_spam(msg, text):
