@@ -16,9 +16,25 @@ from pyrogram.types import Message
 from pytgcalls import GroupCallFactory
 import yt_dlp
 
+def load_music_config() -> dict:
+    """وەرگرتنی نهێنییەکان لە config.jsonـی gitignored بۆ ئەوەی لە GitHub ئاشکرا نەبن."""
+    config_path = Path(__file__).resolve().parent / "config.json"
+    if not config_path.exists():
+        return {}
+    try:
+        with open(config_path, "r", encoding="utf-8") as config_file:
+            return json.load(config_file)
+    except Exception as exc:
+        print(f"Music config warning: {exc}")
+        return {}
+
+MUSIC_CONFIG = load_music_config()
+
 API_ID = int(os.environ.get("TELEGRAM_API_ID", 33605478))
 API_HASH = os.environ.get("TELEGRAM_API_HASH", "0026515a5d113337a0878ed2e6b1be10")
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8961124694:AAG6ywxBI5DekC3wfzYwn-iEfeCuCr0JiS0")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or MUSIC_CONFIG.get("token", "")
+if not BOT_TOKEN:
+    raise RuntimeError("TELEGRAM_BOT_TOKEN لە Environment یان config.json دانەنراوە")
 
 app = Client(
     "gardnya_music_session",
