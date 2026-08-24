@@ -1292,103 +1292,312 @@ KURDISH_QUIZZES = [
         "question": "چییە لە باخچەدا سەوزە، لە دوکاندا ڕەشە، و لە ماڵەوە کاتێک دەیخۆیتەوە سوورە؟ ☕😂",
         "answers": ["چا", "چای", "چایە", "cha", "tea"],
         "display_answer": "چای کوردی! 🫖☕😂"
+    },
+    {
+        "question": "چییە ڕووخساری هەیە و دوو دەستی هەیە، بەڵام نە چاوی هەیە نە پەنجە؟",
+        "answers": ["کاتژمێر", "سەعات", "کاتژمێرە", "clock", "saat"],
+        "display_answer": "کاتژمێر ⏰"
+    },
+    {
+        "question": "چییە کاتێک تۆ وشک دەکاتەوە، خۆی تەڕتر دەبێت؟",
+        "answers": ["خاولی", "دەستەسڕ", "حەولە", "towel", "xawli"],
+        "display_answer": "خاولی یان دەستەسڕ 🧻"
+    },
+    {
+        "question": "چییە تەنها بە ناوهێنانی، دەیشکێنیت؟",
+        "answers": ["بێدەنگی", "سکوت", "بێ دەنگی", "silence", "bedangi"],
+        "display_answer": "بێدەنگی 🤫"
+    },
+    {
+        "question": "چییە دەمی هەیە و جێگای خەوتنی هەیە، بەڵام نە قسە دەکات نە دەخەوێت؟",
+        "answers": ["ڕووبار", "رودخانە", "ڕووبارە", "river", "rubar"],
+        "display_answer": "ڕووبار؛ دەمی ڕووبار و جێگای ڕووبار هەیە 🌊"
+    },
+    {
+        "question": "چییە بەردەوام زیاد دەبێت، بەڵام هەرگیز کەم نابێتەوە؟",
+        "answers": ["تەمەن", "عومر", "ساڵ", "age", "taman"],
+        "display_answer": "تەمەنی مرۆڤ 🎂"
+    },
+    {
+        "question": "چییە هەموو جیهان دەگەڕێت، بەڵام هەمیشە لە سووچی نامەیەکدا دەمێنێتەوە؟",
+        "answers": ["مۆر", "تمبەر", "مۆری پۆستە", "stamp", "mor"],
+        "display_answer": "مۆری پۆستە ✉️"
+    },
+    {
+        "question": "چییە ملێکی هەیە بەڵام سەری نییە، سکێکی هەیە بەڵام قاچی نییە؟",
+        "answers": ["بوتڵ", "شووشە", "بوتری", "bottle", "butll"],
+        "display_answer": "بوتڵ یان شووشە 🍾"
+    },
+    {
+        "question": "چییە چوار قاچی هەیە، بەڵام ناتوانێت هەنگاو بنێت؟",
+        "answers": ["مێز", "کورسی", "تەخت", "table", "mez"],
+        "display_answer": "مێز 🪑"
+    },
+    {
+        "question": "چییە پێنج پەنجەی هەیە، بەڵام نە گۆشتی هەیە نە ئێسک؟",
+        "answers": ["دەستکێش", "دەستکێشە", "glove", "dastkesh"],
+        "display_answer": "دەستکێش 🧤"
+    },
+    {
+        "question": "چییە زمانی هەیە بەڵام قسە ناکات، لە پێشداش دەژی؟",
+        "answers": ["پێڵاو", "کەوش", "پێلاو", "shoe", "pelaw"],
+        "display_answer": "پێڵاو؛ زمانی پێڵاو 👟"
+    },
+    {
+        "question": "چییە فیشەکی نییە بەڵام وێنەت دەگرێت؟",
+        "answers": ["کامێرا", "کامەرا", "مۆبایل", "camera", "kamera"],
+        "display_answer": "کامێرا 📷"
+    },
+    {
+        "question": "چییە دەمی نییە بەڵام کاتێک ئاوەکەی گەرم دەبێت فیکە دەکات؟",
+        "answers": ["کتری", "چايدان", "کتڵ", "kettle", "kitri"],
+        "display_answer": "کتریی چای 🫖"
+    },
+    {
+        "question": "چییە پڕە لە پەڕە، بەڵام نە دارە نە باڵندە؟",
+        "answers": ["ڕۆژژمێر", "ساڵنامە", "کتێب", "calendar", "rozhmer"],
+        "display_answer": "ڕۆژژمێر یان ساڵنامە 📅"
+    },
+    {
+        "question": "چییە بەبێ پێ لە شارێکەوە بۆ شارێکی تر دەڕوات؟",
+        "answers": ["ڕێگا", "جادە", "رێگا", "road", "rega"],
+        "display_answer": "ڕێگا 🛣️"
+    },
+    {
+        "question": "چییە سەرەتای هەموو شەوێکە و کۆتایی هەموو ڕۆژێکە؟",
+        "answers": ["پیتی ش", "ش", "پیت ش", "letter sh"],
+        "display_answer": "پیتی «ش»؛ سەرەتای شەو و کۆتایی ڕۆژ 🌙"
+    },
+    {
+        "question": "چییە هەرگیز نایەت، چونکە کاتێک بێت ناوی دەبێتە ئەمڕۆ؟",
+        "answers": ["سبەی", "سبەینێ", "بەیانی", "tomorrow", "sbey"],
+        "display_answer": "سبەینێ ⏳"
+    },
+    {
+        "question": "چییە هیچ کێشێکی نییە، بەڵام دەتوانێت ژوورێکی تەواو پڕ بکات؟",
+        "answers": ["ڕووناکی", "تاریکی", "نور", "light", "runaki"],
+        "display_answer": "ڕووناکی 💡"
+    },
+    {
+        "question": "چییە بەبێ دەرگا دێتە ژوورەوە و بەبێ پەنجەرە دەچێتە دەرەوە؟",
+        "answers": ["هەوا", "با", "ھەوا", "air", "hawa"],
+        "display_answer": "هەوا یان با 🌬️"
+    },
+    {
+        "question": "چییە کاتێک لێی دەڕوانیت تۆ دەبینێت، بەڵام چاوی نییە؟",
+        "answers": ["ئاوێنە", "ئاوێنه", "ئاوی نەجوڵاو", "mirror", "awena"],
+        "display_answer": "ئاوێنە 🪞"
+    },
+    {
+        "question": "چییە بەبێ قاچ هەڵدەکشێت و بەبێ باڵ بەرەو ئاسمان دەڕوات؟",
+        "answers": ["دووکەڵ", "دود", "هەڵم", "smoke", "dukal"],
+        "display_answer": "دووکەڵ 💨"
+    },
+    {
+        "question": "چییە پێش باران دێت و دوای باران دەردەکەوێت، بەڵام تەڕ نابێت؟",
+        "answers": ["هەور", "کەوانەی باران", "ڕەنگینکەوان", "rainbow", "hawr"],
+        "display_answer": "هەور پێش باران و ڕەنگینکەوان دوای باران؛ وەڵامی سەرەکی: هەور ☁️"
+    },
+    {
+        "question": "چییە هەزاران دەنکی هەیە، بەڵام ناتوانێت یەک وشەش بڵێت؟",
+        "answers": ["هەنار", "گوێز", "گەنم", "pomegranate", "hanar"],
+        "display_answer": "هەنار؛ پڕە لە دەنک 🍎"
+    },
+    {
+        "question": "چییە هەرچی زیاتر بەکاری بهێنیت، کورتتر دەبێتەوە؟",
+        "answers": ["قەڵەم", "پەنسڵ", "مۆم", "pencil", "qalam"],
+        "display_answer": "پەنسڵ ✏️"
+    },
+    {
+        "question": "چییە دەتوانیت بیگریت بەڵام ناتوانیت فڕێی بدەیت؟",
+        "answers": ["هەناسە", "سەرما", "نەخۆشی", "breath", "hanasa"],
+        "display_answer": "هەناسەت؛ دەتوانیت ڕایبگریت 😮‍💨"
+    },
+    {
+        "question": "چییە هەرچی زیاتر لێی بنووسیت، خۆی کەمتر دەبێتەوە؟",
+        "answers": ["تەباشیر", "گچ", "قەڵەم", "chalk", "tabashir"],
+        "display_answer": "تەباشیر 🧑‍🏫"
+    },
+    {
+        "question": "چییە بە دەیان کلیلی هەیە، بەڵام تەنها دەنگ و مۆسیقا دەکاتەوە؟",
+        "answers": ["پیانۆ", "ئۆرگ", "کیبۆرد", "piano", "pyano"],
+        "display_answer": "پیانۆ 🎹"
+    },
+    {
+        "question": "چییە دوو برا هەمیشە لە تەنیشت یەکترن، بەڵام هەرگیز یەکتر نابینن؟",
+        "answers": ["چاو", "دوو چاو", "چاوەکان", "eyes", "chaw"],
+        "display_answer": "دوو چاوەکان 👀"
+    },
+    {
+        "question": "چییە کاتێک دەیکڕیت ڕەشە، کاتێک بەکاری دەهێنیت سوورە، کاتێک فڕێی دەدەیت خۆڵەمێشییە؟",
+        "answers": ["خەڵووز", "خەڵوز", "پشکۆ", "coal", "xaluz"],
+        "display_answer": "خەڵووز 🔥"
+    },
+    {
+        "question": "چییە یەک خانووی سپییە، نە دەرگای هەیە نە پەنجەرە، لە ناویدا زەردێکی زێڕینە؟",
+        "answers": ["هێلکە", "هێلکه", "هیلکە", "egg", "helka"],
+        "display_answer": "هێلکە 🥚"
+    },
+    {
+        "question": "چییە بە سەر پەنجەرەدا دەکەوێت، بەڵام هەرگیز ناچێتە ناو ژوورەوە؟",
+        "answers": ["تیشکی خۆر", "سێبەر", "باران", "sunlight", "tishk"],
+        "display_answer": "تیشکی خۆر ☀️"
     }
 ]
 
-def generate_ai_kurdish_unscramble() -> dict:
-    """دروستکردنی وشەی نوێی تێکئاڵاو بە ژیریی دەستکرد (AI) - وشەی بێسنوور"""
-    if not groq_client:
+def parse_ai_json(raw_text: str):
+    """وەرگرتنی JSON لە وەڵامی Groq/Gemini تەنانەت ئەگەر code fenceی تێدابێت."""
+    if not raw_text:
+        return None
+    clean = re.sub(r"^```(?:json)?|```$", "", raw_text.strip(), flags=re.IGNORECASE).strip()
+    start, end = clean.find("{"), clean.rfind("}")
+    if start < 0 or end <= start:
         return None
     try:
-        prompt = (
-            "وەک پسپۆڕێکی زمانی کوردی، وشەیەکی ناوداری کوردی (ناوی شار، میوە، ئاژەڵ، وڵات یان شتومەک) بە زمانی کوردی (سۆرانی) دروست بکە.\n"
-            "پیتەکانی بە خاڵ یان هێڵ لە یەکتر جیا بکەرەوە بە شێوەی تێکەڵاو (scrambled).\n"
-            "تەنها و تەنها JSON بگەڕێنەرەوە بەم فۆرماتە:\n"
-            "{\n"
-            '  "word": "سلێمانی",\n'
-            '  "scrambled": "ی • ل • م • ا • ن • ی • س",\n'
-            '  "category": "ناوی شارێکی دڵڕفێنی باشووری کوردستانە 🌸",\n'
-            '  "answers": ["سلێمانی", "سلیمانی", "slemani"]\n'
-            "}"
-        )
-        res = groq_client.chat.completions.create(
-            model=config.get("groqModel", "openai/gpt-oss-120b"),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.85,
-            max_tokens=200,
-            response_format={"type": "json_object"}
-        )
-        raw = res.choices[0].message.content.strip()
-        data = json.loads(raw)
-        if "word" in data and "scrambled" in data and "category" in data and "answers" in data:
-            return data
-    except Exception as e:
-        print(f"AI Unscramble Gen Notice: {e}")
+        return json.loads(clean[start:end + 1])
+    except Exception:
+        return None
+
+def request_game_ai_json(prompt: str, max_tokens: int = 300, temperature: float = 0.9):
+    """دروستکردنی ناوەڕۆکی یاری بە Groq و، ئەگەر نەکرا، بە Gemini."""
+    if groq_client:
+        models = [config.get("groqModel", GROQ_MODEL), GROQ_MODEL, "openai/gpt-oss-120b"]
+        for model_name in dict.fromkeys(m for m in models if m):
+            try:
+                res = groq_client.chat.completions.create(
+                    model=model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format={"type": "json_object"}
+                )
+                parsed = parse_ai_json(res.choices[0].message.content)
+                if parsed:
+                    return parsed
+            except Exception as e:
+                print(f"Game AI Groq Notice ({model_name}): {e}")
+
+    if GEMINI_API_KEY:
+        for model_name in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+                body = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "maxOutputTokens": max_tokens,
+                        "temperature": temperature,
+                        "responseMimeType": "application/json"
+                    }
+                }
+                response = requests.post(url, json=body, timeout=20)
+                if response.status_code == 200:
+                    candidates = response.json().get("candidates", [])
+                    if candidates:
+                        raw = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        parsed = parse_ai_json(raw)
+                        if parsed:
+                            return parsed
+            except Exception as e:
+                print(f"Game AI Gemini Notice ({model_name}): {e}")
     return None
 
-def generate_ai_kurdish_truefalse() -> dict:
-    """دروستکردنی پرسیاری نوێی ڕاست یان هەڵە بە ژیریی دەستکرد (AI) - زانیاریی بێسنوور"""
-    if not groq_client:
-        return None
-    try:
-        prompt = (
-            "وەک پسپۆڕێکی زانیاری گشتی و زانستی و کلتووری، پرسیارێکی زۆر سەرنجڕاکێشی (ڕاست یان هەڵە) بە زمانی شیرینی کوردی (سۆرانی) دروست بکە.\n"
-            "وەڵامەکەی دەبێت تەنها 'ڕاست' یان 'هەڵە' بێت لەگەڵ ڕوونکردنەوەی زانستی.\n"
-            "تەنها و تەنها JSON بگەڕێنەرەوە بەم فۆرماتە:\n"
-            "{\n"
-            '  "question": "دەقی پرسیارەکە بە کوردی؟",\n'
-            '  "answer": "ڕاست",\n'
-            '  "aliases": ["ڕاست", "راست", "rast", "true", "1"],\n'
-            '  "info": "ڕوونکردنەوەی کورتی زانستی لەسەر بابەتەکە 💡"\n'
-            "}"
-        )
-        res = groq_client.chat.completions.create(
-            model=config.get("groqModel", "openai/gpt-oss-120b"),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.85,
-            max_tokens=200,
-            response_format={"type": "json_object"}
-        )
-        raw = res.choices[0].message.content.strip()
-        data = json.loads(raw)
-        if "question" in data and "answer" in data and "info" in data:
-            if "aliases" not in data:
-                data["aliases"] = ["ڕاست", "راست", "rast", "true"] if "ڕاست" in data["answer"] else ["هەڵە", "هەلە", "hala", "false"]
-            return data
-    except Exception as e:
-        print(f"AI TrueFalse Gen Notice: {e}")
-    return None
+def game_history_hint(used_items, limit: int = 80) -> str:
+    recent = list(used_items or [])[-limit:]
+    return "\n".join(f"- {item}" for item in recent) if recent else "- هیچ پرسیارێک هێشتا بەکارنەهاتووە"
 
-def generate_ai_kurdish_riddle(is_comedy: bool = False) -> dict:
-    """دروستکردنی مەتەڵی نوێ و بێسنووری کوردی بە ژیریی دەستکرد (AI) - هەزاران مەتەڵی نوێ"""
-    if not groq_client:
+def game_content_is_new(value: str, used_items, similarity_limit: float = 0.91) -> bool:
+    """ڕێگری لە دووبارەبوونەوەی تەواو و پرسیاری زۆر هاوشێوە."""
+    candidate = re.sub(r"\W+", "", str(value or "").lower(), flags=re.UNICODE)
+    if not candidate:
+        return False
+    for old_value in used_items or []:
+        old = re.sub(r"\W+", "", str(old_value or "").lower(), flags=re.UNICODE)
+        if candidate == old:
+            return False
+        if len(candidate) > 12 and difflib.SequenceMatcher(None, candidate, old).ratio() >= similarity_limit:
+            return False
+    return True
+
+def generate_ai_kurdish_unscramble(used_words=None) -> dict:
+    """دروستکردنی وشەی نوێی تێکئاڵاو بە Groq/Gemini و ڕێگری لە دووبارەبوونەوە."""
+    prompt = (
+        "وەک پسپۆڕێکی زمانی کوردی، یەک وشەی ناوداری دروست و باوی کوردی سۆرانی دروست بکە؛ "
+        "بابەتەکان بگۆڕە: کوردستان، سروشت، زانست، ئاژەڵ، میوە، شار، پیشە، کەلەپوور و شتومەک.\n"
+        "وشەکە نابێت لە لیستی بەکارهاتووی خوارەوە بێت و نابێت هاوشێوەی ئەوان بێت:\n"
+        f"{game_history_hint(used_words)}\n"
+        "تەنها JSON بگەڕێنەرەوە: "
+        '{"word":"وشە", "scrambled":"پ • ی • ت", "category":"ڕێنماییەکی کورت", '
+        '"answers":["وەڵامی سەرەکی","شێوازی نووسینی تر","لاتینی"]}'
+    )
+    data = request_game_ai_json(prompt, 260, 1.0)
+    if not isinstance(data, dict):
         return None
-    try:
-        topic_hint = "مەتەڵێکی زۆر کۆمیدی، گاڵتەجاڕی و پێکەنیناوی کوردی بێت 😂🎭" if is_comedy else "مەتەڵێکی کلتووری، فیکری یان زانستی کوردی بێت 🧠✨"
-        prompt = (
-            f"وەک پسپۆڕێکی کەلتووری و گاڵتەوگەپی کوردی، {topic_hint}.\n"
-            "پێویستە بە زمانی شیرینی کوردی (سۆرانی) بێت.\n"
-            "تەنها و تەنها JSON بگەڕێنەرەوە بەم فۆرماتە وردە:\n"
-            "{\n"
-            '  "question": "دەقی مەتەڵەکە بە کوردی",\n'
-            '  "answers": ["وەڵامی سەرەکی", "وەڵامی دووەم", "وەڵام بە لاتینی"],\n'
-            '  "display_answer": "وەڵامە تەواوەکە لەگەڵ ئیمۆجی و ڕوونکردنەوەی کورت"\n'
-            "}"
-        )
-        res = groq_client.chat.completions.create(
-            model=config.get("groqModel", "openai/gpt-oss-120b"),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.9,
-            max_tokens=220,
-            response_format={"type": "json_object"}
-        )
-        raw = res.choices[0].message.content.strip()
-        data = json.loads(raw)
-        if "question" in data and "answers" in data and "display_answer" in data:
-            return data
-    except Exception as e:
-        print(f"AI Riddle Gen Notice: {e}")
-    return None
+    word = str(data.get("word", "")).strip()
+    answers = data.get("answers")
+    if not word or not isinstance(answers, list) or not answers or not game_content_is_new(word, used_words, 1.0):
+        return None
+    data["answers"] = [str(a).strip() for a in answers if str(a).strip()]
+    if word not in data["answers"]:
+        data["answers"].insert(0, word)
+    data["category"] = str(data.get("category") or "وشەیەکی کوردییە 🌸")
+    letters = [char for char in word if not char.isspace()]
+    if len(letters) > 1:
+        original_letters = list(letters)
+        for _ in range(5):
+            random.shuffle(letters)
+            if letters != original_letters:
+                break
+    data["scrambled"] = " • ".join(letters)
+    return data
+
+def generate_ai_kurdish_truefalse(used_questions=None) -> dict:
+    """دروستکردنی پرسیاری تازەی ڕاست/هەڵە بە Groq/Gemini."""
+    prompt = (
+        "پرسیارێکی نوێ، ڕوون و سەرنجڕاکێشی ڕاست یان هەڵە بە کوردی سۆرانی دروست بکە. "
+        "لە نێوان زانست، مێژوو، جوگرافیا، تەکنەلۆجیا، سروشت، تەندروستیی گشتی و کەلتووردا بابەتەکە بگۆڕە. "
+        "زانیارییەکە دەبێت دڵنیابێت و پرسیارەکە نابێت دووبارە یان هاوشێوەی لیستی خوارەوە بێت:\n"
+        f"{game_history_hint(used_questions)}\n"
+        "تەنها JSON بگەڕێنەرەوە: "
+        '{"question":"پرسیار؟", "answer":"ڕاست یان هەڵە", "info":"ڕوونکردنەوەی کورتی دروست"}'
+    )
+    data = request_game_ai_json(prompt, 280, 0.95)
+    if not isinstance(data, dict):
+        return None
+    question = str(data.get("question", "")).strip()
+    raw_answer = str(data.get("answer", "")).strip()
+    answer = "هەڵە" if "هەڵ" in raw_answer or raw_answer.lower() in ["false", "0"] else "ڕاست"
+    if not question or not data.get("info") or not game_content_is_new(question, used_questions):
+        return None
+    data["answer"] = answer
+    data["aliases"] = (["ڕاست", "راست", "rast", "true", "t", "1"] if answer == "ڕاست"
+                       else ["هەڵە", "هەلە", "hala", "false", "f", "0"])
+    return data
+
+def generate_ai_kurdish_riddle(is_comedy: bool = False, used_questions=None, used_answers=None) -> dict:
+    """دروستکردنی مەتەڵی نوێ و بێکۆتایی بە Groq/Gemini و مێژووی بێ-دووبارەبوونەوە."""
+    topic_hint = ("مەتەڵێکی کۆمیدی و پێکەنیناوی پاک" if is_comedy
+                  else "مەتەڵێکی فیکری، کەلتووری، لۆژیکی یان زانستی")
+    prompt = (
+        f"وەک مەتەڵسازێکی کورد، {topic_hint} بە زمانی شیرینی کوردی سۆرانی دروست بکە. "
+        "مەتەڵەکە دەبێت وەڵامێکی ڕوون و دادپەروەرانەی هەبێت. "
+        "نابێت دووبارە یان زۆر هاوشێوەی هیچ مەتەڵێکی لیستی خوارەوە بێت:\n"
+        f"{game_history_hint(used_questions)}\n"
+        "هەروەها وەڵامی سەرەکی نابێت هیچ یەکێک لەم وەڵامە بەکارهاتووانە بێت:\n"
+        f"{game_history_hint(used_answers, 50)}\n"
+        "تەنها JSON بگەڕێنەرەوە: "
+        '{"question":"مەتەڵ", "answers":["وەڵامی سەرەکی","شێوازی تر","لاتینی"], '
+        '"display_answer":"وەڵامی تەواو لەگەڵ ئیمۆجی"}'
+    )
+    data = request_game_ai_json(prompt, 320, 1.0)
+    if not isinstance(data, dict):
+        return None
+    question = str(data.get("question", "")).strip()
+    answers = data.get("answers")
+    if (not question or not isinstance(answers, list) or not answers
+            or not data.get("display_answer") or not game_content_is_new(question, used_questions)):
+        return None
+    data["answers"] = [str(a).strip() for a in answers if str(a).strip()]
+    return data
 
 def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
     """بەڕێوەبردنی خولەکانی ٤ جۆری یارییە بەکۆمەڵەکان بە سیستەمی زیرەکی بێ-دووبارەبوونەوە و ژیریی دەستکرد"""
@@ -1406,17 +1615,24 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         used_set = set(state_data["used_unscramble"][c_key])
         
         item = None
-        if random.random() < 0.35:
-            ai_item = generate_ai_kurdish_unscramble()
-            if ai_item and ai_item.get("word") not in used_set:
+        # AI سەرەکییە؛ ئەگەر پرسیاری دووبارە دروست کرد جارێکی تر هەوڵ دەدات
+        for _ in range(2):
+            ai_item = generate_ai_kurdish_unscramble(state_data["used_unscramble"][c_key])
+            if ai_item and game_content_is_new(ai_item.get("word"), used_set, 1.0):
                 item = ai_item
+                break
                 
         if not item:
-            candidates = [it for it in KURDISH_UNSCRAMBLE_WORDS if it["word"] not in used_set]
-            if not candidates:
-                state_data["used_unscramble"][c_key] = []
-                candidates = list(KURDISH_UNSCRAMBLE_WORDS)
-            item = random.choice(candidates)
+            candidates = [
+                it for it in KURDISH_UNSCRAMBLE_WORDS
+                if game_content_is_new(it["word"], used_set, 1.0)
+            ]
+            if candidates:
+                item = random.choice(candidates)
+
+        if not item:
+            send_message(chat_id, "⏳ AI خەریکی دروستکردنی وشەیەکی تازەیە؛ تکایە دوای چەند چرکەیەک <code>/next</code> بنووسە 🌸", 0, thread_id)
+            return
             
         state_data["used_unscramble"][c_key].append(item["word"])
         
@@ -1451,17 +1667,23 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         used_set = set(state_data["used_truefalse"][c_key])
         
         item = None
-        if random.random() < 0.35:
-            ai_tf = generate_ai_kurdish_truefalse()
-            if ai_tf and ai_tf.get("question") not in used_set:
+        for _ in range(2):
+            ai_tf = generate_ai_kurdish_truefalse(state_data["used_truefalse"][c_key])
+            if ai_tf and game_content_is_new(ai_tf.get("question"), used_set):
                 item = ai_tf
+                break
                 
         if not item:
-            candidates = [it for it in KURDISH_TRUE_FALSE if it["question"] not in used_set]
-            if not candidates:
-                state_data["used_truefalse"][c_key] = []
-                candidates = list(KURDISH_TRUE_FALSE)
-            item = random.choice(candidates)
+            candidates = [
+                it for it in KURDISH_TRUE_FALSE
+                if game_content_is_new(it["question"], used_set)
+            ]
+            if candidates:
+                item = random.choice(candidates)
+
+        if not item:
+            send_message(chat_id, "⏳ AI خەریکی دروستکردنی پرسیارێکی تازەیە؛ تکایە دوای چەند چرکەیەک <code>/next</code> بنووسە 🌸", 0, thread_id)
+            return
             
         state_data["used_truefalse"][c_key].append(item["question"])
         
@@ -1512,24 +1734,43 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
             state_data["used_quizzes"] = {}
         if c_key not in state_data["used_quizzes"]:
             state_data["used_quizzes"][c_key] = []
-            
+        if "used_quiz_answers" not in state_data:
+            state_data["used_quiz_answers"] = {}
+        if c_key not in state_data["used_quiz_answers"]:
+            state_data["used_quiz_answers"][c_key] = []
+
         used_set = set(state_data["used_quizzes"][c_key])
+        used_answer_set = set(state_data["used_quiz_answers"][c_key])
         
         q = None
-        if random.random() < 0.35:
-            is_comedy_turn = random.random() < 0.5
-            ai_q = generate_ai_kurdish_riddle(is_comedy=is_comedy_turn)
-            if ai_q and ai_q.get("question") not in used_set:
+        is_comedy_turn = len(used_set) % 2 == 1
+        for _ in range(2):
+            ai_q = generate_ai_kurdish_riddle(
+                is_comedy=is_comedy_turn,
+                used_questions=state_data["used_quizzes"][c_key],
+                used_answers=state_data["used_quiz_answers"][c_key]
+            )
+            ai_primary_answer = str((ai_q or {}).get("answers", [""])[0]).strip().lower()
+            if (ai_q and game_content_is_new(ai_q.get("question"), used_set)
+                    and game_content_is_new(ai_primary_answer, used_answer_set, 1.0)):
                 q = ai_q
+                break
                 
         if not q:
-            candidates = [item for item in KURDISH_QUIZZES if item["question"] not in used_set]
-            if not candidates:
-                state_data["used_quizzes"][c_key] = []
-                candidates = list(KURDISH_QUIZZES)
-            q = random.choice(candidates)
+            candidates = [
+                item for item in KURDISH_QUIZZES
+                if game_content_is_new(item["question"], used_set)
+                and game_content_is_new(str(item["answers"][0]).lower(), used_answer_set, 1.0)
+            ]
+            if candidates:
+                q = random.choice(candidates)
+
+        if not q:
+            send_message(chat_id, "⏳ AI خەریکی دروستکردنی مەتەڵێکی تازەیە؛ تکایە دوای چەند چرکەیەک <code>/next</code> بنووسە 🌸", 0, thread_id)
+            return
             
         state_data["used_quizzes"][c_key].append(q["question"])
+        state_data["used_quiz_answers"][c_key].append(str(q["answers"][0]).strip().lower())
         
         msg = (
             "❓ <b>مەتەڵی کوردی (Game 4):</b>\n\n"
@@ -2866,23 +3107,6 @@ def handle_message(msg: dict):
                 print(f"🔒 Force-Join: Deleted message from non-subscribed user {display_name} in chat {chat_id}")
                 return
             delete_force_join_card(chat_id, user_id)
-
-    # 🎭 کاتێک ئەندامێک ستیکەری ئاسایی دەنێرێت (وەڵامدانەوەی شیرین و پەیوەندیدار)
-    if "sticker" in msg:
-        should_stk_reply = True
-        if "reply_to_message" in msg and msg["reply_to_message"]:
-            target_user = msg["reply_to_message"].get("from", {})
-            target_id = target_user.get("id", 0)
-            is_target_bot = target_user.get("is_bot", False)
-            if target_id != BOT_ID and not is_target_bot:
-                should_stk_reply = False
-
-        if should_stk_reply:
-            stk_reply = get_sticker_comment(msg["sticker"])
-            if stk_reply:
-                send_message(chat_id, stk_reply, msg_id)
-                print(f"🤖 Reacted to sticker from {display_name}: {stk_reply}")
-                return
 
     # 🎮 پشکنینی وەڵامی یارییە بەکۆمەڵەکان (تەنها کاتێک بەکارهێنەر ڕیپڵای پەیامی یارییەکە دەکات)
     c_key = str(chat_id)
