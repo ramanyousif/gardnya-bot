@@ -1635,6 +1635,36 @@ def generate_ai_kurdish_truefalse(used_questions=None) -> dict:
                        else ["هەڵە", "هەلە", "hala", "false", "f", "0"])
     return data
 
+def generate_ai_number_challenge(used_challenges=None) -> dict:
+    """دروستکردنی خولی تازەی یاریی ژمارە بە AI، بە مەودا و ڕێنماییی جیاواز."""
+    prompt = (
+        "خولێکی نوێی یاریی دۆزینەوەی ژمارە بە کوردی سۆرانی دروست بکە. "
+        "min و max و ژمارەی نهێنی secret دیاری بکە؛ جیاوازی max و min لە 50 کەمتر و لە 500 زیاتر نەبێت. "
+        "clue ڕێنماییەکی کورت و دروست بێت (وەک تاک/جووت، نزیکبوونەوە، یان تایبەتمەندییەکی ژمارەیی)، "
+        "بەڵام ژمارە نهێنییەکە ئاشکرا مەکە. خولەکە نابێت دووبارەی ئەمانە بێت:\n"
+        f"{game_history_hint(used_challenges)}\n"
+        "تەنها JSON بگەڕێنەرەوە: "
+        '{"min":1,"max":200,"secret":137,"clue":"ڕێنماییەکی کورت"}'
+    )
+    data = request_game_ai_json(prompt, 240, 0.95)
+    if not isinstance(data, dict):
+        return None
+    try:
+        minimum = int(data.get("min"))
+        maximum = int(data.get("max"))
+        secret = int(data.get("secret"))
+    except (TypeError, ValueError):
+        return None
+    clue = str(data.get("clue", "")).strip()
+    if minimum >= maximum or maximum - minimum < 20 or maximum - minimum > 1000:
+        return None
+    if secret < minimum or secret > maximum or str(secret) in clue:
+        return None
+    challenge_key = f"{minimum}:{maximum}:{secret}:{clue}"
+    if not game_content_is_new(challenge_key, used_challenges, 1.0):
+        return None
+    return {"min": minimum, "max": maximum, "secret": secret, "clue": clue, "key": challenge_key}
+
 def generate_ai_kurdish_riddle(is_comedy: bool = False, used_questions=None, used_answers=None) -> dict:
     """دروستکردنی مەتەڵی نوێ و بێکۆتایی بە Groq/Gemini و مێژووی بێ-دووبارەبوونەوە."""
     topic_hint = ("مەتەڵێکی کۆمیدی و پێکەنیناوی پاک" if is_comedy
@@ -1660,6 +1690,52 @@ def generate_ai_kurdish_riddle(is_comedy: bool = False, used_questions=None, use
         return None
     data["answers"] = [str(a).strip() for a in answers if str(a).strip()]
     return data
+
+# هەوڵدانەوەی خۆکار ئەگەر هەردوو خزمەتگوزاریی AI کاتییەک وەڵام نەدەن
+game_generation_retries = {}
+
+def clear_game_generation_retry(chat_id: int, game_type: int):
+    game_generation_retries.pop(f"{chat_id}_{game_type}", None)
+
+def cancel_game_generation_retries(chat_id: int):
+    prefix = f"{chat_id}_"
+    for retry_key in list(game_generation_retries):
+        if retry_key.startswith(prefix):
+            game_generation_retries.pop(retry_key, None)
+
+def schedule_game_generation_retry(chat_id: int, game_type: int, thread_id: int = 0):
+    """بە backoffـی ئارام هەوڵ دەداتەوە تا AI خولێکی تازە دروست دەکات."""
+    retry_key = f"{chat_id}_{game_type}"
+    previous = game_generation_retries.get(retry_key, {})
+    attempt = int(previous.get("attempt", 0)) + 1
+    token = f"{time.time()}_{random.random()}"
+    delay = min(10 * attempt, 120)
+    game_generation_retries[retry_key] = {"attempt": attempt, "token": token}
+
+    def retry_later():
+        time.sleep(delay)
+        current = game_generation_retries.get(retry_key, {})
+        if current.get("token") != token:
+            return
+        send_next_game_round(chat_id, game_type, thread_id)
+
+    threading.Thread(target=retry_later, daemon=True).start()
+    return attempt, delay
+
+def wait_for_fresh_ai_round(chat_id: int, game_type: int, thread_id: int = 0):
+    """یاری ناوەستێنێت؛ بە بێ دووبارەکردنەوە خۆکار چاوەڕێی AI دەکات."""
+    c_key = str(chat_id)
+    if c_key in state_data.get("active_game", {}):
+        state_data["active_game"][c_key]["generating"] = True
+        save_state()
+    attempt, delay = schedule_game_generation_retry(chat_id, game_type, thread_id)
+    if attempt == 1:
+        send_message(
+            chat_id,
+            f"⏳ AI خەریکی دروستکردنی خولێکی تەواو تازەیە؛ خۆکار دوای {delay} چرکە دووبارە هەوڵ دەداتەوە و یاری ناوەستێت 🌸🤖",
+            0,
+            thread_id
+        )
 
 def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
     """بەڕێوەبردنی خولەکانی ٤ جۆری یارییە بەکۆمەڵەکان بە سیستەمی زیرەکی بێ-دووبارەبوونەوە و ژیریی دەستکرد"""
@@ -1693,9 +1769,10 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
                 item = random.choice(candidates)
 
         if not item:
-            send_message(chat_id, "⏳ AI خەریکی دروستکردنی وشەیەکی تازەیە؛ تکایە دوای چەند چرکەیەک <code>/next</code> بنووسە 🌸", 0, thread_id)
+            wait_for_fresh_ai_round(chat_id, game_type, thread_id)
             return
-            
+
+        clear_game_generation_retry(chat_id, game_type)
         state_data["used_unscramble"][c_key].append(item["word"])
         
         msg = (
@@ -1744,9 +1821,10 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
                 item = random.choice(candidates)
 
         if not item:
-            send_message(chat_id, "⏳ AI خەریکی دروستکردنی پرسیارێکی تازەیە؛ تکایە دوای چەند چرکەیەک <code>/next</code> بنووسە 🌸", 0, thread_id)
+            wait_for_fresh_ai_round(chat_id, game_type, thread_id)
             return
-            
+
+        clear_game_generation_retry(chat_id, game_type)
         state_data["used_truefalse"][c_key].append(item["question"])
         
         msg = (
@@ -1770,11 +1848,53 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         save_state()
 
     elif game_type == 3:
-        # 🎯 ۳. یاریی مەزندەکردنی ژمارەی نهێنی (Guess Number 1-100)
-        secret = random.randint(1, 100)
+        # 🎯 ۳. یاریی ژمارەی نهێنی بە مەودا و ڕێنماییی نوێی AI
+        if "used_number_challenges" not in state_data:
+            state_data["used_number_challenges"] = {}
+        if c_key not in state_data["used_number_challenges"]:
+            state_data["used_number_challenges"][c_key] = []
+
+        used_challenges = state_data["used_number_challenges"][c_key]
+        challenge = None
+        for _ in range(2):
+            ai_challenge = generate_ai_number_challenge(used_challenges)
+            if ai_challenge and game_content_is_new(ai_challenge.get("key"), used_challenges, 1.0):
+                challenge = ai_challenge
+                break
+
+        # fallbackـێکی بێسنووری ناوخۆیی؛ تەنها ئەگەر AI کاتییەک وەڵام نەدات
+        if not challenge:
+            round_no = len(used_challenges) + 1
+            minimum = 1 + ((round_no - 1) // 100) * 100
+            maximum = minimum + 199
+            for _ in range(100):
+                secret = random.randint(minimum, maximum)
+                clue = "ژمارەکە جووتە" if secret % 2 == 0 else "ژمارەکە تاکە"
+                challenge_key = f"round-{round_no}:{minimum}:{maximum}:{secret}:{clue}"
+                if game_content_is_new(challenge_key, used_challenges, 1.0):
+                    challenge = {
+                        "min": minimum,
+                        "max": maximum,
+                        "secret": secret,
+                        "clue": clue,
+                        "key": challenge_key
+                    }
+                    break
+
+        if not challenge:
+            wait_for_fresh_ai_round(chat_id, game_type, thread_id)
+            return
+
+        clear_game_generation_retry(chat_id, game_type)
+        state_data["used_number_challenges"][c_key].append(challenge["key"])
+        minimum = challenge["min"]
+        maximum = challenge["max"]
+        secret = challenge["secret"]
+        clue = challenge["clue"]
         msg = (
             "🎯 <b>یاریی دۆزینەوەی ژمارەی نهێنی (Game 3):</b>\n\n"
-            "🔢 من ژمارەیەکی نهێنیم لە نێوان <b>(١ تا ١٠٠)</b> هەڵبژاردووە!\n\n"
+            f"🔢 AI ژمارەیەکی نهێنی لە نێوان <b>({minimum} تا {maximum})</b> هەڵبژاردووە!\n"
+            f"🧠 <b>ڕێنمایی:</b> {html.escape(clue)}\n\n"
             "💡 <b>بۆ وەڵامدانەوە، ڕیپڵای (Reply) ئەم پەیامە بکە و ژمارەکەت بنووسە!</b> 🏆✨\n\n"
             "<i>(بۆ ڕاگرتنی یاری ئەدمین دەتوانێت بنووسێت: <code>/stop</code>)</i>"
         )
@@ -1784,6 +1904,9 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         state_data["active_game"][c_key] = {
             "game_type": 3,
             "secret": secret,
+            "min": minimum,
+            "max": maximum,
+            "challenge_key": challenge["key"],
             "attempts": 0,
             "msg_id": g_mid,
             "time": time.time()
@@ -1828,9 +1951,10 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
                 q = random.choice(candidates)
 
         if not q:
-            send_message(chat_id, "⏳ AI خەریکی دروستکردنی مەتەڵێکی تازەیە؛ تکایە دوای چەند چرکەیەک <code>/next</code> بنووسە 🌸", 0, thread_id)
+            wait_for_fresh_ai_round(chat_id, game_type, thread_id)
             return
-            
+
+        clear_game_generation_retry(chat_id, game_type)
         state_data["used_quizzes"][c_key].append(q["question"])
         state_data["used_quiz_answers"][c_key].append(str(q["answers"][0]).strip().lower())
         
@@ -2519,6 +2643,7 @@ def handle_command(msg: dict, text: str):
         return
     elif cmd in ["/stop", "/cancel", "/closequiz", "/closegame"]:
         c_key = str(chat_id)
+        cancel_game_generation_retries(chat_id)
         if "active_game" in state_data and c_key in state_data["active_game"]:
             del state_data["active_game"][c_key]
             save_state()
@@ -2538,6 +2663,9 @@ def handle_command(msg: dict, text: str):
         c_key = str(chat_id)
         if "active_game" in state_data and c_key in state_data["active_game"]:
             g = state_data["active_game"][c_key]
+            if g.get("generating"):
+                send_message(chat_id, "⏳ AI هێشتا خەریکی دروستکردنی خولێکی تازەیە و خۆکار بەردەوام دەبێت 🌸🤖", msg_id, thread_id)
+                return
             gt = g.get("game_type", 1)
             ans = ""
             if gt == 1:
@@ -3179,6 +3307,8 @@ def handle_message(msg: dict):
     c_key = str(chat_id)
     if "active_game" in state_data and c_key in state_data["active_game"] and text:
         curr_game = state_data["active_game"][c_key]
+        if curr_game.get("generating"):
+            return
         
         is_reply_to_game = False
         if "reply_to_message" in msg and msg["reply_to_message"]:
@@ -3269,6 +3399,11 @@ def handle_message(msg: dict):
                 if digits:
                     guess = int(digits[0])
                     secret = curr_game.get("secret", 50)
+                    minimum = curr_game.get("min", 1)
+                    maximum = curr_game.get("max", 100)
+                    if guess < minimum or guess > maximum:
+                        send_message(chat_id, f"🔢 {display_name} گیان، ژمارەیەک لە نێوان <b>{minimum} تا {maximum}</b> هەڵبژێرە 🌸", msg_id, thread_id)
+                        return
                     diff = abs(guess - secret)
                     if guess == secret:
                         pts = add_user_quiz_point(chat_id, user_id, display_name)
@@ -3299,7 +3434,9 @@ def handle_message(msg: dict):
                         send_message(chat_id, f"⬇️ ژمارە نهێنییەکە <b>نزمترە</b> لە {guess}! ({display_name}) 🌸", msg_id, thread_id)
                         return
                 else:
-                    send_message(chat_id, f"🔢 <b>تکایە ژمارەیەک بنووسە {display_name} گیان! (١ تا ١٠٠)</b> 🎯🌸", msg_id, thread_id)
+                    minimum = curr_game.get("min", 1)
+                    maximum = curr_game.get("max", 100)
+                    send_message(chat_id, f"🔢 <b>تکایە ژمارەیەک بنووسە {display_name} گیان! ({minimum} تا {maximum})</b> 🎯🌸", msg_id, thread_id)
                     return
 
             # ❓ ٤. یاریی مەتەڵی کوردی (Game 4 / Quiz)
