@@ -1910,13 +1910,29 @@ def generate_ai_kurdish_riddle(is_comedy: bool = False, used_questions=None, use
         return None
     question = strip_game_emojis(data.get("question", ""))
     answers = data.get("answers")
+    normalized_question = re.sub(r"\W+", "", question.lower(), flags=re.UNICODE)
+    placeholder_questions = {
+        "مەتەڵ", "riddle", "question", "پرسیار", "نمونەی مەتەڵ", "مەتەڵی تازە"
+    }
+    if normalized_question in placeholder_questions or len(question) < 10:
+        return None
     if (not question or not isinstance(answers, list) or not answers
             or not data.get("display_answer") or not game_content_is_new(question, used_questions)):
         return None
     data["question"] = question
     data["display_answer"] = strip_game_emojis(data.get("display_answer"))
     data["answers"] = [strip_game_emojis(a) for a in answers if strip_game_emojis(a)]
-    if not data["answers"] or not data["display_answer"]:
+    normalized_answers = {
+        re.sub(r"\W+", "", str(answer).lower(), flags=re.UNICODE)
+        for answer in data["answers"]
+    }
+    invalid_answers = {
+        re.sub(r"\W+", "", value.lower(), flags=re.UNICODE)
+        for value in {"وەڵامی سەرەکی", "شێوازی تر", "لاتینی", "answer", "نمونە"}
+    }
+    if (not data["answers"] or not data["display_answer"]
+            or normalized_answers & invalid_answers
+            or re.sub(r"\W+", "", data["display_answer"].lower(), flags=re.UNICODE) in {"وەڵامی تەواو", "answer"}):
         return None
     return data
 
@@ -2206,6 +2222,12 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
 
         clear_game_generation_retry(chat_id, game_type)
         safe_question = strip_game_emojis(q["question"])
+        # پاراستنی کۆتایی: هیچ placeholder ـێک نابێت بگاتە گروپ، تەنانەت
+        # ئەگەر لە داتای کۆن یان وەڵامی نادروستی AI ـەوە هاتبێت.
+        safe_question_key = re.sub(r"\W+", "", safe_question.lower(), flags=re.UNICODE)
+        if len(safe_question) < 10 or safe_question_key in {"مەتەڵ", "riddle", "question", "پرسیار"}:
+            wait_for_fresh_ai_round(chat_id, game_type, thread_id)
+            return
         state_data["used_quizzes"][c_key].append(safe_question)
         state_data["used_quiz_answers"][c_key].append(str(q["answers"][0]).strip().lower())
         
