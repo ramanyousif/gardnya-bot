@@ -14,6 +14,8 @@ import datetime
 import base64
 import difflib
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from pathlib import Path
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -68,6 +70,20 @@ AUTO_MUTE_MINUTES = int(config.get("autoMuteMinutes", 60))
 KURDISTAN_UTC_OFFSET = datetime.timezone(datetime.timedelta(hours=3))
 
 API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+# پەیوەندیی جێگیرتر بۆ پراکسیی PythonAnywhere و هەڵە کاتییەکانی 502/503/504
+telegram_session = requests.Session()
+telegram_retry = Retry(
+    total=4,
+    connect=4,
+    read=2,
+    backoff_factor=1.5,
+    status_forcelist=(429, 500, 502, 503, 504),
+    allowed_methods=frozenset({"POST"}),
+    raise_on_status=False,
+)
+telegram_session.mount("https://", HTTPAdapter(max_retries=telegram_retry))
+telegram_error_state = {"count": 0, "last_log": 0.0}
 
 # Initialize Groq AI Client (fallback)
 groq_client = None
@@ -351,10 +367,22 @@ BAD_PHRASES_LIST = [
 
 def tg_call(method: str, payload: dict = None):
     try:
-        r = requests.post(f"{API_BASE}/{method}", json=payload or {}, timeout=30)
-        return r.json()
+        # getUpdates خۆی تا 30 چرکە long-polling دەکات؛ read timeout دەبێت کەمێک زیاتر بێت.
+        timeout = (15, 40) if method == "getUpdates" else (15, 30)
+        r = telegram_session.post(f"{API_BASE}/{method}", json=payload or {}, timeout=timeout)
+        if r.status_code >= 500:
+            raise requests.HTTPError(f"Telegram HTTP {r.status_code}")
+        result = r.json()
+        telegram_error_state["count"] = 0
+        return result
     except Exception as e:
-        print(f"Telegram API Error ({method}):", e)
+        telegram_error_state["count"] += 1
+        now = time.time()
+        # token هیچ کات لە log ـدا پیشان مەدە؛ هەڵە دووبارەکانیش هەر 30 چرکە جارێک بنووسە.
+        if now - telegram_error_state["last_log"] >= 30:
+            safe_error = str(e).replace(BOT_TOKEN, "<BOT_TOKEN_REDACTED>") if BOT_TOKEN else str(e)
+            print(f"Telegram connection problem ({method}, attempt {telegram_error_state['count']}): {safe_error}")
+            telegram_error_state["last_log"] = now
         return None
 
 BOT_ID = 0
@@ -3721,16 +3749,23 @@ def main():
     t.start()
 
     offset = 0
+    polling_failures = 0
     while True:
         try:
             res = tg_call("getUpdates", {"offset": offset, "timeout": 30, "allowed_updates": ["message"]})
             if res and res.get("ok"):
+                polling_failures = 0
                 for update in res["result"]:
                     offset = update["update_id"] + 1
                     if "message" in update:
                         handle_message(update["message"])
+            else:
+                polling_failures += 1
+                # کاتێک پراکسی 503 ـە، loop ـەکە بە خێرایی log پڕ نەکات و CPU بەفیڕۆ نەدات.
+                time.sleep(min(30, 2 + polling_failures * 2))
         except Exception as e:
-            print("Polling Exception:", e)
+            safe_error = str(e).replace(BOT_TOKEN, "<BOT_TOKEN_REDACTED>") if BOT_TOKEN else str(e)
+            print("Polling Exception:", safe_error)
             time.sleep(5)
 
 if __name__ == "__main__":
