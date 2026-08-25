@@ -8,6 +8,8 @@ so it stays alive forever on PythonAnywhere's free web hosting.
 import os
 import sys
 import threading
+import hashlib
+import hmac
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -18,6 +20,13 @@ from flask import Flask, request
 import main_bot
 
 app = Flask(__name__)
+
+# Telegram هەر webhook ـێک بە secret header پشتڕاست دەکاتەوە؛ کەسی دەرەوە
+# ناتوانێت update ـی ساختە بنێرێت و فرمانی ئەدمین جێبەجێ بکات.
+WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "").strip()
+if not WEBHOOK_SECRET and main_bot.BOT_TOKEN:
+    WEBHOOK_SECRET = hashlib.sha256(main_bot.BOT_TOKEN.encode("utf-8")).hexdigest()
+DEPLOY_SECRET = os.environ.get("GARDNYA_DEPLOY_SECRET", "").strip()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Background Scheduler & Keep-Alive 24/7 Management
@@ -65,6 +74,9 @@ def index():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Handle incoming Telegram updates via webhook."""
+    received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not WEBHOOK_SECRET or not hmac.compare_digest(received_secret, WEBHOOK_SECRET):
+        return "Forbidden", 403
     try:
         data = request.get_json(force=True)
         if data:
@@ -73,10 +85,7 @@ def webhook():
             elif 'chat_member' in data:
                 main_bot.handle_chat_member_update(data['chat_member'])
             elif 'my_chat_member' in data:
-                chat = data['my_chat_member'].get('chat', {})
-                if chat.get('type') in ['group', 'supergroup']:
-                    main_bot.register_group(chat['id'])
-                    print(f"🎉 Auto-registered group {chat.get('title')} ({chat['id']})")
+                main_bot.handle_chat_member_update(data['my_chat_member'])
     except Exception as e:
         print(f"Webhook error: {e}")
     # Ensure scheduler is alive on every webhook call
@@ -92,6 +101,9 @@ def health():
 @app.route('/pull', methods=['GET', 'POST'])
 def git_pull():
     """Trigger automatic git pull on PythonAnywhere via URL."""
+    received_secret = request.headers.get("X-Gardnya-Deploy-Secret", "")
+    if not DEPLOY_SECRET or not hmac.compare_digest(received_secret, DEPLOY_SECRET):
+        return "Not found", 404
     try:
         repo_dir = os.path.dirname(os.path.abspath(__file__))
         res = subprocess.run(["git", "pull"], cwd=repo_dir, capture_output=True, text=True, timeout=30)
@@ -109,7 +121,8 @@ WEBHOOK_URL = "https://ramanyousif2002.pythonanywhere.com/webhook"
 # Set Telegram webhook with chat_member support
 result = main_bot.tg_call("setWebhook", {
     "url": WEBHOOK_URL,
-    "allowed_updates": ["message", "my_chat_member", "chat_member"]
+    "allowed_updates": ["message", "my_chat_member", "chat_member"],
+    "secret_token": WEBHOOK_SECRET,
 })
 if result and result.get("ok"):
     print(f"🌐 Webhook set successfully: {WEBHOOK_URL}")

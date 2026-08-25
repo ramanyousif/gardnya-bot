@@ -13,6 +13,7 @@ import threading
 import datetime
 import base64
 import difflib
+import importlib.util
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -165,6 +166,11 @@ WELCOME_MESSAGES = [
     "👑 سڵاو لە {name} خۆشەویست! زۆر بەخێربێیت بۆ نێو خێزانە چاک و ئازیزەکەمان 🌟\n\nگروپ بە هاتنی تۆ گەشاوەتر بوو، بە هیوای کاتی زۆر خۆش و سەرکەوتووانە! 🌺💐💖",
     "✨ سڵاو و دەرەکەت خۆش {name} گیان! بەخێربێیت بەسەر چاوانمان 💐\n\nزۆر دڵخۆشین بە بینینت لە نێوماندا! 🎉🌸🤗"
 ]
+
+# Telegram هەندێک جار هەمان جۆین بە message و chat_member هەردووکیان دەنێرێت.
+# ئەم کۆگایە ڕێگری لە دوو کارتی بەخێرهاتن بۆ هەمان کەس دەکات.
+recent_welcome_events = {}
+recent_welcome_lock = threading.Lock()
 
 SMART_REPLIES = [
     {
@@ -400,10 +406,18 @@ def tg_call(method: str, payload: dict = None):
         return None
 
 BOT_ID = 0
-me_data = tg_call("getMe")
-if me_data and me_data.get("ok"):
-    BOT_ID = me_data["result"]["id"]
-    print(f"Bot authenticated as: @{me_data['result'].get('username', 'bot')} (ID: {BOT_ID})")
+
+def refresh_bot_identity() -> bool:
+    """دوای 503 ـی دەستپێکیش ناسنامەی بۆت خۆکار دووبارە وەربگرە."""
+    global BOT_ID
+    me_data = tg_call("getMe")
+    if me_data and me_data.get("ok"):
+        BOT_ID = me_data["result"]["id"]
+        print(f"Bot authenticated as: @{me_data['result'].get('username', 'bot')} (ID: {BOT_ID})")
+        return True
+    return False
+
+refresh_bot_identity()
 
 def send_message(chat_id: int, text: str, reply_to: int = 0, thread_id: int = 0, parse_mode: str = "HTML", reply_markup: dict = None):
     body = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
@@ -434,16 +448,11 @@ def get_chat_latest_photo_bytes(chat_id: int, chat_info: dict = None):
         photo_id = photo_info.get("big_file_id") or photo_info.get("small_file_id")
         
         if photo_id:
-            file_res = tg_call("getFile", {"file_id": photo_id})
-            if file_res and file_res.get("ok"):
-                f_path = file_res.get("result", {}).get("file_path")
-                if f_path:
-                    url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{f_path}"
-                    resp = requests.get(url, timeout=15)
-                    if resp.status_code == 200 and len(resp.content) > 100:
-                        return resp.content
-    except Exception as e:
-        print(f"Error fetching group live photo bytes ({chat_id}): {e}")
+            photo_bytes, _ = download_telegram_file(photo_id)
+            if photo_bytes and len(photo_bytes) > 100:
+                return photo_bytes
+    except Exception:
+        print(f"Error fetching group live photo bytes ({chat_id})")
     return None
 
 def get_chat_photo_bytes(chat_id: int):
@@ -463,16 +472,11 @@ def get_channel_live_photo_bytes(channel_identifier: str):
             photo_info = chat_res.get("result", {}).get("photo", {})
             photo_id = photo_info.get("big_file_id") or photo_info.get("small_file_id")
             if photo_id:
-                file_res = tg_call("getFile", {"file_id": photo_id})
-                if file_res and file_res.get("ok"):
-                    f_path = file_res.get("result", {}).get("file_path")
-                    if f_path:
-                        url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{f_path}"
-                        resp = requests.get(url, timeout=15)
-                        if resp.status_code == 200 and len(resp.content) > 100:
-                            return resp.content
-    except Exception as e:
-        print(f"Error fetching channel live photo ({channel_identifier}): {e}")
+                photo_bytes, _ = download_telegram_file(photo_id)
+                if photo_bytes and len(photo_bytes) > 100:
+                    return photo_bytes
+    except Exception:
+        print(f"Error fetching channel live photo ({channel_identifier})")
     return None
 
 def is_user_subscribed_to_channel(channel_identifier: str, user_id: int) -> bool:
@@ -615,34 +619,38 @@ def send_photo(chat_id: int, photo_source, caption: str, reply_to: int = 0, thre
             data["message_thread_id"] = str(thread_id)
         if reply_markup:
             data["reply_markup"] = json.dumps(reply_markup)
-        
-        # 1. If photo_source is raw bytes (downloaded group avatar or channel avatar)
+
+        photo_bytes = None
         if isinstance(photo_source, bytes):
-            files = {"photo": ("photo.jpg", photo_source)}
-            r = requests.post(f"{API_BASE}/sendPhoto", data=data, files=files, timeout=30)
-            res = r.json()
-            if not res.get("ok"):
-                data.pop("parse_mode", None)
-                r = requests.post(f"{API_BASE}/sendPhoto", data=data, files={"photo": ("photo.jpg", photo_source)}, timeout=30)
-                return r.json()
-            return res
-        
-        # 2. If photo_source is local file path (e.g. pat_mat.jpg)
+            photo_bytes = photo_source
         elif isinstance(photo_source, str) and os.path.exists(photo_source):
             with open(photo_source, "rb") as f:
-                files = {"photo": f}
-                r = requests.post(f"{API_BASE}/sendPhoto", data=data, files=files, timeout=30)
-                res = r.json()
-                if not res.get("ok"):
-                    data.pop("parse_mode", None)
-                    f.seek(0)
-                    r = requests.post(f"{API_BASE}/sendPhoto", data=data, files={"photo": f}, timeout=30)
-                    return r.json()
-                return res
+                photo_bytes = f.read()
         else:
             return send_message(chat_id, caption, reply_to, thread_id, reply_markup=reply_markup)
-    except Exception as e:
-        print(f"sendPhoto Error: {e}")
+
+        if not photo_bytes:
+            return send_message(chat_id, caption, reply_to, thread_id, reply_markup=reply_markup)
+
+        def post_photo_payload(current_data):
+            response = telegram_session.post(
+                f"{API_BASE}/sendPhoto",
+                data=current_data,
+                files={"photo": ("photo.jpg", photo_bytes, "image/jpeg")},
+                timeout=(15, 40),
+            )
+            return response.json()
+
+        res = post_photo_payload(data)
+        if not res.get("ok"):
+            # هەڵەی HTML نابێت ببێتە هۆی نەهاتنی کارتەکە.
+            data.pop("parse_mode", None)
+            res = post_photo_payload(data)
+        if res.get("ok"):
+            return res
+        return send_message(chat_id, caption, reply_to, thread_id, reply_markup=reply_markup)
+    except Exception:
+        print("sendPhoto Error: Telegram photo service is temporarily unavailable")
         return send_message(chat_id, caption, reply_to, thread_id, reply_markup=reply_markup)
 
 def delete_message(chat_id: int, message_id: int):
@@ -2795,6 +2803,50 @@ def format_12h_kurdistan(time_str: str) -> str:
     except Exception:
         return time_str
 
+def build_health_report(chat_id: int) -> str:
+    """ڕاپۆرتێکی پارێزراو لە بەش و مۆڵەتە گرنگەکان؛ هیچ کلیلێک پیشان نادات."""
+    checks = []
+    bot_member = tg_call("getChatMember", {"chat_id": chat_id, "user_id": BOT_ID}) if BOT_ID else None
+    member_info = bot_member.get("result", {}) if bot_member and bot_member.get("ok") else {}
+    bot_status = member_info.get("status", "unknown")
+    is_group_admin = bot_status in ["administrator", "creator"]
+    is_creator = bot_status == "creator"
+
+    can_send_welcome = bool(BOT_ID) and bot_status not in ["left", "kicked", "unknown"]
+    if bot_status == "restricted":
+        can_send_welcome = can_send_welcome and bool(member_info.get("can_send_messages"))
+    checks.append(("پەیوەندی Telegram", bool(BOT_ID)))
+    checks.append(("کارتی بەخێرهاتن", can_send_welcome))
+    checks.append(("بۆت ئەدمینی گروپە", is_group_admin))
+    checks.append(("مۆڵەتی سڕینەوەی میدیا", is_creator or bool(member_info.get("can_delete_messages"))))
+    checks.append(("مۆڵەتی بێدەنگ/باند", is_creator or bool(member_info.get("can_restrict_members"))))
+    checks.append(("مۆدێلی سکوریتی NudeNet", importlib.util.find_spec("nudenet") is not None))
+    checks.append(("AIی گفتوگۆ", bool(groq_client or GEMINI_API_KEY)))
+    checks.append(("کاتژمێرە یەکسانەکان", config.get("enableMirrorHours", True)))
+    checks.append(("کاتی بانگەکان", config.get("enablePrayerTimes", True)))
+
+    channel_identifier = state_data.get("force_channel", {}).get(str(chat_id))
+    if channel_identifier:
+        channel_res = tg_call("getChat", {"chat_id": channel_identifier})
+        channel_member = tg_call("getChatMember", {"chat_id": channel_identifier, "user_id": BOT_ID}) if BOT_ID else None
+        channel_status = channel_member.get("result", {}).get("status") if channel_member and channel_member.get("ok") else None
+        channel_ok = bool(channel_res and channel_res.get("ok") and channel_status in ["administrator", "creator"])
+        checks.append(("چەناڵی جۆین و ئەدمینبوونی بۆت", channel_ok))
+        channel_text = html.escape(str(channel_identifier))
+    else:
+        channel_text = "دانەنراوە (ئاساییە)"
+
+    lines = ["🩺 <b>پشکنینی تەواوی بۆتی گاردنیا:</b>", ""]
+    for label, ok in checks:
+        lines.append(f"{'✅' if ok else '❌'} <b>{label}</b>")
+    lines.extend([
+        "",
+        f"📢 <b>چەناڵ:</b> {channel_text}",
+        "",
+        "ℹ️ ئەگەر مۆڵەتی سڕینەوە یان بێدەنگکردن ❌ بوو، لە Admin Permissions ـی گروپ چالاکی بکە.",
+    ])
+    return "\n".join(lines)
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  تایبەتمەندی پەخشی کاتژمێرە یەکسانەکان و کاتی بانگەکان (Background Scheduler)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2901,12 +2953,19 @@ def handle_command(msg: dict, text: str):
             "• <code>/unmute</code> - لادانی بێدەنگی لەسەر بەکارهێنەر\n"
             "• <code>/ban</code> - باندکردنی بەکارهێنەر لە گروپ\n"
             "• <code>/unban &lt;user_id&gt;</code> - لادانی باند بە پێدانی ئایدی\n"
-            "• <code>/setrules &lt;دەق&gt;</code> - دانانی یاساکانی گروپ 🌸"
+            "• <code>/setrules &lt;دەق&gt;</code> - دانانی یاساکانی گروپ 🌸\n"
+            "• <code>/health</code> - پشکنینی AI، سکوریتی و مۆڵەتەکانی بۆت 🩺"
         )
         send_message(chat_id, help_text, msg_id, thread_id)
         return
     elif cmd == "/id":
         send_message(chat_id, f"🆔 ئایدی ئەم چاتە: <code>{chat_id}</code>\n👤 ئایدی تۆ: <code>{user_id}</code> ✨", msg_id, thread_id)
+        return
+    elif cmd in ["/health", "/check", "/status"]:
+        if chat.get("type") not in ["group", "supergroup"]:
+            send_message(chat_id, "ℹ️ ئەم پشکنینە لە ناو گروپ بەکاربهێنە تا مۆڵەتەکان بزانرێن.", msg_id, thread_id)
+        else:
+            send_message(chat_id, build_health_report(chat_id), msg_id, thread_id)
         return
     elif cmd in ["/setowner", "/owner"]:
         state_data["owner_id"] = user_id
@@ -3219,8 +3278,29 @@ def handle_command(msg: dict, text: str):
             send_message(chat_id, "ℹ️ هیچ چەناڵێک بۆ ئیجباری جۆین لەم گروپە دانەنراوە.\nبۆ دانان ئەدمین دەتوانێت بنووسێت: <code>/setchannel @username</code> 🌸", msg_id, thread_id)
         return
 
+def claim_welcome_event(chat_id: int, user_id: int, cooldown_seconds: int = 90) -> bool:
+    """True تەنها بۆ یەکەم update ـی جۆین؛ دووبارەی Telegram پشتگوێ دەخات."""
+    if not chat_id or not user_id:
+        return True
+    now = time.time()
+    event_key = f"{chat_id}_{user_id}"
+    with recent_welcome_lock:
+        previous = recent_welcome_events.get(event_key, 0)
+        if now - previous < cooldown_seconds:
+            return False
+        recent_welcome_events[event_key] = now
+        if len(recent_welcome_events) > 1000:
+            cutoff = now - cooldown_seconds
+            for key, created_at in list(recent_welcome_events.items()):
+                if created_at < cutoff:
+                    recent_welcome_events.pop(key, None)
+    return True
+
 def handle_new_member(chat_id: int, user: dict, msg_id: int = 0, thread_id: int = 0):
     if not user or user.get("is_bot"):
+        return
+    if not claim_welcome_event(chat_id, user.get("id", 0)):
+        print(f"Skipped duplicate welcome event for user {user.get('id')} in chat {chat_id}")
         return
     
     m_first = html.escape(user.get("first_name", "ئازیز"))
@@ -3310,7 +3390,8 @@ def handle_chat_member_update(data: dict):
     if chat.get("type") in ["group", "supergroup"]:
         register_group(chat_id)
         
-    old_status = data.get("old_chat_member", {}).get("status")
+    old_member_obj = data.get("old_chat_member", {})
+    old_status = old_member_obj.get("status")
     new_member_obj = data.get("new_chat_member", {})
     new_status = new_member_obj.get("status")
     user = new_member_obj.get("user", {})
@@ -3329,7 +3410,10 @@ def handle_chat_member_update(data: dict):
         return
     
     # User joined the group via link, invite, or direct join
-    if old_status in ["left", "kicked", "restricted"] and new_status in ["member", "administrator"]:
+    joined_group = new_status in ["member", "administrator", "creator"] or (
+        new_status == "restricted" and new_member_obj.get("is_member") is True
+    )
+    if old_status in ["left", "kicked"] and joined_group:
         record_group_member(chat_id, user)
         print(f"👋 chat_member join detected in {chat_id}: {user.get('first_name')}")
         handle_new_member(chat_id, user)
@@ -3539,6 +3623,8 @@ def handle_message(msg: dict):
             
             record_group_member(chat_id, member)
             handle_new_member(chat_id, member, msg_id, thread_id)
+        # پەیامی سیستەمی جۆین نابێت وەک چات/سپام دووبارە پشکنین بکرێت.
+        return
 
     # ناسینەوەی Next بەبێ / بۆ گواستنەوە بۆ خولی نوێ (تەنها بۆ ئەدمین)
     if text.strip().lower() in ["next", "نێکست", "دواتر"] and is_user_admin:
@@ -3822,13 +3908,26 @@ def main():
     polling_failures = 0
     while True:
         try:
-            res = tg_call("getUpdates", {"offset": offset, "timeout": 30, "allowed_updates": ["message"]})
+            res = tg_call(
+                "getUpdates",
+                {
+                    "offset": offset,
+                    "timeout": 30,
+                    "allowed_updates": ["message", "chat_member", "my_chat_member"],
+                },
+            )
             if res and res.get("ok"):
                 polling_failures = 0
+                if not BOT_ID:
+                    refresh_bot_identity()
                 for update in res["result"]:
                     offset = update["update_id"] + 1
                     if "message" in update:
                         handle_message(update["message"])
+                    elif "chat_member" in update:
+                        handle_chat_member_update(update["chat_member"])
+                    elif "my_chat_member" in update:
+                        handle_chat_member_update(update["my_chat_member"])
             else:
                 polling_failures += 1
                 # کاتێک پراکسی 503 ـە، loop ـەکە بە خێرایی log پڕ نەکات و CPU بەفیڕۆ نەدات.
