@@ -1,3 +1,4 @@
 requests
 groq
 flask
+nudenet>=3.4.2

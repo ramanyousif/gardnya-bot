@@ -79,11 +79,25 @@ telegram_retry = Retry(
     read=2,
     backoff_factor=1.5,
     status_forcelist=(429, 500, 502, 503, 504),
-    allowed_methods=frozenset({"POST"}),
+    allowed_methods=frozenset({"GET", "POST"}),
     raise_on_status=False,
 )
 telegram_session.mount("https://", HTTPAdapter(max_retries=telegram_retry))
 telegram_error_state = {"count": 0, "last_log": 0.0}
+
+# مۆدێلی خۆجێیی و بێ‌بەرامبەر بۆ ناسینەوەی ڕووتی و ناوەڕۆکی سێکسی.
+# بە lazy-loading دەکرێتەوە بۆ ئەوەی دەستپێکردنی بۆت خێرا بێت و مۆدێل تەنها
+# لە یەکەم پشکنینی میدیا بار بکرێت.
+local_nsfw_detector = None
+local_nsfw_detector_failed = False
+local_nsfw_detector_lock = threading.Lock()
+LOCAL_NSFW_THRESHOLDS = {
+    "FEMALE_BREAST_EXPOSED": 0.45,
+    "FEMALE_GENITALIA_EXPOSED": 0.45,
+    "MALE_GENITALIA_EXPOSED": 0.45,
+    "ANUS_EXPOSED": 0.45,
+    "BUTTOCKS_EXPOSED": 0.55,
+}
 
 # Initialize Groq AI Client (fallback)
 groq_client = None
@@ -2314,12 +2328,62 @@ def download_telegram_file(file_id: str):
         elif ext in ["webm"]:
             mime = "video/webm"
         url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
-        r = requests.get(url, timeout=15)
+        r = telegram_session.get(url, timeout=(15, 30))
         if r.status_code == 200:
             return r.content, mime
-    except Exception as e:
-        print(f"Download file error: {e}")
+    except Exception:
+        # هەڵەکە کلیل/تۆکنی بۆت لە کۆنسۆڵدا پیشان نەدات.
+        print("Download file error: Telegram file server is temporarily unavailable")
     return None, "image/jpeg"
+
+def get_local_nsfw_detector():
+    """NudeNet تەنها یەک جار بار بکە؛ None واتە پەکەج/مۆدێل بەردەست نییە."""
+    global local_nsfw_detector, local_nsfw_detector_failed
+    if local_nsfw_detector is not None:
+        return local_nsfw_detector
+    if local_nsfw_detector_failed:
+        return None
+
+    with local_nsfw_detector_lock:
+        if local_nsfw_detector is not None:
+            return local_nsfw_detector
+        if local_nsfw_detector_failed:
+            return None
+        try:
+            from nudenet import NudeDetector
+            local_nsfw_detector = NudeDetector()
+            print("Local NSFW detector loaded: NudeNet")
+        except Exception as exc:
+            local_nsfw_detector_failed = True
+            print(f"Local NSFW detector unavailable ({type(exc).__name__}); install requirements.txt")
+            return None
+    return local_nsfw_detector
+
+def check_nsfw_with_local_model(img_bytes: bytes, mime_type: str):
+    """True=نەشیاو، False=پاک، None=نەتوانرا پشکنین بکرێت."""
+    if not img_bytes or not (mime_type or "").startswith("image/"):
+        return None
+
+    detector = get_local_nsfw_detector()
+    if detector is None:
+        return None
+
+    try:
+        # NudeDetector مۆدێلەکە thread-safe نییە؛ پشکنینەکان یەک بە یەک بکە.
+        with local_nsfw_detector_lock:
+            detections = detector.detect(img_bytes) or []
+        for item in detections:
+            label = str(item.get("class", "")).upper()
+            score = float(item.get("score", 0.0) or 0.0)
+            threshold = LOCAL_NSFW_THRESHOLDS.get(label)
+            if threshold is not None and score >= threshold:
+                print(f"Local NSFW detector matched {label} ({score:.2f})")
+                return True
+        return False
+    except Exception as exc:
+        # fail-open: لە کاتی هەڵەدا میدیای پاک بە گومان مەسڕەوە.
+        print(f"Local NSFW scan skipped ({type(exc).__name__})")
+        return None
 
 def check_nsfw_with_ai_vision(file_id: str):
     """گەڕاندنەوەی True (نەشیاو)، False (پاک)، یان None (نەتوانرا پشکنین بکرێت)."""
@@ -2327,10 +2391,16 @@ def check_nsfw_with_ai_vision(file_id: str):
     if not img_bytes or len(img_bytes) < 300:
         return None
 
-    b64 = base64.b64encode(img_bytes).decode("utf-8")
+    # سەرەتا مۆدێلی خۆجێیی و بێ‌بەرامبەر بەکاربهێنە.
+    local_result = check_nsfw_with_local_model(img_bytes, mime_type)
+    if local_result is True:
+        return True
+    if local_result is False and not GEMINI_API_KEY:
+        return False
 
-    # 🌟 هەر ستیکەر/وێنە بە مۆدێلە نوێ و پشتگیریکراوەکانی Gemini Vision پشکنین دەکرێت
+    # Gemini تەنها ئەگەر خاوەن بۆت خۆی کلیلێکی بەردەستی دانابێت، وەک پشتیوانی دووەم.
     if GEMINI_API_KEY:
+        b64 = base64.b64encode(img_bytes).decode("utf-8")
         for gem_model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
@@ -2437,8 +2507,8 @@ def is_nsfw_photo(msg: dict) -> bool:
     photos = msg.get("photo")
     if not photos:
         return False
-    # Use smallest photo size for faster download
-    file_id = photos[0].get("file_id") or ""
+    # Telegram قەبارەکان لە بچووکەوە بۆ گەورە دەنێرێت؛ وێنەی گەورە وردترە.
+    file_id = photos[-1].get("file_id") or ""
     if file_id and check_nsfw_with_ai_vision(file_id):
         return True
     return False
