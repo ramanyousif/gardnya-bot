@@ -109,6 +109,53 @@ if GROQ_API_KEY:
     except Exception as e:
         print(f"Groq Init Warning: {e}")
 
+def groq_model_candidates():
+    """مۆدێلی دانراو سەرەتا؛ پاشان دوو مۆدێلی جێگرەوەی پشتگیریکراو."""
+    models = [config.get("groqModel", GROQ_MODEL), GROQ_MODEL, "openai/gpt-oss-120b", "llama-3.3-70b-versatile"]
+    return list(dict.fromkeys(model for model in models if model))
+
+def request_groq_text(messages: list, model_name: str, max_tokens: int = 800,
+                      temperature: float = 0.55, json_mode: bool = False):
+    """SDK سەرەتا؛ ئەگەر دەستپێنەکەوت، Groq REST API وەک fallback بەکاربهێنە."""
+    if not GROQ_API_KEY:
+        return None
+
+    request_body = {
+        "model": model_name,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if json_mode:
+        request_body["response_format"] = {"type": "json_object"}
+
+    if groq_client:
+        try:
+            result = groq_client.chat.completions.create(**request_body)
+            return result.choices[0].message.content
+        except Exception as exc:
+            print(f"Groq SDK Notice ({model_name}): {type(exc).__name__}")
+
+    try:
+        response = telegram_session.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=request_body,
+            timeout=(15, 45),
+        )
+        if response.status_code == 200:
+            choices = response.json().get("choices", [])
+            if choices:
+                return choices[0].get("message", {}).get("content")
+        else:
+            print(f"Groq REST Notice ({model_name}): HTTP {response.status_code}")
+    except Exception as exc:
+        print(f"Groq REST Notice ({model_name}): {type(exc).__name__}")
+    return None
+
 print(f"🤖 AI Engine: {'Google Gemini 2.0 Flash' if GEMINI_API_KEY else 'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'None'}")
 print(f"🌍 Timezone: Kurdistan (UTC+3)")
 
@@ -1610,27 +1657,20 @@ def parse_ai_json(raw_text: str):
 
 def request_game_ai_json(prompt: str, max_tokens: int = 300, temperature: float = 0.9):
     """دروستکردنی ناوەڕۆکی یاری بە Groq و، ئەگەر نەکرا، بە Gemini."""
-    if groq_client:
-        models = [config.get("groqModel", GROQ_MODEL), GROQ_MODEL, "openai/gpt-oss-120b"]
-        for model_name in dict.fromkeys(m for m in models if m):
-            # هەندێک مۆدێل response_format وەرناگرن؛ بۆیە بە هەردوو شێوەکە هەوڵ دەدرێت
+    if GROQ_API_KEY:
+        for model_name in groq_model_candidates():
+            # هەندێک مۆدێل response_format وەرناگرن؛ بۆیە بە هەردوو شێوەکە هەوڵ دەدرێت.
             for use_json_mode in [True, False]:
-                try:
-                    request_args = {
-                        "model": model_name,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "temperature": temperature,
-                        "max_tokens": max_tokens
-                    }
-                    if use_json_mode:
-                        request_args["response_format"] = {"type": "json_object"}
-                    res = groq_client.chat.completions.create(**request_args)
-                    parsed = parse_ai_json(res.choices[0].message.content)
-                    if parsed:
-                        return parsed
-                except Exception as e:
-                    mode = "json" if use_json_mode else "plain"
-                    print(f"Game AI Groq Notice ({model_name}/{mode}): {e}")
+                raw = request_groq_text(
+                    [{"role": "user", "content": prompt}],
+                    model_name,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    json_mode=use_json_mode,
+                )
+                parsed = parse_ai_json(raw)
+                if parsed:
+                    return parsed
 
     if GEMINI_API_KEY:
         for model_name in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
@@ -2243,23 +2283,14 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     system_prompt = f"{AI_SYSTEM_PROMPT}\n\n{AI_CONVERSATION_RULES}"
 
     # 🌟 ١. AIی سەرەکی: Groq، لەگەڵ مێژووی کورتەی گفتوگۆ
-    if groq_client:
-        models_to_try = [config.get("groqModel", GROQ_MODEL), "openai/gpt-oss-120b", "llama-3.3-70b-versatile"]
-        for g_model in dict.fromkeys(model for model in models_to_try if model):
-            try:
-                res = groq_client.chat.completions.create(
-                    model=g_model,
-                    messages=[{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}],
-                    max_tokens=800,
-                    temperature=0.55
-                )
-                answer = res.choices[0].message.content
-                answer = clean_ai_text(answer)
-                if answer:
-                    remember_ai_conversation(chat_id, user_id, question, answer)
-                    return answer
-            except Exception as e:
-                print(f"Groq Model Error ({g_model}): {e}")
+    if GROQ_API_KEY:
+        messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}]
+        for g_model in groq_model_candidates():
+            answer = request_groq_text(messages, g_model, max_tokens=800, temperature=0.55)
+            answer = clean_ai_text(answer)
+            if answer:
+                remember_ai_conversation(chat_id, user_id, question, answer)
+                return answer
 
     # 🌟 ۲. پشتیوانی دووەم: Gemini، بە هەمان مێژووی گفتوگۆ
     if GEMINI_API_KEY:
@@ -2811,6 +2842,7 @@ def build_health_report(chat_id: int) -> str:
     bot_status = member_info.get("status", "unknown")
     is_group_admin = bot_status in ["administrator", "creator"]
     is_creator = bot_status == "creator"
+    ai_ready = bool(GROQ_API_KEY or GEMINI_API_KEY)
 
     can_send_welcome = bool(BOT_ID) and bot_status not in ["left", "kicked", "unknown"]
     if bot_status == "restricted":
@@ -2821,7 +2853,9 @@ def build_health_report(chat_id: int) -> str:
     checks.append(("مۆڵەتی سڕینەوەی میدیا", is_creator or bool(member_info.get("can_delete_messages"))))
     checks.append(("مۆڵەتی بێدەنگ/باند", is_creator or bool(member_info.get("can_restrict_members"))))
     checks.append(("مۆدێلی سکوریتی NudeNet", importlib.util.find_spec("nudenet") is not None))
-    checks.append(("AIی گفتوگۆ", bool(groq_client or GEMINI_API_KEY)))
+    checks.append(("AIی گفتوگۆ", ai_ready))
+    checks.append(("یارییەکان بە AI و بێ دووبارە", ai_ready))
+    checks.append(("مەتەڵەکان بە AI و بێ دووبارە", ai_ready))
     checks.append(("کاتژمێرە یەکسانەکان", config.get("enableMirrorHours", True)))
     checks.append(("کاتی بانگەکان", config.get("enablePrayerTimes", True)))
 
@@ -2845,6 +2879,8 @@ def build_health_report(chat_id: int) -> str:
         "",
         "ℹ️ ئەگەر مۆڵەتی سڕینەوە یان بێدەنگکردن ❌ بوو، لە Admin Permissions ـی گروپ چالاکی بکە.",
     ])
+    if not ai_ready:
+        lines.append("🔑 بۆ چالاککردنی سێ بەشی AI، کلیلی Groq لە <code>groqApiKey</code> ـی config.json دابنێ.")
     return "\n".join(lines)
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -3218,7 +3254,7 @@ def handle_command(msg: dict, text: str):
         unban_user(chat_id, target_uid)
         send_message(chat_id, f"✅ بەکارهێنەر بە ئایدی `{target_uid}` ئازاد کرا 🌸", msg_id, thread_id)
 
-    elif cmd in ["/setchannel", "/set_channel", "/channel_set"]:
+    elif cmd in ["/setchannel", "/setchanal", "/setchanel", "/set_channel", "/channel_set"]:
         if not is_admin(chat_id, user_id):
             send_message(chat_id, "⚠️ ئەم فەرمانە تەنها بۆ ئەدمینەکانی گروپە! 🌸", msg_id, thread_id)
             return
@@ -3256,7 +3292,7 @@ def handle_command(msg: dict, text: str):
         send_message(chat_id, succ_msg, msg_id, thread_id)
         return
 
-    elif cmd in ["/delchannel", "/unsetchannel", "/removechannel"]:
+    elif cmd in ["/delchannel", "/delchanal", "/delchanel", "/unsetchannel", "/removechannel"]:
         if not is_admin(chat_id, user_id):
             send_message(chat_id, "⚠️ ئەم فەرمانە تەنها بۆ ئەدمینەکانی گروپە! 🌸", msg_id, thread_id)
             return
