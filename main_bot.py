@@ -25,8 +25,6 @@ config = {
     "token": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
     "botUsername": os.environ.get("BOT_USERNAME", "gardny4_bot"),
     "geminiApiKey": os.environ.get("GEMINI_API_KEY", ""),
-    # Google Cloud Vision SafeSearch: پشکنینی تایبەتی adult/racy بۆ میدیا
-    "googleVisionApiKey": os.environ.get("GOOGLE_VISION_API_KEY", ""),
     "groqApiKey": os.environ.get("GROQ_API_KEY", ""),
     "groqModel": "llama-3.3-70b-versatile",
     "aiEnabled": True,
@@ -51,10 +49,17 @@ if CONFIG_FILE.exists():
     except Exception as e:
         print(f"Warning: Failed to load config.json: {e}")
 
-BOT_TOKEN = config.get("token") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
-GEMINI_API_KEY = config.get("geminiApiKey") or os.environ.get("GEMINI_API_KEY", "")
-GOOGLE_VISION_API_KEY = config.get("googleVisionApiKey") or os.environ.get("GOOGLE_VISION_API_KEY", "")
-GROQ_API_KEY = config.get("groqApiKey") or os.environ.get("GROQ_API_KEY", "")
+def config_secret_or_env(config_key: str, environment_key: str) -> str:
+    """ڕێگری لەوەی بەها نموونەییەکان بوتەکە وەستێنن."""
+    value = str(config.get(config_key, "") or "").strip()
+    placeholder_prefixes = ("YOUR_", "PASTE_", "TOKEN_")
+    if not value or value.upper().startswith(placeholder_prefixes):
+        return os.environ.get(environment_key, "")
+    return value
+
+BOT_TOKEN = config_secret_or_env("token", "TELEGRAM_BOT_TOKEN")
+GEMINI_API_KEY = config_secret_or_env("geminiApiKey", "GEMINI_API_KEY")
+GROQ_API_KEY = config_secret_or_env("groqApiKey", "GROQ_API_KEY")
 GROQ_MODEL = config.get("groqModel", "llama-3.3-70b-versatile")
 MAX_WARNINGS = int(config.get("maxWarnings", 3))
 AUTO_MUTE_MINUTES = int(config.get("autoMuteMinutes", 60))
@@ -2288,49 +2293,11 @@ def download_telegram_file(file_id: str):
         print(f"Download file error: {e}")
     return None, "image/jpeg"
 
-def check_nsfw_with_google_safe_search(img_bytes: bytes, mime_type: str):
-    """پشکنینی تایبەتی Google Vision SafeSearch؛ True/False/None دەگەڕێنێتەوە."""
-    if not GOOGLE_VISION_API_KEY or not mime_type.startswith("image/"):
-        return None
-    try:
-        body = {
-            "requests": [{
-                "image": {"content": base64.b64encode(img_bytes).decode("utf-8")},
-                "features": [{"type": "SAFE_SEARCH_DETECTION", "maxResults": 1}]
-            }]
-        }
-        url = f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_API_KEY}"
-        response = requests.post(url, json=body, timeout=15)
-        if response.status_code != 200:
-            print(f"Google Vision SafeSearch status: {response.status_code}")
-            return None
-        result = response.json().get("responses", [{}])[0]
-        if result.get("error"):
-            print(f"Google Vision SafeSearch error: {result['error'].get('message', 'unknown')}")
-            return None
-        safety = result.get("safeSearchAnnotation", {})
-        # adult بۆ ناوەڕۆکی سێکسی و racy بۆ ناوەڕۆکی شەهوەت‌هەڵچوون بەکار دێت.
-        adult = safety.get("adult", "UNKNOWN")
-        racy = safety.get("racy", "UNKNOWN")
-        blocked = adult in {"LIKELY", "VERY_LIKELY"} or racy in {"LIKELY", "VERY_LIKELY"}
-        print(f"Google Vision SafeSearch: adult={adult}, racy={racy}")
-        return blocked
-    except Exception as e:
-        print(f"Google Vision SafeSearch error: {e}")
-        return None
-
 def check_nsfw_with_ai_vision(file_id: str):
     """گەڕاندنەوەی True (نەشیاو)، False (پاک)، یان None (نەتوانرا پشکنین بکرێت)."""
     img_bytes, mime_type = download_telegram_file(file_id)
     if not img_bytes or len(img_bytes) < 300:
         return None
-
-    # یەکەم: مۆدێلی تایبەتی moderation؛ ئەگەر بەردەست بێت ئەوە بڕیارە سەرەکییەکەیە.
-    safe_search_result = check_nsfw_with_google_safe_search(img_bytes, mime_type)
-    if safe_search_result is not None:
-        if safe_search_result:
-            print("🔞 Google Vision SafeSearch detected explicit media")
-        return safe_search_result
 
     b64 = base64.b64encode(img_bytes).decode("utf-8")
 
