@@ -712,6 +712,13 @@ def add_user_quiz_point(chat_id: int, user_id: int, user_name: str = "") -> int:
         state_data["quiz_scores"][c_key] = {}
     current = state_data["quiz_scores"][c_key].get(u_key, 0) + 1
     state_data["quiz_scores"][c_key][u_key] = current
+
+    if "game_session_scores" not in state_data:
+        state_data["game_session_scores"] = {}
+    if c_key not in state_data["game_session_scores"]:
+        state_data["game_session_scores"][c_key] = {}
+    session_current = state_data["game_session_scores"][c_key].get(u_key, 0) + 1
+    state_data["game_session_scores"][c_key][u_key] = session_current
     
     if "user_names" not in state_data:
         state_data["user_names"] = {}
@@ -720,6 +727,36 @@ def add_user_quiz_point(chat_id: int, user_id: int, user_name: str = "") -> int:
         
     save_state()
     return current
+
+def record_game_participant(chat_id: int, user_id: int, user_name: str = ""):
+    """تۆمارکردنی هەموو بەشداربووان، تەنانەت ئەگەر وەڵامیان هەڵە بێت."""
+    c_key = str(chat_id)
+    if "game_session_players" not in state_data:
+        state_data["game_session_players"] = {}
+    players = state_data["game_session_players"].setdefault(c_key, [])
+    if str(user_id) not in players:
+        players.append(str(user_id))
+    if user_name:
+        state_data.setdefault("user_names", {})[str(user_id)] = user_name
+    save_state()
+
+def build_current_game_scoreboard(chat_id: int) -> str:
+    """ڕیزبەندیی تەنها ئەو کەسانەی لە خولی یاریی ئێستا بەشداربوون."""
+    c_key = str(chat_id)
+    players = state_data.get("game_session_players", {}).get(c_key, [])
+    scores = state_data.get("game_session_scores", {}).get(c_key, {})
+    if not players:
+        return "🏁 <b>یارییەکە تەواو بوو!</b>\n\nهیچ بەشداربووێک لەم خولەدا تۆمار نەکرا 🌸"
+
+    ranked = sorted(players, key=lambda uid: scores.get(str(uid), 0), reverse=True)
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+    names = state_data.get("user_names", {})
+    board = "🏁 <b>یارییەکە تەواو بوو — ڕیزبەندیی بەشداربووان:</b>\n\n"
+    for index, uid in enumerate(ranked[:10]):
+        name = html.escape(names.get(str(uid), f"بەشداربوو {index + 1}"))
+        medal = medals[index] if index < len(medals) else f"#{index + 1}"
+        board += f"{medal} <b>{name}</b>: <b>{scores.get(str(uid), 0)} خاڵ</b>\n"
+    return board
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  بانکی مەتەڵ و یارییە بەکۆمەڵە کوردییەکان (Kurdish Quizzes & Games)
@@ -1601,6 +1638,8 @@ def reset_game_difficulty(chat_id: int, game_type: int):
     c_key = str(chat_id)
     sessions = state_data.setdefault("game_session_rounds", {})
     sessions.setdefault(c_key, {})[str(game_type)] = 0
+    state_data.setdefault("game_session_players", {})[c_key] = []
+    state_data.setdefault("game_session_scores", {})[c_key] = {}
     clear_game_generation_retry(chat_id, game_type)
     save_state()
 
@@ -2112,6 +2151,27 @@ def clean_ai_text(text: str) -> str:
         return ""
     return clean.strip()
 
+ai_conversation_memory = {}
+
+AI_CONVERSATION_RULES = """
+Answer the user's actual question directly and helpfully in natural Sorani Kurdish.
+Use the previous conversation only when it helps. Do not respond with generic phrases such as
+'I am here to help' when the user asked a real question. If the question is unclear, ask one
+short clarifying question. Be accurate, concise, warm, and respectful. Never invent facts.
+"""
+
+def get_ai_conversation(chat_id: int, user_id: int):
+    return list(ai_conversation_memory.get(f"{chat_id}_{user_id}", []))[-8:]
+
+def remember_ai_conversation(chat_id: int, user_id: int, question: str, answer: str):
+    key = f"{chat_id}_{user_id}"
+    history = ai_conversation_memory.setdefault(key, [])
+    history.extend([
+        {"role": "user", "content": question},
+        {"role": "assistant", "content": answer}
+    ])
+    ai_conversation_memory[key] = history[-8:]
+
 def get_smart_reply(text: str):
     lower = text.strip().lower()
     for entry in SMART_REPLIES:
@@ -2121,40 +2181,42 @@ def get_smart_reply(text: str):
     return None
 
 def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
-    smart = get_smart_reply(question)
-    if smart:
-        return smart
+    history = get_ai_conversation(chat_id, user_id)
+    system_prompt = f"{AI_SYSTEM_PROMPT}\n\n{AI_CONVERSATION_RULES}"
 
-    # 🌟 ١. پەیوەندی بە مۆتۆری خێرای Groq (openai/gpt-oss-120b) بە تۆکنی تەواو بێ پچڕان
+    # 🌟 ١. AIی سەرەکی: Groq، لەگەڵ مێژووی کورتەی گفتوگۆ
     if groq_client:
-        models_to_try = [config.get("groqModel", "openai/gpt-oss-120b"), "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b"]
-        for g_model in models_to_try:
+        models_to_try = [config.get("groqModel", GROQ_MODEL), "openai/gpt-oss-120b", "llama-3.3-70b-versatile"]
+        for g_model in dict.fromkeys(model for model in models_to_try if model):
             try:
                 res = groq_client.chat.completions.create(
                     model=g_model,
-                    messages=[
-                        {"role": "system", "content": AI_SYSTEM_PROMPT},
-                        {"role": "user", "content": question}
-                    ],
-                    max_tokens=600,
-                    temperature=0.7
+                    messages=[{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}],
+                    max_tokens=800,
+                    temperature=0.55
                 )
                 answer = res.choices[0].message.content
                 answer = clean_ai_text(answer)
                 if answer:
+                    remember_ai_conversation(chat_id, user_id, question, answer)
                     return answer
             except Exception as e:
                 print(f"Groq Model Error ({g_model}): {e}")
 
-    # 🌟 ۲. پشتیوانی دووەم (Google Gemini)
+    # 🌟 ۲. پشتیوانی دووەم: Gemini، بە هەمان مێژووی گفتوگۆ
     if GEMINI_API_KEY:
-        for gem_model in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"]:
+        for gem_model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
+                contents = [
+                    {"role": "model" if item["role"] == "assistant" else "user", "parts": [{"text": item["content"]}]}
+                    for item in history
+                ]
+                contents.append({"role": "user", "parts": [{"text": question}]})
                 body = {
-                    "contents": [{"parts": [{"text": question}]}],
-                    "systemInstruction": {"parts": [{"text": AI_SYSTEM_PROMPT}]},
-                    "generationConfig": {"maxOutputTokens": 600, "temperature": 0.8}
+                    "contents": contents,
+                    "systemInstruction": {"parts": [{"text": system_prompt}]},
+                    "generationConfig": {"maxOutputTokens": 800, "temperature": 0.55}
                 }
                 r = requests.post(url, json=body, timeout=15)
                 if r.status_code == 200:
@@ -2164,11 +2226,17 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                         answer = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
                         answer = clean_ai_text(answer)
                         if answer:
+                            remember_ai_conversation(chat_id, user_id, question, answer)
                             return answer
                 elif r.status_code == 429:
                     continue
             except Exception as e:
                 print(f"Gemini Error ({gem_model}): {e}")
+
+    # تەنها کاتێک AI بەردەست نەبوو، وەڵامی ئامادە بەکاربهێنە
+    smart = get_smart_reply(question)
+    if smart:
+        return smart
 
     fallbacks = [
         "گیان لە خزمەتتدام! چۆن یارمەتیت بدەم؟ 🌸😊",
@@ -2220,15 +2288,15 @@ def check_nsfw_with_ai_vision(file_id: str) -> bool:
         return False
     b64 = base64.b64encode(img_bytes).decode("utf-8")
 
-    # 🌟 Try Google Gemini Vision (gemini-3.5-flash / gemini-3.5-flash-lite have full quota)
+    # 🌟 هەر ستیکەر/وێنە بە مۆدێلە نوێ و پشتگیریکراوەکانی Gemini Vision پشکنین دەکرێت
     if GEMINI_API_KEY:
-        for gem_model in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-flash-lite-latest"]:
+        for gem_model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
                 body = {
                     "contents": [{
                         "parts": [
-                            {"text": "Analyze this image. Does it contain nudity, pornography, sexual acts, lingerie, exposed breasts, buttocks, genitalia, or explicit sexual content? Answer strictly with YES or NO in one word."},
+                            {"text": "Carefully inspect this sticker or image. Does it contain nudity, pornography, sexual acts, erotic poses, lingerie, exposed breasts, buttocks, genitalia, sexualized anime/hentai, or explicit sexual content? Answer strictly YES or NO."},
                             {"inline_data": {"mime_type": mime_type, "data": b64}}
                         ]
                     }],
@@ -2286,9 +2354,8 @@ def is_nsfw_sticker(sticker_obj: dict) -> bool:
     set_name = (sticker_obj.get("set_name") or "").lower()
     emoji = sticker_obj.get("emoji") or ""
     
-    # Check explicit 18+ emoji
-    if "🔞" in emoji:
-        return True
+    # نیشانەکانی دەق و ناوی ستیکەر تەنها یارمەتیدەرن؛ بەڵام AI Vision هەر جار بانگ دەکرێت
+    metadata_nsfw = "🔞" in emoji
 
     nsfw_keywords = [
         "sex", "sexy", "porn", "xxx", "nude", "naked", "nsfw", "18+", "18plus", "adult",
@@ -2303,18 +2370,20 @@ def is_nsfw_sticker(sticker_obj: dict) -> bool:
     
     for kw in nsfw_keywords:
         if kw in set_name:
-            return True
+            metadata_nsfw = True
+            break
     
     # 🧠 AI Vision fallback: check actual sticker image content
-    file_id = sticker_obj.get("file_id") or ""
     thumb = sticker_obj.get("thumbnail") or sticker_obj.get("thumb") or {}
-    check_id = thumb.get("file_id") or file_id
+    # thumbnail بۆ ستیکەری animated/video وێنەیەکی گونجاوە بۆ Vision؛ بۆ static خودی فایل بەکاردێت
+    check_id = thumb.get("file_id") or sticker_obj.get("file_id") or ""
+    vision_nsfw = False
     if check_id:
-        if check_nsfw_with_ai_vision(check_id):
+        vision_nsfw = check_nsfw_with_ai_vision(check_id)
+        if vision_nsfw:
             print(f"🔞 AI Vision detected NSFW sticker: set={set_name}")
-            return True
-            
-    return False
+
+    return metadata_nsfw or vision_nsfw
 
 def is_nsfw_photo(msg: dict) -> bool:
     """Check if a photo message contains NSFW content using AI Vision."""
@@ -2773,6 +2842,7 @@ def handle_command(msg: dict, text: str):
                 "دەستخۆشی لە هەموو بەشداربووان دەکەین 🌸🏆 بۆ بینینی خاڵەکان بنووسە: <code>/points</code> 👑"
             )
             send_message(chat_id, stop_msg, msg_id, thread_id)
+            send_message(chat_id, build_current_game_scoreboard(chat_id), 0, thread_id)
         elif "active_quiz" in state_data and c_key in state_data["active_quiz"]:
             del state_data["active_quiz"][c_key]
             save_state()
@@ -3446,6 +3516,7 @@ def handle_message(msg: dict):
         if is_reply_to_game:
             g_type = curr_game.get("game_type", 1)
             clean_text = text.strip()
+            record_game_participant(chat_id, user_id, display_name)
             
             # 🧩 ۱. یاریی وشە تێکئاڵاوەکان (Game 1)
             if g_type == 1:
