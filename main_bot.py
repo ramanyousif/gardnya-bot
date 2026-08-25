@@ -2273,6 +2273,10 @@ def download_telegram_file(file_id: str):
             mime = "image/webp"
         elif ext in ["gif"]:
             mime = "image/gif"
+        elif ext in ["mp4", "m4v"]:
+            mime = "video/mp4"
+        elif ext in ["webm"]:
+            mime = "video/webm"
         url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
         r = requests.get(url, timeout=15)
         if r.status_code == 200:
@@ -2281,11 +2285,11 @@ def download_telegram_file(file_id: str):
         print(f"Download file error: {e}")
     return None, "image/jpeg"
 
-def check_nsfw_with_ai_vision(file_id: str) -> bool:
-    """Use Gemini Vision to check if an image is NSFW."""
+def check_nsfw_with_ai_vision(file_id: str):
+    """گەڕاندنەوەی True (نەشیاو)، False (پاک)، یان None (نەتوانرا پشکنین بکرێت)."""
     img_bytes, mime_type = download_telegram_file(file_id)
     if not img_bytes or len(img_bytes) < 300:
-        return False
+        return None
     b64 = base64.b64encode(img_bytes).decode("utf-8")
 
     # 🌟 هەر ستیکەر/وێنە بە مۆدێلە نوێ و پشتگیریکراوەکانی Gemini Vision پشکنین دەکرێت
@@ -2346,7 +2350,9 @@ def check_nsfw_with_ai_vision(file_id: str) -> bool:
             except Exception as e:
                 print(f"Gemini Vision error ({gem_model}): {e}")
 
-    return False
+    # لە کاتی هەڵەی ڕاژە، ئەنجامی پاک مەگەڕێنەوە؛ بانگەوازکەر دەتوانێت
+    # بە thumbnail یان فایلی جێگرەوە جارێکی تر هەوڵ بدات.
+    return None
 
 def is_nsfw_sticker(sticker_obj: dict) -> bool:
     if not sticker_obj:
@@ -2375,13 +2381,17 @@ def is_nsfw_sticker(sticker_obj: dict) -> bool:
     
     # 🧠 AI Vision fallback: check actual sticker image content
     thumb = sticker_obj.get("thumbnail") or sticker_obj.get("thumb") or {}
-    # thumbnail بۆ ستیکەری animated/video وێنەیەکی گونجاوە بۆ Vision؛ بۆ static خودی فایل بەکاردێت
-    check_id = thumb.get("file_id") or sticker_obj.get("file_id") or ""
-    vision_nsfw = False
-    if check_id:
-        vision_nsfw = check_nsfw_with_ai_vision(check_id)
-        if vision_nsfw:
-            print(f"🔞 AI Vision detected NSFW sticker: set={set_name}")
+    # ستیکەری جێگیر: خودی فایل (نەک وێنەی بچووک) پشکنین بکرێت.
+    # ستیکەری animated/video: thumbnail وێنەیەکی گونجاوە بۆ Vision ـە.
+    is_motion_sticker = sticker_obj.get("is_animated") or sticker_obj.get("is_video")
+    primary_id = (thumb.get("file_id") if is_motion_sticker else sticker_obj.get("file_id")) or ""
+    fallback_id = (sticker_obj.get("file_id") if is_motion_sticker else thumb.get("file_id")) or ""
+    vision_result = check_nsfw_with_ai_vision(primary_id) if primary_id else None
+    if vision_result is None and fallback_id and fallback_id != primary_id:
+        vision_result = check_nsfw_with_ai_vision(fallback_id)
+    vision_nsfw = vision_result is True
+    if vision_nsfw:
+        print(f"🔞 AI Vision detected NSFW sticker: set={set_name}")
 
     return metadata_nsfw or vision_nsfw
 
@@ -2418,13 +2428,18 @@ def is_nsfw_animation_or_media(msg: dict, text: str) -> bool:
         if kw in file_name or kw in caption:
             return True
     
-    # 🧠 AI Vision fallback for GIFs/animations
+    # 🧠 بۆ GIF، خودی فایل پشکنین بکرێت؛ تەنها لە کاتی هەڵە thumbnail بەکاربێت.
+    # ئەمە وێنەی بچووک و نادیاریی Telegram ناگرێتە سەرەتا.
     thumb = anim.get("thumbnail") or anim.get("thumb") or {}
-    check_id = thumb.get("file_id") or anim.get("file_id") or ""
-    if check_id:
-        if check_nsfw_with_ai_vision(check_id):
-            print(f"🔞 AI Vision detected NSFW animation/GIF")
-            return True
+    file_id = anim.get("file_id") or ""
+    vision_result = check_nsfw_with_ai_vision(file_id) if file_id else None
+    if vision_result is None:
+        thumb_id = thumb.get("file_id") or ""
+        if thumb_id and thumb_id != file_id:
+            vision_result = check_nsfw_with_ai_vision(thumb_id)
+    if vision_result is True:
+        print(f"🔞 AI Vision detected NSFW animation/GIF")
+        return True
             
     return False
 
