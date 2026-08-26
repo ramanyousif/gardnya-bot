@@ -2879,6 +2879,11 @@ def build_health_report(chat_id: int) -> str:
     checks.append(("مەتەڵەکان بە AI و بێ دووبارە", ai_ready))
     checks.append(("کاتژمێرە یەکسانەکان", config.get("enableMirrorHours", True)))
     checks.append(("کاتی بانگەکان", config.get("enablePrayerTimes", True)))
+    scheduler_last_loop = scheduler_status.get("last_loop", 0.0)
+    scheduler_age = time.time() - scheduler_last_loop if scheduler_last_loop else None
+    scheduler_ok = scheduler_age is not None and scheduler_age < 90
+    checks.append(("چاودێری کاتژمێر", scheduler_ok))
+    checks.append(("گروپەکانی پەخشی کات", bool(state_data.get("groups", []))))
 
     channel_identifier = state_data.get("force_channel", {}).get(str(chat_id))
     if channel_identifier:
@@ -2896,6 +2901,10 @@ def build_health_report(chat_id: int) -> str:
         lines.append(f"{'✅' if ok else '❌'} <b>{label}</b>")
     lines.extend([
         "",
+        f"🕒 <b>کاتی بۆت:</b> {datetime.datetime.now(KURDISTAN_UTC_OFFSET).strftime('%Y-%m-%d %H:%M:%S')} (UTC+3)",
+        f"📡 <b>دوایین چاودێری:</b> {('کەمتر لە %d چرکە' % int(scheduler_age)) if scheduler_age is not None else 'هێشتا دەستپێنەکردووە'}",
+        f"📤 <b>دوایین پەخش:</b> {html.escape(scheduler_status.get('last_delivery') or 'هیچ پەخشێک تۆمار نەکراوە')}",
+        f"⚠️ <b>دوایین هەڵەی scheduler:</b> {html.escape(scheduler_status.get('last_error') or 'نییە')}",
         f"📢 <b>چەناڵ:</b> {channel_text}",
         "",
         "ℹ️ ئەگەر مۆڵەتی سڕینەوە یان بێدەنگکردن ❌ بوو، لە Admin Permissions ـی گروپ چالاکی بکە.",
@@ -2908,9 +2917,17 @@ def build_health_report(chat_id: int) -> str:
 #  تایبەتمەندی پەخشی کاتژمێرە یەکسانەکان و کاتی بانگەکان (Background Scheduler)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+scheduler_status = {
+    "started_at": 0.0,
+    "last_loop": 0.0,
+    "last_delivery": "",
+    "last_error": "",
+}
+
 def background_scheduler():
     """هەموو چەند چرکەیەک پشکنین دەکات بۆ کاتژمێرە یەکسانەکان و کاتی بانگەکان بە کاتی تەواو دروست"""
     print("⏰ Background Clock & Prayer Scheduler Started!")
+    scheduler_status["started_at"] = time.time()
     last_sent_minute = ""
     delivered_schedule_groups = {}
 
@@ -2918,6 +2935,7 @@ def background_scheduler():
         try:
             now = datetime.datetime.now(KURDISTAN_UTC_OFFSET)
             current_time = now.strftime("%H:%M")
+            scheduler_status["last_loop"] = time.time()
 
             if current_time != last_sent_minute:
                 # ١. کاتژمێرە یەکسانەکان (Mirror Hours بە کاتی ۱۰۰٪ یەکسان و قۆناغەکانی ڕۆژ)
@@ -2945,6 +2963,8 @@ def background_scheduler():
                             delivered.add(gid)
                     if not group_ids or all(gid in delivered for gid in group_ids):
                         print(f"✨ Broadcasted mirror hour {current_time} ({time_label}) to groups")
+                        scheduler_status["last_delivery"] = f"{schedule_key} mirror {len(delivered)}/{len(group_ids)}"
+                        scheduler_status["last_error"] = ""
                         last_sent_minute = current_time
                     else:
                         print(f"⏳ Mirror hour {current_time} delivery incomplete; retrying")
@@ -2971,6 +2991,8 @@ def background_scheduler():
                             delivered.add(gid)
                     if not group_ids or all(gid in delivered for gid in group_ids):
                         print(f"🕌 Broadcasted prayer time {current_time} ({p_info['name']}) to groups")
+                        scheduler_status["last_delivery"] = f"{schedule_key} prayer {len(delivered)}/{len(group_ids)}"
+                        scheduler_status["last_error"] = ""
                         last_sent_minute = current_time
                     else:
                         print(f"⏳ Prayer time {current_time} delivery incomplete; retrying")
@@ -2982,6 +3004,7 @@ def background_scheduler():
             time.sleep(10)
         except Exception as e:
             print("Scheduler Exception:", e)
+            scheduler_status["last_error"] = type(e).__name__
             time.sleep(15)
 
 # ═══════════════════════════════════════════════════════════════════════════════
