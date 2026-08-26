@@ -23,7 +23,10 @@ from pathlib import Path
 #  ڕێکخستنەکان (Credentials & Configuration)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-CONFIG_FILE = Path("config.json")
+BASE_DIR = Path(__file__).resolve().parent
+# WSGI/PythonAnywhere هەندێک جار working directory ـەکە دەگۆڕێت. بۆیە
+# config هەمیشە لە هەمان فۆڵدەری main_bot.py دەخوێندرێتەوە.
+CONFIG_FILE = BASE_DIR / "config.json"
 config = {
     "token": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
     "botUsername": os.environ.get("BOT_USERNAME", "gardny4_bot"),
@@ -53,9 +56,14 @@ if CONFIG_FILE.exists():
     except Exception as e:
         print(f"Warning: Failed to load config.json: {e}")
 
-def config_secret_or_env(config_key: str, environment_key: str) -> str:
+def config_secret_or_env(config_key: str, environment_key: str, *aliases: str) -> str:
     """ڕێگری لەوەی بەها نموونەییەکان بوتەکە وەستێنن."""
-    value = str(config.get(config_key, "") or "").strip()
+    value = ""
+    for key in (config_key, *aliases):
+        candidate = str(config.get(key, "") or "").strip()
+        if candidate:
+            value = candidate
+            break
     placeholder_prefixes = ("YOUR_", "PASTE_", "TOKEN_")
     if not value or value.upper().startswith(placeholder_prefixes):
         return os.environ.get(environment_key, "")
@@ -63,7 +71,12 @@ def config_secret_or_env(config_key: str, environment_key: str) -> str:
 
 BOT_TOKEN = config_secret_or_env("token", "TELEGRAM_BOT_TOKEN")
 GEMINI_API_KEY = config_secret_or_env("geminiApiKey", "GEMINI_API_KEY")
-GOOGLE_VISION_API_KEY = config_secret_or_env("googleVisionApiKey", "GOOGLE_VISION_API_KEY")
+GOOGLE_VISION_API_KEY = config_secret_or_env(
+    "googleVisionApiKey",
+    "GOOGLE_VISION_API_KEY",
+    "googleVisionAPIKey",
+    "visionApiKey",
+)
 GROQ_API_KEY = config_secret_or_env("groqApiKey", "GROQ_API_KEY")
 GROQ_MODEL = config.get("groqModel", "llama-3.3-70b-versatile")
 MAX_WARNINGS = int(config.get("maxWarnings", 3))
@@ -169,7 +182,7 @@ def request_groq_text(messages: list, model_name: str, max_tokens: int = 800,
 print(f"🤖 AI Engine: {'Google Gemini 2.0 Flash' if GEMINI_API_KEY else 'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'None'}")
 print(f"🌍 Timezone: Kurdistan (UTC+3)")
 
-STATE_FILE = Path("data/state.json")
+STATE_FILE = BASE_DIR / "data" / "state.json"
 STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 if STATE_FILE.exists():
@@ -193,10 +206,13 @@ def save_state():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 AI_SYSTEM_PROMPT = """
-You are Gardnya (گاردنیا), a helpful and respectful Kurdish assistant in a Telegram group.
-Write ONLY in clear, natural Sorani Kurdish. Use short, ordinary sentences that are easy to understand.
-Answer the exact question first. Explain step by step only when it is useful.
-Do not use vague filler, flowery language, excessive pet names, or excessive emojis.
+You are Gardnya (گاردنیا), a warm, clever and fun Kurdish friend in a Telegram group.
+Write ONLY in very clear, natural, everyday Sorani Kurdish, like a normal person chatting with friends.
+Never sound like a textbook, lecturer, official notice, machine translation, or scientific report unless
+the user explicitly asks for a technical or scientific explanation. Answer the real question first.
+Use short, smooth sentences and familiar words. When the moment fits, add a light, friendly joke or
+playful phrase, but never mock, insult, embarrass, or make fun of the user. Use 1-3 suitable emojis in
+ordinary friendly conversation; do not put emojis after every sentence and do not repeat the same emoji.
 
 YOUR CAPABILITIES & FEATURES:
 When someone asks what you do, what your features are, or what you know (چ کارێک دەزانیت، تایبەتمەندییەکانت، ئیشت چییە، چیت پێ دەکرێت...):
@@ -214,10 +230,12 @@ CRITICAL RULES:
    - You NEVER engage in romantic, sexual, hugging, kissing, or flirtatious talk (باوەش، ماچ، سێکس، خۆشەویستی...).
    - If ANYONE asks for hugs, kisses, love, sexual topics, or flirts with you, FIRMLY AND POLITELY REJECT THEM with dignity:
      Tell them: "شەرم بکە گیان! ئێمە تەنها هاوڕێین، تکایە ڕێز لە سنوورەکان بگرە و باسی ماچ و باوەش و ئەم شتانە مەکە 🌸🚫"
-2. Keep ordinary chat answers concise, but give enough detail to make the answer complete and clear.
-3. Use at most one suitable emoji when it genuinely helps; an emoji is not required.
-4. Avoid repeated affectionate words such as گیانەکەم، قوربانت and گوڵم.
-5. Be respectful, practical, accurate, and easy to understand.
+2. Keep ordinary chat answers concise, lively and natural, but give enough detail to be useful.
+3. A little friendly humor is welcome when appropriate. Serious, sad, safety, health and emergency
+   topics must be answered calmly and respectfully without jokes.
+4. Use 1-3 suitable emojis in casual chat, and fewer or none in serious answers.
+5. Avoid repeatedly calling people گیانەکەم، قوربانت or گوڵم; sound friendly without overdoing it.
+6. Be respectful, practical, accurate, and easy to understand.
 """
 
 WELCOME_MESSAGES = [
@@ -2285,11 +2303,13 @@ def clean_ai_text(text: str) -> str:
 ai_conversation_memory = {}
 
 AI_CONVERSATION_RULES = """
-Answer the user's actual question directly and helpfully in natural Sorani Kurdish.
-Use the previous conversation only when it helps. Do not respond with generic phrases such as
-'I am here to help' when the user asked a real question. If the question is unclear, ask one
-short clarifying question. Prefer plain Sorani vocabulary and short sentences. Do not translate
-word-for-word from English or Arabic. Be accurate, concise, warm, and respectful. Never invent facts.
+Answer the user's actual question directly in natural, everyday Sorani Kurdish. Talk like a smart,
+kind friend, not like a professor or a formal customer-service bot. Use the previous conversation only
+when it helps. Do not respond with generic phrases such as 'I am here to help' when the user asked a
+real question. If the question is unclear, ask one short clarifying question. Prefer familiar Sorani
+words and short sentences; never translate word-for-word from English or Arabic. In casual conversation,
+you may add a small tasteful joke and 1-3 fitting emojis. Do not force jokes into serious subjects.
+Be accurate, warm and respectful. Never invent facts.
 """
 
 def get_ai_conversation(chat_id: int, user_id: int):
@@ -2320,7 +2340,7 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     if GROQ_API_KEY:
         messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}]
         for g_model in groq_model_candidates():
-            answer = request_groq_text(messages, g_model, max_tokens=800, temperature=0.55)
+            answer = request_groq_text(messages, g_model, max_tokens=800, temperature=0.75)
             answer = clean_ai_text(answer)
             if answer:
                 remember_ai_conversation(chat_id, user_id, question, answer)
@@ -2339,7 +2359,7 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                 body = {
                     "contents": contents,
                     "systemInstruction": {"parts": [{"text": system_prompt}]},
-                    "generationConfig": {"maxOutputTokens": 800, "temperature": 0.55}
+                    "generationConfig": {"maxOutputTokens": 800, "temperature": 0.75}
                 }
                 r = requests.post(url, json=body, timeout=15)
                 if r.status_code == 200:
