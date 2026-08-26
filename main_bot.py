@@ -2501,7 +2501,9 @@ def check_nsfw_with_google_vision(img_bytes: bytes, mime_type: str):
         }
         adult_score = likelihood.get(str(safe.get("adult", "UNKNOWN")), 0)
         racy_score = likelihood.get(str(safe.get("racy", "UNKNOWN")), 0)
-        blocked = adult_score >= likelihood["LIKELY"] or racy_score >= likelihood["VERY_LIKELY"]
+        # پاراستنی توند: adult لە POSSIBLE بەسەرەوە، یان racy لە LIKELY بەسەرەوە.
+        # ئەمە هەندێک false-positive زیاد دەکات، بەڵام میدیای گوماناوی کەمتر تێدەپەڕێت.
+        blocked = adult_score >= likelihood["POSSIBLE"] or racy_score >= likelihood["LIKELY"]
         google_vision_status["result"] = "نەشیاو دۆزرایەوە" if blocked else "میدیا پاک بوو"
         print(
             "Google Vision SafeSearch: "
@@ -2685,6 +2687,29 @@ def is_nsfw_animation_or_media(msg: dict, text: str) -> bool:
         return True
             
     return False
+
+def security_media_file_candidates(msg: dict) -> list:
+    """File ID ـی وێنەی گونجاو بۆ Vision لە ستیکەر/GIF/وێنە/ڤیدیۆ کۆبکەرەوە."""
+    candidates = []
+    sticker = msg.get("sticker") or {}
+    if sticker:
+        thumb = sticker.get("thumbnail") or sticker.get("thumb") or {}
+        if sticker.get("is_animated") or sticker.get("is_video"):
+            candidates.extend([thumb.get("file_id"), sticker.get("file_id")])
+        else:
+            candidates.extend([sticker.get("file_id"), thumb.get("file_id")])
+
+    photos = msg.get("photo") or []
+    if photos:
+        candidates.append(photos[-1].get("file_id"))
+
+    media = msg.get("animation") or msg.get("video") or msg.get("video_note") or msg.get("document") or {}
+    if media:
+        thumb = media.get("thumbnail") or media.get("thumb") or {}
+        # Google Vision وێنە وەردەگرێت؛ بۆ GIF/ڤیدیۆ thumbnail سەرەتا.
+        candidates.extend([thumb.get("file_id"), media.get("file_id")])
+
+    return list(dict.fromkeys(file_id for file_id in candidates if file_id))
 
 def contains_link_or_spam(msg: dict, text: str) -> bool:
     if text and re.search(r'(?i)\bhttps?://|\bt\.me/|\btelegram\.me/|\bwww\.|@[a-zA-Z0-9_]{4,}', text):
@@ -3139,7 +3164,8 @@ def handle_command(msg: dict, text: str):
             "• <code>/ban</code> - باندکردنی بەکارهێنەر لە گروپ\n"
             "• <code>/unban &lt;user_id&gt;</code> - لادانی باند بە پێدانی ئایدی\n"
             "• <code>/setrules &lt;دەق&gt;</code> - دانانی یاساکانی گروپ 🌸\n"
-            "• <code>/health</code> - پشکنینی AI، سکوریتی و مۆڵەتەکانی بۆت 🩺"
+            "• <code>/health</code> - پشکنینی AI، سکوریتی و مۆڵەتەکانی بۆت 🩺\n"
+            "• <code>/visiontest</code> - بە ڕیپلای لە میدیا، تاقیکردنەوەی Google Vision 🔎"
         )
         send_message(chat_id, help_text, msg_id, thread_id)
         return
@@ -3151,6 +3177,34 @@ def handle_command(msg: dict, text: str):
             send_message(chat_id, "ℹ️ ئەم پشکنینە لە ناو گروپ بەکاربهێنە تا مۆڵەتەکان بزانرێن.", msg_id, thread_id)
         else:
             send_message(chat_id, build_health_report(chat_id), msg_id, thread_id)
+        return
+    elif cmd in ["/visiontest", "/securitytest", "/scanmedia"]:
+        replied = msg.get("reply_to_message") or {}
+        file_ids = security_media_file_candidates(replied)
+        if not file_ids:
+            send_message(
+                chat_id,
+                "ℹ️ لەسەر ستیکەر، GIF، وێنە یان ڤیدیۆیەک ڕیپلای بکە و <code>/visiontest</code> بنووسە.",
+                msg_id,
+                thread_id,
+            )
+            return
+
+        scan_results = []
+        for file_id in file_ids:
+            result = check_nsfw_with_ai_vision(file_id)
+            scan_results.append(result)
+            if result is True:
+                break
+
+        if True in scan_results:
+            test_text = "🔞 <b>AI ئەم میدیایەی بە ناوەڕۆکی سێکسی/نەشیاو ناساند.</b>"
+        elif False in scan_results:
+            test_text = "✅ <b>AI ئەم میدیایەی بە پاک ناساند.</b>"
+        else:
+            last_result = html.escape(google_vision_status.get("result", "هەڵەی نادیار"))
+            test_text = f"❌ <b>Google Vision نەتوانی پشکنین بکات:</b> {last_result}"
+        send_message(chat_id, test_text, msg_id, thread_id)
         return
     elif cmd in ["/setowner", "/owner"]:
         state_data["owner_id"] = user_id
