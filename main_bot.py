@@ -3261,11 +3261,9 @@ def handle_command(msg: dict, text: str):
     cmd = parts[0].split("@")[0].lower()
     arg = parts[1].strip() if len(parts) > 1 else ""
 
-    # 🛡️ زۆربەی فرمانەکانی گروپ تەنها بۆ ئەدمینن. /health تەنها ڕاپۆرتە و
-    # هیچ ڕێکخستن یان دەستکارییەک ناکات، بۆیە هەموو ئەندامان دەتوانن بیبینن.
-    public_group_commands = {"/health", "/check", "/status"}
+    # 🛡️ لە گروپەکاندا: تەواوی فرمانەکان (یاری، مەتەڵ، ئاسایش، ڕێکخستن) تەنها لە ئەدمین وەردەگیرێن.
     if chat.get("type") in ["group", "supergroup"]:
-        if not is_user_admin and cmd not in public_group_commands:
+        if not is_user_admin:
             print(f"🚫 Ignored command '{cmd}' from non-admin member: {display_name} ({user_id})")
             return
 
