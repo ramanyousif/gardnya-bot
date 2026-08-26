@@ -106,6 +106,9 @@ google_vision_status = {
     "http_status": 0,
     "result": "هێشتا پشکنین نەکراوە",
 }
+telegram_media_status = {
+    "stage": "هێشتا فایلێک داوانەکراوە",
+}
 
 # Initialize Groq AI Client (fallback)
 groq_client = None
@@ -2381,10 +2384,16 @@ def contains_bad_word(text: str) -> bool:
 def download_telegram_file(file_id: str):
     """Download a file from Telegram servers and return (raw_bytes, mime_type)."""
     try:
+        telegram_media_status["stage"] = "داواکاری getFile"
         res = tg_call("getFile", {"file_id": file_id})
         if not res or not res.get("ok"):
+            description = (res or {}).get("description") or "پەیوەندی Telegram سەرکەوتوو نەبوو"
+            telegram_media_status["stage"] = f"getFile: {description}"
             return None, "image/jpeg"
-        file_path = res["result"]["file_path"]
+        file_path = res.get("result", {}).get("file_path")
+        if not file_path:
+            telegram_media_status["stage"] = "getFile: file_path نەگەڕایەوە"
+            return None, "image/jpeg"
         ext = file_path.split(".")[-1].lower() if "." in file_path else "jpg"
         mime = "image/jpeg"
         if ext in ["png"]:
@@ -2398,11 +2407,18 @@ def download_telegram_file(file_id: str):
         elif ext in ["webm"]:
             mime = "video/webm"
         url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+        telegram_media_status["stage"] = "داگرتنی فایل لە Telegram"
         r = telegram_session.get(url, timeout=(15, 30))
         if r.status_code == 200:
+            if not r.content:
+                telegram_media_status["stage"] = "Telegram فایلێکی بەتاڵی گەڕاندەوە"
+                return None, mime
+            telegram_media_status["stage"] = f"داگرتن سەرکەوتوو بوو ({len(r.content)} bytes, {mime})"
             return r.content, mime
-    except Exception:
+        telegram_media_status["stage"] = f"داگرتنی Telegram: HTTP {r.status_code}"
+    except Exception as exc:
         # هەڵەکە کلیل/تۆکنی بۆت لە کۆنسۆڵدا پیشان نەدات.
+        telegram_media_status["stage"] = f"داگرتنی Telegram: {type(exc).__name__}"
         print("Download file error: Telegram file server is temporarily unavailable")
     return None, "image/jpeg"
 
@@ -2457,7 +2473,13 @@ def check_nsfw_with_local_model(img_bytes: bytes, mime_type: str):
 
 def check_nsfw_with_google_vision(img_bytes: bytes, mime_type: str):
     """Google Cloud Vision SafeSearch: True=نەشیاو، False=پاک، None=هەڵە/بەردەست نییە."""
-    if not GOOGLE_VISION_API_KEY or not img_bytes or not (mime_type or "").startswith("image/"):
+    if not GOOGLE_VISION_API_KEY:
+        google_vision_status["result"] = "googleVisionApiKey دانەنراوە"
+        return None
+    if not img_bytes:
+        return None
+    if not (mime_type or "").startswith("image/"):
+        google_vision_status["result"] = f"جۆری فایل بۆ Vision ناگونجێت: {mime_type or 'unknown'}"
         return None
 
     body = {
@@ -2520,6 +2542,7 @@ def check_nsfw_with_ai_vision(file_id: str):
     """گەڕاندنەوەی True (نەشیاو)، False (پاک)، یان None (نەتوانرا پشکنین بکرێت)."""
     img_bytes, mime_type = download_telegram_file(file_id)
     if not img_bytes or len(img_bytes) < 300:
+        google_vision_status["result"] = telegram_media_status.get("stage", "فایل دانەگیرا")
         return None
 
     # سەرەتا مۆدێلی خۆجێیی و بێ‌بەرامبەر بەکاربهێنە.
