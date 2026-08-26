@@ -28,6 +28,7 @@ config = {
     "token": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
     "botUsername": os.environ.get("BOT_USERNAME", "gardny4_bot"),
     "geminiApiKey": os.environ.get("GEMINI_API_KEY", ""),
+    "googleVisionApiKey": os.environ.get("GOOGLE_VISION_API_KEY", ""),
     "groqApiKey": os.environ.get("GROQ_API_KEY", ""),
     "groqModel": "llama-3.3-70b-versatile",
     "aiEnabled": True,
@@ -62,6 +63,7 @@ def config_secret_or_env(config_key: str, environment_key: str) -> str:
 
 BOT_TOKEN = config_secret_or_env("token", "TELEGRAM_BOT_TOKEN")
 GEMINI_API_KEY = config_secret_or_env("geminiApiKey", "GEMINI_API_KEY")
+GOOGLE_VISION_API_KEY = config_secret_or_env("googleVisionApiKey", "GOOGLE_VISION_API_KEY")
 GROQ_API_KEY = config_secret_or_env("groqApiKey", "GROQ_API_KEY")
 GROQ_MODEL = config.get("groqModel", "llama-3.3-70b-versatile")
 MAX_WARNINGS = int(config.get("maxWarnings", 3))
@@ -2445,6 +2447,58 @@ def check_nsfw_with_local_model(img_bytes: bytes, mime_type: str):
         print(f"Local NSFW scan skipped ({type(exc).__name__})")
         return None
 
+def check_nsfw_with_google_vision(img_bytes: bytes, mime_type: str):
+    """Google Cloud Vision SafeSearch: True=نەشیاو، False=پاک، None=هەڵە/بەردەست نییە."""
+    if not GOOGLE_VISION_API_KEY or not img_bytes or not (mime_type or "").startswith("image/"):
+        return None
+
+    body = {
+        "requests": [{
+            "image": {"content": base64.b64encode(img_bytes).decode("ascii")},
+            "features": [{"type": "SAFE_SEARCH_DETECTION", "maxResults": 1}],
+        }]
+    }
+    try:
+        response = telegram_session.post(
+            "https://vision.googleapis.com/v1/images:annotate",
+            params={"key": GOOGLE_VISION_API_KEY},
+            json=body,
+            timeout=(15, 35),
+        )
+        if response.status_code != 200:
+            print(f"Google Vision SafeSearch unavailable: HTTP {response.status_code}")
+            return None
+
+        responses = response.json().get("responses", [])
+        if not responses:
+            return None
+        result = responses[0]
+        if result.get("error"):
+            print(f"Google Vision SafeSearch error: {result['error'].get('code', 'unknown')}")
+            return None
+
+        safe = result.get("safeSearchAnnotation", {})
+        likelihood = {
+            "UNKNOWN": 0,
+            "VERY_UNLIKELY": 1,
+            "UNLIKELY": 2,
+            "POSSIBLE": 3,
+            "LIKELY": 4,
+            "VERY_LIKELY": 5,
+        }
+        adult_score = likelihood.get(str(safe.get("adult", "UNKNOWN")), 0)
+        racy_score = likelihood.get(str(safe.get("racy", "UNKNOWN")), 0)
+        blocked = adult_score >= likelihood["LIKELY"] or racy_score >= likelihood["VERY_LIKELY"]
+        print(
+            "Google Vision SafeSearch: "
+            f"adult={safe.get('adult', 'UNKNOWN')}, racy={safe.get('racy', 'UNKNOWN')}, "
+            f"blocked={blocked}"
+        )
+        return blocked
+    except Exception as exc:
+        print(f"Google Vision SafeSearch skipped ({type(exc).__name__})")
+        return None
+
 def check_nsfw_with_ai_vision(file_id: str):
     """گەڕاندنەوەی True (نەشیاو)، False (پاک)، یان None (نەتوانرا پشکنین بکرێت)."""
     img_bytes, mime_type = download_telegram_file(file_id)
@@ -2455,6 +2509,13 @@ def check_nsfw_with_ai_vision(file_id: str):
     local_result = check_nsfw_with_local_model(img_bytes, mime_type)
     if local_result is True:
         return True
+
+    # Google Cloud Vision SafeSearch هیچ پەکەجی قورسێکی خۆجێیی پێویست نییە و
+    # بۆ PythonAnywhere ـی quota کەم گونجاوە.
+    google_result = check_nsfw_with_google_vision(img_bytes, mime_type)
+    if google_result is not None:
+        return google_result
+
     if local_result is False and not GEMINI_API_KEY:
         return False
 
@@ -2873,7 +2934,9 @@ def build_health_report(chat_id: int) -> str:
     checks.append(("بۆت ئەدمینی گروپە", is_group_admin))
     checks.append(("مۆڵەتی سڕینەوەی میدیا", is_creator or bool(member_info.get("can_delete_messages"))))
     checks.append(("مۆڵەتی بێدەنگ/باند", is_creator or bool(member_info.get("can_restrict_members"))))
-    checks.append(("مۆدێلی سکوریتی NudeNet", importlib.util.find_spec("nudenet") is not None))
+    local_vision_ready = importlib.util.find_spec("nudenet") is not None
+    security_ai_ready = bool(GOOGLE_VISION_API_KEY or GEMINI_API_KEY or local_vision_ready)
+    checks.append(("AIی سکوریتی ستیکەر/GIF/فۆروارد", security_ai_ready))
     checks.append(("AIی گفتوگۆ", ai_ready))
     checks.append(("یارییەکان بە AI و بێ دووبارە", ai_ready))
     checks.append(("مەتەڵەکان بە AI و بێ دووبارە", ai_ready))
