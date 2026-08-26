@@ -14,6 +14,9 @@ import datetime
 import base64
 import difflib
 import importlib.util
+import shutil
+import subprocess
+import tempfile
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -2593,11 +2596,51 @@ def check_nsfw_with_google_vision(img_bytes: bytes, mime_type: str):
         print(f"Google Vision SafeSearch skipped ({type(exc).__name__})")
         return None
 
+def video_frame_for_vision(video_bytes: bytes, mime_type: str):
+    """یەک وێنە لە video sticker/GIF ـەکە وەربگرە تا Google Vision بتوانێت بیبینێت."""
+    if not video_bytes:
+        return None, mime_type
+    if (mime_type or "").startswith("image/"):
+        return video_bytes, mime_type
+
+    # Cloud Vision ڤیدیۆی webm/mp4 ناوەردەگرێت. ffmpeg ـی سیستەم تەنها یەک frame
+    # دەردەهێنێت؛ هیچ فایلێکی جێگیر یان پەکەجی Pythonی قورس دروست ناکات.
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        google_vision_status["result"] = "video/webm ـە؛ ffmpeg لە ڕاژە بەردەست نییە"
+        return None, mime_type
+
+    suffix = ".webm" if "webm" in (mime_type or "") else ".mp4"
+    try:
+        with tempfile.TemporaryDirectory(prefix="gardnya_vision_") as temp_dir:
+            source = Path(temp_dir) / f"media{suffix}"
+            frame = Path(temp_dir) / "frame.jpg"
+            source.write_bytes(video_bytes)
+            process = subprocess.run(
+                [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(source),
+                 "-frames:v", "1", "-vf", "scale=960:-2", str(frame)],
+                capture_output=True,
+                timeout=20,
+                check=False,
+            )
+            if process.returncode != 0 or not frame.exists() or frame.stat().st_size < 300:
+                google_vision_status["result"] = "نەتوانرا وێنە لە ڤیدیۆکە وەربگیرێت"
+                return None, mime_type
+            telegram_media_status["stage"] = "وێنەیەک لە ستیکەری ڤیدیۆیی وەرگیرا"
+            return frame.read_bytes(), "image/jpeg"
+    except Exception as exc:
+        google_vision_status["result"] = f"frame extraction: {type(exc).__name__}"
+        return None, mime_type
+
 def check_nsfw_with_ai_vision(file_id: str):
     """گەڕاندنەوەی True (نەشیاو)، False (پاک)، یان None (نەتوانرا پشکنین بکرێت)."""
     img_bytes, mime_type = download_telegram_file(file_id)
     if not img_bytes or len(img_bytes) < 300:
         google_vision_status["result"] = telegram_media_status.get("stage", "فایل دانەگیرا")
+        return None
+
+    img_bytes, mime_type = video_frame_for_vision(img_bytes, mime_type)
+    if not img_bytes:
         return None
 
     # سەرەتا مۆدێلی خۆجێیی و بێ‌بەرامبەر بەکاربهێنە.
@@ -3978,10 +4021,12 @@ def handle_message(msg: dict):
         violation = "ناردنی وێنەی نەشیاو و سێکسی 🔞"
     # ۳. پشکنینی ڤیدیۆی سێکسی بە AI Vision
     elif not is_user_admin and ("video" in msg or "video_note" in msg):
-        vid = msg.get("video") or msg.get("video_note") or {}
-        thumb = vid.get("thumbnail") or vid.get("thumb") or {}
-        check_id = thumb.get("file_id") or ""
-        if check_id and check_nsfw_with_ai_vision(check_id):
+        video_scan = False
+        for check_id in security_media_file_candidates(msg):
+            if check_nsfw_with_ai_vision(check_id) is True:
+                video_scan = True
+                break
+        if video_scan:
             violation = "ناردنی ڤیدیۆی نەشیاو و سێکسی 🔞"
     # ٤. پشکنینی گیف و فایلی نەشیاو بە AI Vision
     elif not is_user_admin and config.get("blockNSFWGIFs", True) and ("animation" in msg or "document" in msg) and is_nsfw_animation_or_media(msg, text):
