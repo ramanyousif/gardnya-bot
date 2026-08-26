@@ -2913,6 +2913,7 @@ def background_scheduler():
     """هەموو چەند چرکەیەک پشکنین دەکات بۆ کاتژمێرە یەکسانەکان و کاتی بانگەکان بە کاتی تەواو دروست"""
     print("⏰ Background Clock & Prayer Scheduler Started!")
     last_sent_minute = ""
+    delivered_schedule_groups = {}
 
     while True:
         try:
@@ -2934,10 +2935,20 @@ def background_scheduler():
                         f"━━━━━━━━━━━━━━━━━━\n"
                         f"❝ {quote} ❞"
                     )
-                    for gid in state_data.get("groups", []):
-                        send_message(gid, msg_text)
-                    print(f"✨ Broadcasted mirror hour {current_time} ({time_label}) to groups")
-                    last_sent_minute = current_time
+                    group_ids = list(dict.fromkeys(state_data.get("groups", [])))
+                    schedule_key = f"{now.date().isoformat()}:{current_time}"
+                    delivered = delivered_schedule_groups.setdefault(schedule_key, set())
+                    for gid in group_ids:
+                        if gid in delivered:
+                            continue
+                        result = send_message(gid, msg_text)
+                        if result and result.get("ok"):
+                            delivered.add(gid)
+                    if not group_ids or all(gid in delivered for gid in group_ids):
+                        print(f"✨ Broadcasted mirror hour {current_time} ({time_label}) to groups")
+                        last_sent_minute = current_time
+                    else:
+                        print(f"⏳ Mirror hour {current_time} delivery incomplete; retrying")
 
                 # ۲. کاتی بانگەکان و زیکر (Prayer Times)
                 elif config.get("enablePrayerTimes", True) and current_time in PRAYER_SCHEDULE:
@@ -2950,11 +2961,25 @@ def background_scheduler():
                         f"📿 **زیکر و نزای ئەم کاتە:**\n{p_info['zikr']}\n\n"
                         f"اللَّهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ وَعَلَىٰ آلِ مُحَمَّدٍ 🌸"
                     )
-                    for gid in state_data.get("groups", []):
-                        send_message(gid, p_msg)
-                    print(f"🕌 Broadcasted prayer time {current_time} ({p_info['name']}) to groups")
-                    last_sent_minute = current_time
+                    group_ids = list(dict.fromkeys(state_data.get("groups", [])))
+                    schedule_key = f"{now.date().isoformat()}:{current_time}"
+                    delivered = delivered_schedule_groups.setdefault(schedule_key, set())
+                    for gid in group_ids:
+                        if gid in delivered:
+                            continue
+                        result = send_message(gid, p_msg)
+                        if result and result.get("ok"):
+                            delivered.add(gid)
+                    if not group_ids or all(gid in delivered for gid in group_ids):
+                        print(f"🕌 Broadcasted prayer time {current_time} ({p_info['name']}) to groups")
+                        last_sent_minute = current_time
+                    else:
+                        print(f"⏳ Prayer time {current_time} delivery incomplete; retrying")
 
+            # کۆگای ڕۆژانە زۆر مەگۆرێت ئەگەر بۆت ماوەی زۆر بەردەوام بێت.
+            if len(delivered_schedule_groups) > 80:
+                for old_key in list(delivered_schedule_groups)[:-40]:
+                    delivered_schedule_groups.pop(old_key, None)
             time.sleep(10)
         except Exception as e:
             print("Scheduler Exception:", e)
