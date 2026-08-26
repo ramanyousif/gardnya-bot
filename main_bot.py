@@ -101,6 +101,11 @@ LOCAL_NSFW_THRESHOLDS = {
     "ANUS_EXPOSED": 0.45,
     "BUTTOCKS_EXPOSED": 0.55,
 }
+google_vision_status = {
+    "last_check": 0.0,
+    "http_status": 0,
+    "result": "هێشتا پشکنین نەکراوە",
+}
 
 # Initialize Groq AI Client (fallback)
 groq_client = None
@@ -112,8 +117,8 @@ if GROQ_API_KEY:
         print(f"Groq Init Warning: {e}")
 
 def groq_model_candidates():
-    """مۆدێلی دانراو سەرەتا؛ پاشان دوو مۆدێلی جێگرەوەی پشتگیریکراو."""
-    models = [config.get("groqModel", GROQ_MODEL), GROQ_MODEL, "openai/gpt-oss-120b", "llama-3.3-70b-versatile"]
+    """مۆدێلی کوردیی ڕوون سەرەتا؛ پاشان مۆدێلی config و جێگرەوەکان."""
+    models = ["llama-3.3-70b-versatile", config.get("groqModel", GROQ_MODEL), GROQ_MODEL, "openai/gpt-oss-120b"]
     return list(dict.fromkeys(model for model in models if model))
 
 def request_groq_text(messages: list, model_name: str, max_tokens: int = 800,
@@ -185,8 +190,10 @@ def save_state():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 AI_SYSTEM_PROMPT = """
-You are Gardnya (گاردنیا), a polite, charming, and respectful young Kurdish bot companion in a Telegram group chat.
-You speak ONLY in natural, sweet Sorani Kurdish (کوردیی سۆرانی ئاسایی چاتی ڕۆژانە).
+You are Gardnya (گاردنیا), a helpful and respectful Kurdish assistant in a Telegram group.
+Write ONLY in clear, natural Sorani Kurdish. Use short, ordinary sentences that are easy to understand.
+Answer the exact question first. Explain step by step only when it is useful.
+Do not use vague filler, flowery language, excessive pet names, or excessive emojis.
 
 YOUR CAPABILITIES & FEATURES:
 When someone asks what you do, what your features are, or what you know (چ کارێک دەزانیت، تایبەتمەندییەکانت، ئیشت چییە، چیت پێ دەکرێت...):
@@ -204,10 +211,10 @@ CRITICAL RULES:
    - You NEVER engage in romantic, sexual, hugging, kissing, or flirtatious talk (باوەش، ماچ، سێکس، خۆشەویستی...).
    - If ANYONE asks for hugs, kisses, love, sexual topics, or flirts with you, FIRMLY AND POLITELY REJECT THEM with dignity:
      Tell them: "شەرم بکە گیان! ئێمە تەنها هاوڕێین، تکایە ڕێز لە سنوورەکان بگرە و باسی ماچ و باوەش و ئەم شتانە مەکە 🌸🚫"
-2. Keep your answers lively, respectful, and maximum 2 to 4 lines unless explaining all features.
-3. ALWAYS use lively, colorful emojis in EVERY response (🌸, ✨, ❤️, 😊, 🥰, 🌺, 🎉, 💖).
-4. Use warm Kurdish everyday expressions: (گیانەکەم, بەسەرچاو, قوربانت, وەڵا, براکەم, دەستت خۆش).
-5. Be respectful, helpful, and dignified.
+2. Keep ordinary chat answers concise, but give enough detail to make the answer complete and clear.
+3. Use at most one suitable emoji when it genuinely helps; an emoji is not required.
+4. Avoid repeated affectionate words such as گیانەکەم، قوربانت and گوڵم.
+5. Be respectful, practical, accurate, and easy to understand.
 """
 
 WELCOME_MESSAGES = [
@@ -2278,7 +2285,8 @@ AI_CONVERSATION_RULES = """
 Answer the user's actual question directly and helpfully in natural Sorani Kurdish.
 Use the previous conversation only when it helps. Do not respond with generic phrases such as
 'I am here to help' when the user asked a real question. If the question is unclear, ask one
-short clarifying question. Be accurate, concise, warm, and respectful. Never invent facts.
+short clarifying question. Prefer plain Sorani vocabulary and short sentences. Do not translate
+word-for-word from English or Arabic. Be accurate, concise, warm, and respectful. Never invent facts.
 """
 
 def get_ai_conversation(chat_id: int, user_id: int):
@@ -2459,13 +2467,16 @@ def check_nsfw_with_google_vision(img_bytes: bytes, mime_type: str):
         }]
     }
     try:
+        google_vision_status["last_check"] = time.time()
         response = telegram_session.post(
             "https://vision.googleapis.com/v1/images:annotate",
             params={"key": GOOGLE_VISION_API_KEY},
             json=body,
             timeout=(15, 35),
         )
+        google_vision_status["http_status"] = response.status_code
         if response.status_code != 200:
+            google_vision_status["result"] = f"HTTP {response.status_code}"
             print(f"Google Vision SafeSearch unavailable: HTTP {response.status_code}")
             return None
 
@@ -2474,7 +2485,9 @@ def check_nsfw_with_google_vision(img_bytes: bytes, mime_type: str):
             return None
         result = responses[0]
         if result.get("error"):
-            print(f"Google Vision SafeSearch error: {result['error'].get('code', 'unknown')}")
+            error_code = result["error"].get("code", "unknown")
+            google_vision_status["result"] = f"API error {error_code}"
+            print(f"Google Vision SafeSearch error: {error_code}")
             return None
 
         safe = result.get("safeSearchAnnotation", {})
@@ -2489,6 +2502,7 @@ def check_nsfw_with_google_vision(img_bytes: bytes, mime_type: str):
         adult_score = likelihood.get(str(safe.get("adult", "UNKNOWN")), 0)
         racy_score = likelihood.get(str(safe.get("racy", "UNKNOWN")), 0)
         blocked = adult_score >= likelihood["LIKELY"] or racy_score >= likelihood["VERY_LIKELY"]
+        google_vision_status["result"] = "نەشیاو دۆزرایەوە" if blocked else "میدیا پاک بوو"
         print(
             "Google Vision SafeSearch: "
             f"adult={safe.get('adult', 'UNKNOWN')}, racy={safe.get('racy', 'UNKNOWN')}, "
@@ -2496,6 +2510,7 @@ def check_nsfw_with_google_vision(img_bytes: bytes, mime_type: str):
         )
         return blocked
     except Exception as exc:
+        google_vision_status["result"] = type(exc).__name__
         print(f"Google Vision SafeSearch skipped ({type(exc).__name__})")
         return None
 
@@ -2964,6 +2979,7 @@ def build_health_report(chat_id: int) -> str:
         lines.append(f"{'✅' if ok else '❌'} <b>{label}</b>")
     lines.extend([
         "",
+        f"🔎 <b>دوایین پشکنینی Google Vision:</b> {html.escape(google_vision_status.get('result', 'هێشتا پشکنین نەکراوە'))}",
         f"🕒 <b>کاتی بۆت:</b> {datetime.datetime.now(KURDISTAN_UTC_OFFSET).strftime('%Y-%m-%d %H:%M:%S')} (UTC+3)",
         f"📡 <b>دوایین چاودێری:</b> {('کەمتر لە %d چرکە' % int(scheduler_age)) if scheduler_age is not None else 'هێشتا دەستپێنەکردووە'}",
         f"📤 <b>دوایین پەخش:</b> {html.escape(scheduler_status.get('last_delivery') or 'هیچ پەخشێک تۆمار نەکراوە')}",
@@ -2971,6 +2987,7 @@ def build_health_report(chat_id: int) -> str:
         f"📢 <b>چەناڵ:</b> {channel_text}",
         "",
         "ℹ️ ئەگەر مۆڵەتی سڕینەوە یان بێدەنگکردن ❌ بوو، لە Admin Permissions ـی گروپ چالاکی بکە.",
+        "🛡️ میدیای ئەدمین و ئۆنەر بە داواکاری پارێزراوە و ناسڕدرێتەوە؛ تاقیکردنەوە بە ئەکاونتی نا-ئەدمین بکە.",
     ])
     if not ai_ready:
         lines.append("🔑 بۆ چالاککردنی سێ بەشی AI، کلیلی Groq لە <code>groqApiKey</code> ـی config.json دابنێ.")
