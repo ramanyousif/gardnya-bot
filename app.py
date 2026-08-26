@@ -77,6 +77,9 @@ def webhook():
     received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
     if not WEBHOOK_SECRET or not hmac.compare_digest(received_secret, WEBHOOK_SECRET):
         return "Forbidden", 403
+    # Scheduler must be revived before handling /health, so its status is
+    # visible in the same request after a WSGI worker restart.
+    ensure_scheduler_running()
     try:
         data = request.get_json(force=True)
         if data:
@@ -88,8 +91,6 @@ def webhook():
                 main_bot.handle_chat_member_update(data['my_chat_member'])
     except Exception as e:
         print(f"Webhook error: {e}")
-    # Ensure scheduler is alive on every webhook call
-    ensure_scheduler_running()
     return 'OK', 200
 
 @app.route('/health')
