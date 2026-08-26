@@ -27,6 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent
 # WSGI/PythonAnywhere هەندێک جار working directory ـەکە دەگۆڕێت. بۆیە
 # config هەمیشە لە هەمان فۆڵدەری main_bot.py دەخوێندرێتەوە.
 CONFIG_FILE = BASE_DIR / "config.json"
+CONFIG_SOURCES = []
 config = {
     "token": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
     "botUsername": os.environ.get("BOT_USERNAME", "gardny4_bot"),
@@ -48,13 +49,28 @@ config = {
     "autoMuteMinutes": 60
 }
 
-if CONFIG_FILE.exists():
+def load_config_file(path: Path, quiet: bool = False) -> dict:
+    """ڕێکخستنەکان لە فایل بخوێنەوە، بە بێ پیشاندانی نهێنییەکان."""
     try:
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            file_cfg = json.load(f)
-            config.update(file_cfg)
-    except Exception as e:
-        print(f"Warning: Failed to load config.json: {e}")
+        if path.exists() and path.is_file():
+            with open(path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            if isinstance(loaded, dict):
+                return loaded
+    except Exception as exc:
+        if not quiet:
+            print(f"Warning: Failed to load configuration ({type(exc).__name__})")
+    return {}
+
+# ڕێگای سەرەکی هەمیشە فۆڵدەری خۆی بۆتە. `cwd` ـیش تەنها وەک پشتیوانیە
+# بۆ کۆنفیگی کۆنەکانی PythonAnywhere.
+for _candidate in (Path.cwd() / "config.json", CONFIG_FILE):
+    _candidate = _candidate.resolve()
+    if _candidate not in CONFIG_SOURCES:
+        _loaded_config = load_config_file(_candidate)
+        if _loaded_config:
+            config.update(_loaded_config)
+            CONFIG_SOURCES.append(_candidate)
 
 def config_secret_or_env(config_key: str, environment_key: str, *aliases: str) -> str:
     """ڕێگری لەوەی بەها نموونەییەکان بوتەکە وەستێنن."""
@@ -68,6 +84,19 @@ def config_secret_or_env(config_key: str, environment_key: str, *aliases: str) -
     if not value or value.upper().startswith(placeholder_prefixes):
         return os.environ.get(environment_key, "")
     return value
+
+def live_config_secret(config_key: str, environment_key: str, *aliases: str) -> str:
+    """کلیلی AI لە config ـی نوێ بخوێنەوە؛ ئەمە پێویستی بە restart بۆ گۆڕینی کلیل کەم دەکات."""
+    keys = (config_key, *aliases)
+    placeholder_prefixes = ("YOUR_", "PASTE_", "TOKEN_")
+    # لە شوێنی سەرەکی بۆتەوە دەست پێبکە؛ ئەوە کۆنفیگی نوێترینە.
+    for path in (CONFIG_FILE, Path.cwd() / "config.json"):
+        fresh = load_config_file(path, quiet=True)
+        for key in keys:
+            value = str(fresh.get(key, "") or "").strip()
+            if value and not value.upper().startswith(placeholder_prefixes):
+                return value
+    return config_secret_or_env(config_key, environment_key, *aliases)
 
 BOT_TOKEN = config_secret_or_env("token", "TELEGRAM_BOT_TOKEN")
 GEMINI_API_KEY = config_secret_or_env("geminiApiKey", "GEMINI_API_KEY")
@@ -2493,8 +2522,14 @@ def check_nsfw_with_local_model(img_bytes: bytes, mime_type: str):
 
 def check_nsfw_with_google_vision(img_bytes: bytes, mime_type: str):
     """Google Cloud Vision SafeSearch: True=نەشیاو، False=پاک، None=هەڵە/بەردەست نییە."""
-    if not GOOGLE_VISION_API_KEY:
-        google_vision_status["result"] = "googleVisionApiKey دانەنراوە"
+    api_key = live_config_secret(
+        "googleVisionApiKey",
+        "GOOGLE_VISION_API_KEY",
+        "googleVisionAPIKey",
+        "visionApiKey",
+    )
+    if not api_key:
+        google_vision_status["result"] = "کلیلی Vision لە ~/gardnya-bot/config.json دانەنراوە"
         return None
     if not img_bytes:
         return None
@@ -2512,7 +2547,7 @@ def check_nsfw_with_google_vision(img_bytes: bytes, mime_type: str):
         google_vision_status["last_check"] = time.time()
         response = telegram_session.post(
             "https://vision.googleapis.com/v1/images:annotate",
-            params={"key": GOOGLE_VISION_API_KEY},
+            params={"key": api_key},
             json=body,
             timeout=(15, 35),
         )
@@ -3247,6 +3282,8 @@ def handle_command(msg: dict, text: str):
         else:
             last_result = html.escape(google_vision_status.get("result", "هەڵەی نادیار"))
             test_text = f"❌ <b>Google Vision نەتوانی پشکنین بکات:</b> {last_result}"
+            if not live_config_secret("googleVisionApiKey", "GOOGLE_VISION_API_KEY", "googleVisionAPIKey", "visionApiKey"):
+                test_text += "\n\n💡 کلیلی خۆت تەنها لە <code>~/gardnya-bot/config.json</code> بە ناوی <code>googleVisionApiKey</code> دابنێ."
         send_message(chat_id, test_text, msg_id, thread_id)
         return
     elif cmd in ["/setowner", "/owner"]:
