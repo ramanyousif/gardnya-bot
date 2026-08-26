@@ -764,6 +764,12 @@ def send_photo(chat_id: int, photo_source, caption: str, reply_to: int = 0, thre
 def delete_message(chat_id: int, message_id: int):
     return tg_call("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
 
+def telegram_error_description(result) -> str:
+    """هۆی هەڵەی Telegram بە شێوەیەکی پارێزراو بگەڕێنەوە."""
+    if not result:
+        return "پەیوەندی Telegram کاتییە سەرکەوتوو نەبوو"
+    return str(result.get("description") or "هەڵەی نادیاری Telegram")
+
 def get_display_name(user_obj: dict) -> str:
     if not user_obj:
         return "ئازیز"
@@ -3079,6 +3085,10 @@ def format_12h_kurdistan(time_str: str) -> str:
 
 def build_health_report(chat_id: int) -> str:
     """ڕاپۆرتێکی پارێزراو لە بەش و مۆڵەتە گرنگەکان؛ هیچ کلیلێک پیشان نادات."""
+    # لە PythonAnywhere هەندێک جار کاتێک app بار دەبێت، getMe یەکەم جار کاتییە
+    # سەرکەوتوو نابێت. لە کاتی /health دووبارەی بکە تا ڕاپۆرتی هەڵە نیشان نەدات.
+    if not BOT_ID:
+        refresh_bot_identity()
     checks = []
     bot_member = tg_call("getChatMember", {"chat_id": chat_id, "user_id": BOT_ID}) if BOT_ID else None
     member_info = bot_member.get("result", {}) if bot_member and bot_member.get("ok") else {}
@@ -4039,7 +4049,20 @@ def handle_message(msg: dict):
         violation = "قسەی ناشرین و جنێو 🤬"
 
     if violation:
-        delete_message(chat_id, msg_id)
+        deletion = delete_message(chat_id, msg_id)
+        if not deletion or not deletion.get("ok"):
+            reason = telegram_error_description(deletion)
+            print(f"Security detection could not delete message: {reason}")
+            # ئەگەر بۆت مۆڵەتی سڕینەوەی نەبێت، ئاگادارییەکی ڕوون بدە؛
+            # بەکارهێنەر نابێت وا بزانێت AI کار نەکردووە.
+            send_message(
+                chat_id,
+                "⚠️ <b>AI میدیایەکی نەشیاوی ناساند، بەڵام نەتوانی بیسڕێتەوە.</b>\n"
+                "تکایە لە Group Settings → Administrators → Gardnya، مۆڵەتی <b>Delete messages</b> چالاک بکە.",
+                0,
+                thread_id,
+            )
+            return
         cnt = add_user_warning(chat_id, user_id)
         send_message(chat_id, f"⚠️ {display_name} {violation} قەدەغەیە! ئاگاداری: ({cnt}/{MAX_WARNINGS})")
         print(f"🛡️ Deleted violation from {display_name}: {violation} (Warning {cnt}/{MAX_WARNINGS})")
