@@ -211,7 +211,7 @@ def request_groq_text(messages: list, model_name: str, max_tokens: int = 800,
         print(f"Groq REST Notice ({model_name}): {type(exc).__name__}")
     return None
 
-print(f"🤖 AI Engine: {'Google Gemini 2.0 Flash' if GEMINI_API_KEY else 'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'None'}")
+print(f"🤖 AI Engine: {'Google Gemini 2.5 Flash' if GEMINI_API_KEY else 'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'None'}")
 print(f"🌍 Timezone: Kurdistan (UTC+3)")
 
 STATE_FILE = BASE_DIR / "data" / "state.json"
@@ -2639,92 +2639,66 @@ def video_frame_for_vision(video_bytes: bytes, mime_type: str):
         return None, mime_type
 
 def check_nsfw_with_ai_vision(file_id: str):
-    """گەڕاندنەوەی True (نەشیاو)، False (پاک)، یان None (نەتوانرا پشکنین بکرێت)."""
-    img_bytes, mime_type = download_telegram_file(file_id)
-    if not img_bytes or len(img_bytes) < 300:
+    """Gemini AI: True=نەشیاو، False=پاک، None=نەتوانرا پشکنین بکرێت."""
+    media_bytes, mime_type = download_telegram_file(file_id)
+    if not media_bytes or len(media_bytes) < 300:
         google_vision_status["result"] = telegram_media_status.get("stage", "فایل دانەگیرا")
         return None
 
-    img_bytes, mime_type = video_frame_for_vision(img_bytes, mime_type)
-    if not img_bytes:
+    # کلیل لە config.json ـەوە هەر جار بخوێنەوە؛ Google Vision لە ڕێگای سکوریتییەکەدا نییە.
+    api_key = live_config_secret("geminiApiKey", "GEMINI_API_KEY")
+    if not api_key:
+        google_vision_status["result"] = "geminiApiKey لە ~/gardnya-bot/config.json دانەنراوە"
+        return None
+    if len(media_bytes) > 18 * 1024 * 1024:
+        google_vision_status["result"] = "میدیاکە زۆر گەورەیە بۆ پشکنینی Gemini"
         return None
 
-    # سەرەتا مۆدێلی خۆجێیی و بێ‌بەرامبەر بەکاربهێنە.
-    local_result = check_nsfw_with_local_model(img_bytes, mime_type)
-    if local_result is True:
-        return True
-
-    # Google Cloud Vision SafeSearch هیچ پەکەجی قورسێکی خۆجێیی پێویست نییە و
-    # بۆ PythonAnywhere ـی quota کەم گونجاوە.
-    google_result = check_nsfw_with_google_vision(img_bytes, mime_type)
-    if google_result is not None:
-        return google_result
-
-    if local_result is False and not GEMINI_API_KEY:
-        return False
-
-    # Gemini تەنها ئەگەر خاوەن بۆت خۆی کلیلێکی بەردەستی دانابێت، وەک پشتیوانی دووەم.
-    if GEMINI_API_KEY:
-        b64 = base64.b64encode(img_bytes).decode("utf-8")
-        for gem_model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
-            try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
-                body = {
-                    "contents": [{
-                        "parts": [
-                            {"text": "Carefully inspect this sticker or image. Does it contain nudity, pornography, sexual acts, erotic poses, lingerie, exposed breasts, buttocks, genitalia, sexualized anime/hentai, or explicit sexual content? Answer strictly YES or NO."},
-                            {"inline_data": {"mime_type": mime_type, "data": b64}}
-                        ]
-                    }],
-                    "generationConfig": {
-                        "maxOutputTokens": 100,
-                        "temperature": 0.0
-                    },
-                    "safetySettings": [
-                        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_LOW_AND_ABOVE"}
-                    ]
-                }
-                r = requests.post(url, json=body, timeout=15)
-                if r.status_code == 200:
-                    data = r.json()
-                    # 1. Blocked by Google Safety filters -> 100% NSFW
-                    pf = data.get("promptFeedback", {})
-                    if pf.get("blockReason"):
-                        print(f"🔞 Gemini Safety Filter BLOCKED image: {pf.get('blockReason')}")
-                        return True
-                    candidates = data.get("candidates", [])
-                    if candidates:
-                        cand = candidates[0]
-                        if cand.get("finishReason") == "SAFETY":
-                            print("🔞 Gemini finishReason is SAFETY violation")
-                            return True
-                        # 2. Check safety ratings
-                        safety = cand.get("safetyRatings", [])
-                        for s in safety:
-                            if s.get("category") == "HARM_CATEGORY_SEXUALLY_EXPLICIT":
-                                if s.get("probability") in ["HIGH", "MEDIUM"]:
-                                    print(f"🔞 Gemini safety probability: {s.get('probability')}")
-                                    return True
-                        # 3. Check text output
-                        parts = cand.get("content", {}).get("parts", [])
-                        for part in parts:
-                            txt = (part.get("text") or "").strip().upper()
-                            if "YES" in txt:
-                                print(f"🔞 Gemini Vision answered YES (NSFW detected): {txt}")
-                                return True
-                    print(f"✅ Gemini Vision ({gem_model}): Content is clean")
-                    return False
-                elif r.status_code == 429:
-                    print(f"Gemini {gem_model} 429, switching to next...")
-                    continue
-                else:
-                    print(f"Gemini Vision {gem_model} status: {r.status_code}")
-            except Exception as e:
-                print(f"Gemini Vision error ({gem_model}): {e}")
-
-    # لە کاتی هەڵەی ڕاژە، ئەنجامی پاک مەگەڕێنەوە؛ بانگەوازکەر دەتوانێت
-    # بە thumbnail یان فایلی جێگرەوە جارێکی تر هەوڵ بدات.
-    return None
+    google_vision_status["last_check"] = time.time()
+    model_name = "gemini-2.5-flash"
+    body = {
+        "contents": [{"parts": [
+            {"text": "You are a strict Telegram group safety classifier. Inspect this media. Return exactly YES if it contains pornography, a sexual act, exposed genitalia, explicit nudity, exposed breasts, explicit sexualized anime/hentai, or sexually explicit content. Otherwise return exactly NO. Do not explain."},
+            {"inline_data": {"mime_type": mime_type or "application/octet-stream", "data": base64.b64encode(media_bytes).decode("ascii")}},
+        ]}],
+        "generationConfig": {"maxOutputTokens": 5, "temperature": 0},
+        "safetySettings": [{"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_LOW_AND_ABOVE"}],
+    }
+    try:
+        response = telegram_session.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}",
+            json=body, timeout=(15, 45),
+        )
+        google_vision_status["http_status"] = response.status_code
+        if response.status_code != 200:
+            google_vision_status["result"] = f"Gemini HTTP {response.status_code}"
+            print(f"Gemini security scan unavailable: HTTP {response.status_code}")
+            return None
+        data = response.json()
+        if data.get("promptFeedback", {}).get("blockReason"):
+            google_vision_status["result"] = "Gemini ناوەڕۆکی نەشیاوی وەستاند"
+            return True
+        candidates = data.get("candidates", [])
+        if not candidates:
+            google_vision_status["result"] = "Gemini وەڵامی نەگەڕاندەوە"
+            return None
+        candidate = candidates[0]
+        if candidate.get("finishReason") == "SAFETY":
+            google_vision_status["result"] = "Gemini ناوەڕۆکی نەشیاوی وەستاند"
+            return True
+        for rating in candidate.get("safetyRatings", []):
+            if rating.get("category") == "HARM_CATEGORY_SEXUALLY_EXPLICIT" and rating.get("probability") in {"MEDIUM", "HIGH"}:
+                google_vision_status["result"] = "Gemini نەشیاوی دۆزییەوە"
+                return True
+        answer = " ".join(str(part.get("text") or "") for part in candidate.get("content", {}).get("parts", [])).strip().upper()
+        blocked = answer.startswith("YES")
+        google_vision_status["result"] = "Gemini نەشیاوی دۆزییەوە" if blocked else "Gemini میدیاکەی پاک ناساند"
+        print(f"Gemini security scan ({model_name}): blocked={blocked}")
+        return blocked
+    except Exception as exc:
+        google_vision_status["result"] = f"Gemini {type(exc).__name__}"
+        print(f"Gemini security scan skipped ({type(exc).__name__})")
+        return None
 
 def is_nsfw_sticker(sticker_obj: dict) -> bool:
     if not sticker_obj:
@@ -3105,8 +3079,7 @@ def build_health_report(chat_id: int) -> str:
     checks.append(("بۆت ئەدمینی گروپە", is_group_admin))
     checks.append(("مۆڵەتی سڕینەوەی میدیا", is_creator or bool(member_info.get("can_delete_messages"))))
     checks.append(("مۆڵەتی بێدەنگ/باند", is_creator or bool(member_info.get("can_restrict_members"))))
-    local_vision_ready = importlib.util.find_spec("nudenet") is not None
-    security_ai_ready = bool(GOOGLE_VISION_API_KEY or GEMINI_API_KEY or local_vision_ready)
+    security_ai_ready = bool(live_config_secret("geminiApiKey", "GEMINI_API_KEY"))
     checks.append(("AIی سکوریتی ستیکەر/GIF/فۆروارد", security_ai_ready))
     checks.append(("AIی گفتوگۆ", ai_ready))
     checks.append(("یارییەکان بە AI و بێ دووبارە", ai_ready))
@@ -3135,7 +3108,7 @@ def build_health_report(chat_id: int) -> str:
         lines.append(f"{'✅' if ok else '❌'} <b>{label}</b>")
     lines.extend([
         "",
-        f"🔎 <b>دوایین پشکنینی Google Vision:</b> {html.escape(google_vision_status.get('result', 'هێشتا پشکنین نەکراوە'))}",
+        f"🔎 <b>دوایین پشکنینی Gemini:</b> {html.escape(google_vision_status.get('result', 'هێشتا پشکنین نەکراوە'))}",
         f"🕒 <b>کاتی بۆت:</b> {datetime.datetime.now(KURDISTAN_UTC_OFFSET).strftime('%Y-%m-%d %H:%M:%S')} (UTC+3)",
         f"📡 <b>دوایین چاودێری:</b> {('کەمتر لە %d چرکە' % int(scheduler_age)) if scheduler_age is not None else 'هێشتا دەستپێنەکردووە'}",
         f"📤 <b>دوایین پەخش:</b> {html.escape(scheduler_status.get('last_delivery') or 'هیچ پەخشێک تۆمار نەکراوە')}",
@@ -3296,7 +3269,7 @@ def handle_command(msg: dict, text: str):
             "• <code>/unban &lt;user_id&gt;</code> - لادانی باند بە پێدانی ئایدی\n"
             "• <code>/setrules &lt;دەق&gt;</code> - دانانی یاساکانی گروپ 🌸\n"
             "• <code>/health</code> - پشکنینی AI، سکوریتی و مۆڵەتەکانی بۆت 🩺\n"
-            "• <code>/visiontest</code> - بە ڕیپلای لە میدیا، تاقیکردنەوەی Google Vision 🔎"
+            "• <code>/visiontest</code> - بە ڕیپلای لە میدیا، تاقیکردنەوەی Gemini 🔎"
         )
         send_message(chat_id, help_text, msg_id, thread_id)
         return
@@ -3334,9 +3307,9 @@ def handle_command(msg: dict, text: str):
             test_text = "✅ <b>AI ئەم میدیایەی بە پاک ناساند.</b>"
         else:
             last_result = html.escape(google_vision_status.get("result", "هەڵەی نادیار"))
-            test_text = f"❌ <b>Google Vision نەتوانی پشکنین بکات:</b> {last_result}"
-            if not live_config_secret("googleVisionApiKey", "GOOGLE_VISION_API_KEY", "googleVisionAPIKey", "visionApiKey"):
-                test_text += "\n\n💡 کلیلی خۆت تەنها لە <code>~/gardnya-bot/config.json</code> بە ناوی <code>googleVisionApiKey</code> دابنێ."
+            test_text = f"❌ <b>Gemini نەتوانی پشکنین بکات:</b> {last_result}"
+            if not live_config_secret("geminiApiKey", "GEMINI_API_KEY"):
+                test_text += "\n\n💡 کلیلی Gemini تەنها لە <code>~/gardnya-bot/config.json</code> بە ناوی <code>geminiApiKey</code> دابنێ."
         send_message(chat_id, test_text, msg_id, thread_id)
         return
     elif cmd in ["/setowner", "/owner"]:
