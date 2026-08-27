@@ -2650,10 +2650,11 @@ def gemini_security_models(api_key: str) -> list:
         "gemini-2.5-flash-lite",
     ]
     try:
-        response = telegram_session.get(
+        # session ـی Telegram retry ـی درێژ هەیە؛ بۆ Gemini نابێت webhook ـەکە وەستێنێت.
+        response = requests.get(
             "https://generativelanguage.googleapis.com/v1beta/models",
             headers={"x-goog-api-key": api_key},
-            timeout=(12, 25),
+            timeout=(10, 20),
         )
         if response.status_code == 200:
             available = []
@@ -2702,9 +2703,9 @@ def check_nsfw_with_ai_vision(file_id: str):
     }
     try:
         for model_name in gemini_security_models(api_key):
-            response = telegram_session.post(
+            response = requests.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
-                headers={"x-goog-api-key": api_key}, json=body, timeout=(15, 45),
+                headers={"x-goog-api-key": api_key}, json=body, timeout=(10, 25),
             )
             google_vision_status["http_status"] = response.status_code
             # 404 تەنها واتە ئەم مۆدێلە بەردەست نییە؛ مۆدێلی دواتر تاقی بکەوە.
