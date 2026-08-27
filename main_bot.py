@@ -151,6 +151,7 @@ google_vision_status = {
     "http_status": 0,
     "result": "هێشتا پشکنین نەکراوە",
 }
+gemini_security_model_cache = {"key": "", "models": []}
 telegram_media_status = {
     "stage": "هێشتا فایلێک داوانەکراوە",
 }
@@ -2638,6 +2639,42 @@ def video_frame_for_vision(video_bytes: bytes, mime_type: str):
         google_vision_status["result"] = f"frame extraction: {type(exc).__name__}"
         return None, mime_type
 
+def gemini_security_models(api_key: str) -> list:
+    """تەنها مۆدێلە بەردەستەکانی هەمان کلیل هەڵبژێرە؛ ناوی مۆدێل لەسەر هەژمارەکان جیاواز دەبێت."""
+    if gemini_security_model_cache["key"] == api_key and gemini_security_model_cache["models"]:
+        return gemini_security_model_cache["models"]
+
+    preferred = [
+        str(config.get("geminiModel", "") or "").strip(),
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    ]
+    try:
+        response = telegram_session.get(
+            "https://generativelanguage.googleapis.com/v1beta/models",
+            headers={"x-goog-api-key": api_key},
+            timeout=(12, 25),
+        )
+        if response.status_code == 200:
+            available = []
+            for item in response.json().get("models", []):
+                methods = item.get("supportedGenerationMethods") or []
+                name = str(item.get("name") or "").replace("models/", "")
+                # تەنها مۆدێلی chat/vision ـی Flash گونجاوە؛ image-generation و TTS مەهێنە.
+                if "generateContent" in methods and "flash" in name.lower() and "image" not in name.lower() and "tts" not in name.lower():
+                    available.append(name)
+            ordered = [model for model in preferred if model in available]
+            ordered.extend(model for model in available if model not in ordered)
+            if ordered:
+                gemini_security_model_cache["key"] = api_key
+                gemini_security_model_cache["models"] = ordered
+                return ordered
+    except Exception as exc:
+        print(f"Gemini model list skipped ({type(exc).__name__})")
+
+    # ئەگەر لیستی مۆدێل بەهۆی تۆڕەوە نەکرا، چەند ناوی بەردەست هەوڵ بدە.
+    return list(dict.fromkeys(model for model in preferred if model))
+
 def check_nsfw_with_ai_vision(file_id: str):
     """Gemini AI: True=نەشیاو، False=پاک، None=نەتوانرا پشکنین بکرێت."""
     media_bytes, mime_type = download_telegram_file(file_id)
@@ -2655,7 +2692,6 @@ def check_nsfw_with_ai_vision(file_id: str):
         return None
 
     google_vision_status["last_check"] = time.time()
-    model_name = "gemini-2.5-flash"
     body = {
         "contents": [{"parts": [
             {"text": "You are a strict Telegram group safety classifier. Inspect this media. Return exactly YES if it contains pornography, a sexual act, exposed genitalia, explicit nudity, exposed breasts, explicit sexualized anime/hentai, or sexually explicit content. Otherwise return exactly NO. Do not explain."},
@@ -2665,36 +2701,42 @@ def check_nsfw_with_ai_vision(file_id: str):
         "safetySettings": [{"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_LOW_AND_ABOVE"}],
     }
     try:
-        response = telegram_session.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}",
-            json=body, timeout=(15, 45),
-        )
-        google_vision_status["http_status"] = response.status_code
-        if response.status_code != 200:
-            google_vision_status["result"] = f"Gemini HTTP {response.status_code}"
-            print(f"Gemini security scan unavailable: HTTP {response.status_code}")
-            return None
-        data = response.json()
-        if data.get("promptFeedback", {}).get("blockReason"):
-            google_vision_status["result"] = "Gemini ناوەڕۆکی نەشیاوی وەستاند"
-            return True
-        candidates = data.get("candidates", [])
-        if not candidates:
-            google_vision_status["result"] = "Gemini وەڵامی نەگەڕاندەوە"
-            return None
-        candidate = candidates[0]
-        if candidate.get("finishReason") == "SAFETY":
-            google_vision_status["result"] = "Gemini ناوەڕۆکی نەشیاوی وەستاند"
-            return True
-        for rating in candidate.get("safetyRatings", []):
-            if rating.get("category") == "HARM_CATEGORY_SEXUALLY_EXPLICIT" and rating.get("probability") in {"MEDIUM", "HIGH"}:
-                google_vision_status["result"] = "Gemini نەشیاوی دۆزییەوە"
+        for model_name in gemini_security_models(api_key):
+            response = telegram_session.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
+                headers={"x-goog-api-key": api_key}, json=body, timeout=(15, 45),
+            )
+            google_vision_status["http_status"] = response.status_code
+            # 404 تەنها واتە ئەم مۆدێلە بەردەست نییە؛ مۆدێلی دواتر تاقی بکەوە.
+            if response.status_code == 404:
+                continue
+            if response.status_code != 200:
+                google_vision_status["result"] = f"Gemini HTTP {response.status_code}"
+                print(f"Gemini security scan unavailable: HTTP {response.status_code}")
+                return None
+            data = response.json()
+            if data.get("promptFeedback", {}).get("blockReason"):
+                google_vision_status["result"] = "Gemini ناوەڕۆکی نەشیاوی وەستاند"
                 return True
-        answer = " ".join(str(part.get("text") or "") for part in candidate.get("content", {}).get("parts", [])).strip().upper()
-        blocked = answer.startswith("YES")
-        google_vision_status["result"] = "Gemini نەشیاوی دۆزییەوە" if blocked else "Gemini میدیاکەی پاک ناساند"
-        print(f"Gemini security scan ({model_name}): blocked={blocked}")
-        return blocked
+            candidates = data.get("candidates", [])
+            if not candidates:
+                google_vision_status["result"] = "Gemini وەڵامی نەگەڕاندەوە"
+                return None
+            candidate = candidates[0]
+            if candidate.get("finishReason") == "SAFETY":
+                google_vision_status["result"] = "Gemini ناوەڕۆکی نەشیاوی وەستاند"
+                return True
+            for rating in candidate.get("safetyRatings", []):
+                if rating.get("category") == "HARM_CATEGORY_SEXUALLY_EXPLICIT" and rating.get("probability") in {"MEDIUM", "HIGH"}:
+                    google_vision_status["result"] = "Gemini نەشیاوی دۆزییەوە"
+                    return True
+            answer = " ".join(str(part.get("text") or "") for part in candidate.get("content", {}).get("parts", [])).strip().upper()
+            blocked = answer.startswith("YES")
+            google_vision_status["result"] = "Gemini نەشیاوی دۆزییەوە" if blocked else "Gemini میدیاکەی پاک ناساند"
+            print(f"Gemini security scan ({model_name}): blocked={blocked}")
+            return blocked
+        google_vision_status["result"] = "هیچ مۆدێلێکی Gemini بۆ ئەم کلیلە بەردەست نییە"
+        return None
     except Exception as exc:
         google_vision_status["result"] = f"Gemini {type(exc).__name__}"
         print(f"Gemini security scan skipped ({type(exc).__name__})")
