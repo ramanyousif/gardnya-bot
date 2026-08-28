@@ -2375,19 +2375,11 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     history = get_ai_conversation(chat_id, user_id)
     system_prompt = f"{AI_SYSTEM_PROMPT}\n\n{AI_CONVERSATION_RULES}"
 
-    # 🌟 ١. AIی سەرەکی: Groq، لەگەڵ مێژووی کورتەی گفتوگۆ
-    if GROQ_API_KEY:
-        messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}]
-        for g_model in groq_model_candidates():
-            answer = request_groq_text(messages, g_model, max_tokens=800, temperature=0.75)
-            answer = clean_ai_text(answer)
-            if answer:
-                remember_ai_conversation(chat_id, user_id, question, answer)
-                return answer
-
-    # 🌟 ۲. پشتیوانی دووەم: Gemini، بە هەمان مێژووی گفتوگۆ
+    # 🌟 AIی سەرەکی: Gemini، بە مێژووی کورتەی گفتوگۆ
     if GEMINI_API_KEY:
-        for gem_model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+        for gem_model in [str(config.get("geminiModel", "") or "").strip(), "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+            if not gem_model:
+                continue
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
                 contents = [
@@ -2414,6 +2406,16 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                     continue
             except Exception as e:
                 print(f"Gemini Error ({gem_model}): {e}")
+
+    # 🌟 پشتیوانی دووەم: Groq، تەنها ئەگەر Gemini وەڵام نەدات
+    if GROQ_API_KEY:
+        messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}]
+        for g_model in groq_model_candidates():
+            answer = request_groq_text(messages, g_model, max_tokens=800, temperature=0.75)
+            answer = clean_ai_text(answer)
+            if answer:
+                remember_ai_conversation(chat_id, user_id, question, answer)
+                return answer
 
     # تەنها کاتێک AI بەردەست نەبوو، وەڵامی ئامادە بەکاربهێنە
     smart = get_smart_reply(question)
