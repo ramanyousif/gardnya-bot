@@ -2695,7 +2695,7 @@ def check_nsfw_with_ai_vision(file_id: str):
     google_vision_status["last_check"] = time.time()
     body = {
         "contents": [{"parts": [
-            {"text": "You are a strict Telegram group safety classifier. Inspect this media. Return exactly YES if it contains pornography, a sexual act, exposed genitalia, explicit nudity, exposed breasts, explicit sexualized anime/hentai, or sexually explicit content. Otherwise return exactly NO. Do not explain."},
+            {"text": "You are the strictest possible Telegram NSFW moderator. Inspect the actual image/video frame, including stickers, GIF frames, thumbnails and forwarded media. Return exactly YES when ANY sexual content is visible: pornography, a sexual act, exposed or barely covered genitalia, exposed breasts/nipples, explicit nudity, sexualized hentai/anime, or a clearly erotic pose. If the media is blurry, cropped, transparent, animated, or ambiguous but appears sexual, return YES. Return exactly NO only when it is clearly non-sexual. Do not explain."},
             {"inline_data": {"mime_type": mime_type or "application/octet-stream", "data": base64.b64encode(media_bytes).decode("ascii")}},
         ]}],
         "generationConfig": {"maxOutputTokens": 5, "temperature": 0},
@@ -2728,11 +2728,11 @@ def check_nsfw_with_ai_vision(file_id: str):
                 google_vision_status["result"] = "Gemini ناوەڕۆکی نەشیاوی وەستاند"
                 return True
             for rating in candidate.get("safetyRatings", []):
-                if rating.get("category") == "HARM_CATEGORY_SEXUALLY_EXPLICIT" and rating.get("probability") in {"MEDIUM", "HIGH"}:
+                if rating.get("category") == "HARM_CATEGORY_SEXUALLY_EXPLICIT" and rating.get("probability") in {"LOW", "MEDIUM", "HIGH"}:
                     google_vision_status["result"] = "Gemini نەشیاوی دۆزییەوە"
                     return True
             answer = " ".join(str(part.get("text") or "") for part in candidate.get("content", {}).get("parts", [])).strip().upper()
-            blocked = answer.startswith("YES")
+            blocked = answer.startswith("YES") or re.search(r"\bYES\b", answer) is not None
             google_vision_status["result"] = "Gemini نەشیاوی دۆزییەوە" if blocked else "Gemini میدیاکەی پاک ناساند"
             print(f"Gemini security scan ({model_name}): blocked={blocked}")
             return blocked
