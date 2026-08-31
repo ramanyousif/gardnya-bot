@@ -4,7 +4,7 @@
   "groqApiKey": "YOUR_GROQ_API_KEY",
   "geminiApiKey": "YOUR_GEMINI_API_KEY",
   "geminiModel": "gemini-2.5-flash",
-  "groqModel": "openai/gpt-oss-120b",
+  "groqModel": "qwen/qwen3.8-27b",
   "aiEnabled": true,
   "aiInPrivateChats": true,
   "aiHistoryMessages": 10,

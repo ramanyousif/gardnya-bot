@@ -37,7 +37,7 @@ config = {
     "geminiApiKey": os.environ.get("GEMINI_API_KEY", ""),
     "googleVisionApiKey": os.environ.get("GOOGLE_VISION_API_KEY", ""),
     "groqApiKey": os.environ.get("GROQ_API_KEY", ""),
-    "groqModel": "openai/gpt-oss-120b",
+    "groqModel": "qwen/qwen3.8-27b",
     "aiEnabled": True,
     "aiInPrivateChats": True,
     "aiHistoryMessages": 10,
@@ -111,7 +111,7 @@ GOOGLE_VISION_API_KEY = config_secret_or_env(
     "visionApiKey",
 )
 GROQ_API_KEY = config_secret_or_env("groqApiKey", "GROQ_API_KEY")
-GROQ_MODEL = config.get("groqModel", "openai/gpt-oss-120b")
+GROQ_MODEL = config.get("groqModel", "qwen/qwen3.8-27b")
 MAX_WARNINGS = int(config.get("maxWarnings", 3))
 AUTO_MUTE_MINUTES = int(config.get("autoMuteMinutes", 60))
 
@@ -167,19 +167,24 @@ if GROQ_API_KEY:
     except Exception as e:
         print(f"Groq Init Warning: {e}")
 
-def groq_model_candidates():
-    """مۆدێلی کارای config سەرەتا؛ پاشان جێگرەوەکان."""
-    models = [config.get("groqModel", GROQ_MODEL), GROQ_MODEL, "openai/gpt-oss-120b", "llama-3.3-70b-versatile"]
+def groq_model_candidates(prefer_creative: bool = False):
+    """Qwen بۆ چات؛ GPT-OSS بۆ وتە و ناوەڕۆکی داهێنەرانە سەرەتا."""
+    preferred = (
+        ["openai/gpt-oss-120b", "qwen/qwen3.8-27b"]
+        if prefer_creative else
+        ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"]
+    )
+    models = preferred + [config.get("groqModel", GROQ_MODEL), GROQ_MODEL, "openai/gpt-oss-20b"]
     return list(dict.fromkeys(model for model in models if model))
 
 def gemini_model_candidates(include_lite: bool = False) -> list:
     """مۆدێلی سەرەکی و جێگرەوەکان؛ پڕبوونی یەک مۆدێل نابێت AI بوەستێنێت."""
     models = [
         str(config.get("geminiModel", "") or "").strip(),
+        "gemini-3.1-flash-lite",
         "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash",
-        "gemini-3.1-flash-lite",
         "gemini-flash-lite-latest",
         "gemini-flash-latest",
         "gemini-2.5-flash",
@@ -214,23 +219,19 @@ def request_groq_text(messages: list, model_name: str, max_tokens: int = 800,
     }
     if json_mode:
         request_body["response_format"] = {"type": "json_object"}
+    if str(model_name).startswith("openai/gpt-oss"):
+        request_body["reasoning_effort"] = "low"
 
-    if groq_client:
-        try:
-            result = groq_client.chat.completions.create(**request_body)
-            return result.choices[0].message.content
-        except Exception as exc:
-            print(f"Groq SDK Notice ({model_name}): {type(exc).__name__}")
-
+    # REST سەرەتا: لە PythonAnywhere جێگیرترە و timeout ـی ڕوونی هەیە.
     try:
-        response = telegram_session.post(
+        response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {GROQ_API_KEY}",
                 "Content-Type": "application/json",
             },
             json=request_body,
-            timeout=(15, 45),
+            timeout=(8, 30),
         )
         if response.status_code == 200:
             choices = response.json().get("choices", [])
@@ -240,6 +241,14 @@ def request_groq_text(messages: list, model_name: str, max_tokens: int = 800,
             print(f"Groq REST Notice ({model_name}): HTTP {response.status_code}")
     except Exception as exc:
         print(f"Groq REST Notice ({model_name}): {type(exc).__name__}")
+
+    # SDK تەنها جێگرەوەی REST ـە.
+    if groq_client:
+        try:
+            result = groq_client.chat.completions.create(**request_body)
+            return result.choices[0].message.content
+        except Exception as exc:
+            print(f"Groq SDK Notice ({model_name}): {type(exc).__name__}")
     return None
 
 print(f"🤖 Chat AI Engine: {'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'Google Gemini ' + str(config.get('geminiModel', 'Flash')) if GEMINI_API_KEY else 'None'}")
@@ -2363,7 +2372,11 @@ def clean_ai_text(text: str) -> str:
     if not text:
         return ""
     # لابردنی تاگی بیرکردنەوە لە مۆدێلە ڕیزنینگەکان
-    text = re.sub(r'(?is)<think>.*?</think>', '', text)
+    # هەندێک مۆدێل تەنها </think> دەنێرێت یان opening tag ـەکە ناتەواو دەهێڵێت.
+    if re.search(r'(?is)</think>', text):
+        text = re.split(r'(?is)</think>', text)[-1]
+    text = re.sub(r'(?is)<think>.*$', '', text)
+    text = re.sub(r'(?is)</?think>', '', text)
     clean = re.sub(r'(?im)^\s*@?[a-zA-Z0-9_]+:\s*', '', text)
     clean = re.sub(r'(?im)^\s*(system note|translation note|note|translation)\s*[::-].*$', '', clean)
     if re.search(r'[\u0900-\u097F]', clean):
@@ -2380,6 +2393,15 @@ real question. If the question is unclear, ask one short clarifying question. Pr
 words and short sentences; never translate word-for-word from English or Arabic. In casual conversation,
 you may add a small tasteful joke and 1-3 fitting emojis. Do not force jokes into serious subjects.
 Be accurate, warm and respectful. Never invent facts.
+
+Natural Sorani style examples:
+- User: سڵاو چۆنی؟  Assistant: سڵاو، باشم سوپاس 😊 تۆ چۆنی؟
+- User: چی دەکەی؟  Assistant: خەریکی چاودێری گروپەکەم؛ تۆ چی دەکەیت؟ 😄
+- User asks a factual question: answer it immediately, then add a short explanation if useful.
+- If the user is sad, acknowledge their feeling gently and ask what happened; do not greet again.
+Use examples only for style; never copy an unrelated example into the answer. Never use strange
+translated phrases, repeated greetings, or customer-service wording. Ordinary answers should usually
+be 2-5 short sentences unless the user asks for detail.
 """
 
 def get_ai_conversation(chat_id: int, user_id: int):
@@ -2410,7 +2432,7 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     if GROQ_API_KEY:
         messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}]
         for g_model in groq_model_candidates():
-            answer = request_groq_text(messages, g_model, max_tokens=800, temperature=0.75)
+            answer = request_groq_text(messages, g_model, max_tokens=500, temperature=0.65)
             answer = clean_ai_text(answer)
             if answer:
                 remember_ai_conversation(chat_id, user_id, question, answer)
@@ -2429,7 +2451,7 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                 body = {
                     "contents": contents,
                     "systemInstruction": {"parts": [{"text": system_prompt}]},
-                    "generationConfig": {"maxOutputTokens": 800, "temperature": 0.75}
+                    "generationConfig": {"maxOutputTokens": 500, "temperature": 0.65}
                 }
                 r = requests.post(url, json=body, timeout=15)
                 if r.status_code == 200:
@@ -2527,7 +2549,7 @@ def generate_mirror_hour_quote(time_label: str) -> str:
 
     if GROQ_API_KEY and not candidates:
         messages = [{"role": "user", "content": prompt}]
-        for model_name in groq_model_candidates():
+        for model_name in groq_model_candidates(prefer_creative=True):
             raw = request_groq_text(messages, model_name, max_tokens=100, temperature=1.0)
             if raw:
                 candidates.append(raw)

@@ -10,6 +10,8 @@ import sys
 import threading
 import hashlib
 import hmac
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -42,6 +44,9 @@ telegram_setup_status = {
     "last_attempt": 0.0,
     "detail": "starting",
 }
+update_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="gardnya-update")
+processed_updates = {}
+processed_updates_lock = threading.Lock()
 
 PA_USER = os.environ.get("PYTHONANYWHERE_DOMAIN", "").replace(".pythonanywhere.com", "") or os.environ.get("USER", "") or "raman1206"
 WEBHOOK_DOMAIN = f"{PA_USER}.pythonanywhere.com" if not PA_USER.endswith(".pythonanywhere.com") else PA_USER
@@ -84,7 +89,7 @@ def index():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """Handle incoming Telegram updates via webhook."""
+    """Telegram ـەکە خێرا وەربگرە؛ کاری درێژی AI لە پاشبنەما بکە."""
     received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
     if not WEBHOOK_SECRET or not hmac.compare_digest(received_secret, WEBHOOK_SECRET):
         # ئەگەر token گۆڕدرابێت و Telegram هێشتا webhook ـی کۆنی هەبێت،
@@ -96,16 +101,35 @@ def webhook():
     ensure_scheduler_running()
     try:
         data = request.get_json(force=True)
-        if data:
-            if 'message' in data:
-                main_bot.handle_message(data['message'])
-            elif 'chat_member' in data:
-                main_bot.handle_chat_member_update(data['chat_member'])
-            elif 'my_chat_member' in data:
-                main_bot.handle_chat_member_update(data['my_chat_member'])
+        if not data:
+            return 'OK', 200
+        update_id = data.get("update_id")
+        if update_id is not None:
+            now = time.time()
+            with processed_updates_lock:
+                # Telegram لە کاتی دواکەوتن هەمان update دووبارە دەنێرێت.
+                for old_id, seen_at in list(processed_updates.items()):
+                    if now - seen_at > 1800:
+                        processed_updates.pop(old_id, None)
+                if update_id in processed_updates:
+                    return 'OK', 200
+                processed_updates[update_id] = now
+        update_executor.submit(process_telegram_update, data)
     except Exception as e:
-        print(f"Webhook error: {e}")
+        print(f"Webhook receive error: {e}")
     return 'OK', 200
+
+def process_telegram_update(data):
+    """یەک update لە پاشبنەما جێبەجێ بکە تا Telegram timeout نەکات."""
+    try:
+        if 'message' in data:
+            main_bot.handle_message(data['message'])
+        elif 'chat_member' in data:
+            main_bot.handle_chat_member_update(data['chat_member'])
+        elif 'my_chat_member' in data:
+            main_bot.handle_chat_member_update(data['my_chat_member'])
+    except Exception as exc:
+        print(f"Webhook processing error: {type(exc).__name__}: {exc}")
 
 @app.route('/health')
 def health():
@@ -114,7 +138,12 @@ def health():
     ensure_telegram_configured()
     telegram_state = "ready" if telegram_setup_status["ok"] else telegram_setup_status["detail"]
     bot_state = "ready" if main_bot.BOT_ID else "not-authenticated"
-    return f'✅ Bot healthy, scheduler running | Telegram: {telegram_state} | Bot: {bot_state}', 200
+    groq_state = "configured" if main_bot.GROQ_API_KEY else "missing-key"
+    gemini_state = "configured" if main_bot.GEMINI_API_KEY else "missing-key"
+    return (
+        f'✅ Bot healthy, scheduler running | Telegram: {telegram_state} | Bot: {bot_state} '
+        f'| Groq: {groq_state} | Gemini: {gemini_state}'
+    ), 200
 
 @app.route('/pull', methods=['GET', 'POST'])
 def git_pull():
@@ -150,7 +179,9 @@ def configure_telegram_worker():
         print(f"🌐 Webhook set successfully: {WEBHOOK_URL}")
     else:
         telegram_setup_status["ok"] = False
-        telegram_setup_status["detail"] = "setup-failed"
+        telegram_setup_status["detail"] = (
+            "invalid-token" if result and result.get("error_code") == 401 else "setup-failed"
+        )
         print(f"⚠️ Webhook setup result: {result}")
 
 def ensure_telegram_configured(force=False):
