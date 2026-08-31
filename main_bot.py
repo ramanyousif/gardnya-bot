@@ -153,6 +153,7 @@ google_vision_status = {
     "result": "هێشتا پشکنین نەکراوە",
 }
 gemini_security_model_cache = {"key": "", "models": []}
+GEMINI_RETRYABLE_HTTP = {404, 408, 429, 500, 502, 503, 504}
 telegram_media_status = {
     "stage": "هێشتا فایلێک داوانەکراوە",
 }
@@ -170,6 +171,34 @@ def groq_model_candidates():
     """مۆدێلی کوردیی ڕوون سەرەتا؛ پاشان مۆدێلی config و جێگرەوەکان."""
     models = ["llama-3.3-70b-versatile", config.get("groqModel", GROQ_MODEL), GROQ_MODEL, "openai/gpt-oss-120b"]
     return list(dict.fromkeys(model for model in models if model))
+
+def gemini_model_candidates(include_lite: bool = False) -> list:
+    """مۆدێلی سەرەکی و جێگرەوەکان؛ پڕبوونی یەک مۆدێل نابێت AI بوەستێنێت."""
+    models = [
+        str(config.get("geminiModel", "") or "").strip(),
+        "gemini-3.7-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-flash-lite-latest",
+        "gemini-flash-latest",
+        "gemini-2.5-flash",
+    ]
+    if include_lite:
+        models.extend(["gemini-3.5-flash-lite", "gemini-2.5-flash-lite"])
+    return list(dict.fromkeys(model for model in models if model))
+
+def gemini_retryable_response(response) -> bool:
+    """هەڵەی کاتی، پڕبوونی مۆدێل و نەبوونی مۆدێل بە جێگرەوە چارەسەر بکە."""
+    if response.status_code in GEMINI_RETRYABLE_HTTP:
+        return True
+    try:
+        error = response.json().get("error", {})
+        return str(error.get("status", "")).upper() in {
+            "UNAVAILABLE", "RESOURCE_EXHAUSTED", "DEADLINE_EXCEEDED"
+        }
+    except Exception:
+        return False
 
 def request_groq_text(messages: list, model_name: str, max_tokens: int = 800,
                       temperature: float = 0.55, json_mode: bool = False):
@@ -213,7 +242,7 @@ def request_groq_text(messages: list, model_name: str, max_tokens: int = 800,
         print(f"Groq REST Notice ({model_name}): {type(exc).__name__}")
     return None
 
-print(f"🤖 AI Engine: {'Google Gemini 3.6 Flash' if GEMINI_API_KEY else 'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'None'}")
+print(f"🤖 AI Engine: {'Google Gemini ' + str(config.get('geminiModel', 'Flash')) if GEMINI_API_KEY else 'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'None'}")
 print(f"🌍 Timezone: Kurdistan (UTC+3)")
 
 STATE_FILE = BASE_DIR / "data" / "state.json"
@@ -2378,15 +2407,7 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
 
     # 🌟 AIی سەرەکی: Gemini، بە مێژووی کورتەی گفتوگۆ
     if GEMINI_API_KEY:
-        chat_models = list(dict.fromkeys([
-            str(config.get("geminiModel", "") or "").strip(),
-            "gemini-3.6-flash",
-            "gemini-3.5-flash",
-            "gemini-2.5-flash",
-        ]))
-        for gem_model in chat_models:
-            if not gem_model:
-                continue
+        for gem_model in gemini_model_candidates():
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
                 contents = [
@@ -2409,11 +2430,15 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                         if answer:
                             remember_ai_conversation(chat_id, user_id, question, answer)
                             return answer
-                elif r.status_code == 429:
-                    # quota پڕە؛ هەوڵی مۆدێلی تر هەمان quota زیاتر خەرج دەکات.
+                elif gemini_retryable_response(r):
+                    print(f"Gemini temporary notice ({gem_model}): HTTP {r.status_code}; trying fallback")
+                    continue
+                else:
+                    print(f"Gemini notice ({gem_model}): HTTP {r.status_code}")
                     break
             except Exception as e:
                 print(f"Gemini Error ({gem_model}): {e}")
+                continue
 
     # 🌟 پشتیوانی دووەم: Groq، تەنها ئەگەر Gemini وەڵام نەدات
     if GROQ_API_KEY:
@@ -2475,12 +2500,7 @@ def generate_mirror_hour_quote(time_label: str) -> str:
 
     candidates = []
     if GEMINI_API_KEY:
-        model_names = list(dict.fromkeys([
-            str(config.get("geminiModel", "") or "").strip(),
-            "gemini-3.6-flash",
-            "gemini-3.5-flash",
-        ]))
-        for model_name in [name for name in model_names if name]:
+        for model_name in gemini_model_candidates():
             try:
                 response = requests.post(
                     f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
@@ -2495,14 +2515,14 @@ def generate_mirror_hour_quote(time_label: str) -> str:
                     parts = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
                     candidates.append(" ".join(str(part.get("text") or "") for part in parts))
                     break
-                if response.status_code == 429:
-                    break
-                if response.status_code not in {404, 429}:
-                    print(f"Mirror quote Gemini notice: HTTP {response.status_code}")
-                    break
+                if gemini_retryable_response(response):
+                    print(f"Mirror quote Gemini temporary notice ({model_name}): HTTP {response.status_code}")
+                    continue
+                print(f"Mirror quote Gemini notice ({model_name}): HTTP {response.status_code}")
+                break
             except Exception as exc:
                 print(f"Mirror quote Gemini notice: {type(exc).__name__}")
-                break
+                continue
 
     if GROQ_API_KEY and not candidates:
         messages = [{"role": "user", "content": prompt}]
@@ -2747,12 +2767,7 @@ def gemini_security_models(api_key: str) -> list:
     if gemini_security_model_cache["key"] == api_key and gemini_security_model_cache["models"]:
         return gemini_security_model_cache["models"]
 
-    preferred = [
-        str(config.get("geminiModel", "") or "").strip(),
-        "gemini-3.5-flash-lite",
-        "gemini-3.5-flash",
-        "gemini-2.5-flash",
-    ]
+    preferred = gemini_model_candidates(include_lite=True)
     try:
         # session ـی Telegram retry ـی درێژ هەیە؛ بۆ Gemini نابێت webhook ـەکە وەستێنێت.
         response = requests.get(
@@ -2807,13 +2822,20 @@ def check_nsfw_with_ai_vision(file_id: str):
     }
     try:
         for model_name in gemini_security_models(api_key):
-            response = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
-                headers={"x-goog-api-key": api_key}, json=body, timeout=(10, 25),
-            )
+            try:
+                response = requests.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
+                    headers={"x-goog-api-key": api_key}, json=body, timeout=(10, 25),
+                )
+            except Exception as model_exc:
+                google_vision_status["result"] = f"{model_name} پەیوەندی نەکرا؛ جێگرەوە تاقی دەکرێتەوە"
+                print(f"Gemini security connection fallback ({model_name}): {type(model_exc).__name__}")
+                continue
             google_vision_status["http_status"] = response.status_code
-            # 404 تەنها واتە ئەم مۆدێلە بەردەست نییە؛ مۆدێلی دواتر تاقی بکەوە.
-            if response.status_code == 404:
+            # پڕبوون، quota ـی مۆدێل و هەڵەی کاتی: مۆدێلی جێگرەوە تاقی بکەوە.
+            if gemini_retryable_response(response):
+                google_vision_status["result"] = f"{model_name} کاتییە بەردەست نییە؛ جێگرەوە تاقی دەکرێتەوە"
+                print(f"Gemini security fallback ({model_name}): HTTP {response.status_code}")
                 continue
             if response.status_code != 200:
                 google_vision_status["result"] = f"Gemini HTTP {response.status_code}"
