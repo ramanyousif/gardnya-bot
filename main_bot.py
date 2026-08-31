@@ -213,7 +213,7 @@ def request_groq_text(messages: list, model_name: str, max_tokens: int = 800,
         print(f"Groq REST Notice ({model_name}): {type(exc).__name__}")
     return None
 
-print(f"🤖 AI Engine: {'Google Gemini 2.5 Flash' if GEMINI_API_KEY else 'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'None'}")
+print(f"🤖 AI Engine: {'Google Gemini 3.6 Flash' if GEMINI_API_KEY else 'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'None'}")
 print(f"🌍 Timezone: Kurdistan (UTC+3)")
 
 STATE_FILE = BASE_DIR / "data" / "state.json"
@@ -1742,7 +1742,7 @@ def request_game_ai_json(prompt: str, max_tokens: int = 300, temperature: float 
                     return parsed
 
     if GEMINI_API_KEY:
-        for model_name in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+        for model_name in ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
                 for use_json_mode in [True, False]:
@@ -2380,9 +2380,9 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     if GEMINI_API_KEY:
         chat_models = list(dict.fromkeys([
             str(config.get("geminiModel", "") or "").strip(),
+            "gemini-3.6-flash",
+            "gemini-3.5-flash",
             "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
         ]))
         for gem_model in chat_models:
             if not gem_model:
@@ -2477,8 +2477,8 @@ def generate_mirror_hour_quote(time_label: str) -> str:
     if GEMINI_API_KEY:
         model_names = list(dict.fromkeys([
             str(config.get("geminiModel", "") or "").strip(),
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
+            "gemini-3.6-flash",
+            "gemini-3.5-flash",
         ]))
         for model_name in [name for name in model_names if name]:
             try:
@@ -2749,8 +2749,9 @@ def gemini_security_models(api_key: str) -> list:
 
     preferred = [
         str(config.get("geminiModel", "") or "").strip(),
+        "gemini-3.5-flash-lite",
+        "gemini-3.5-flash",
         "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
     ]
     try:
         # session ـی Telegram retry ـی درێژ هەیە؛ بۆ Gemini نابێت webhook ـەکە وەستێنێت.
