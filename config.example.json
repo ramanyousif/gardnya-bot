@@ -13,6 +13,7 @@
   "blockLinks": true,
   "blockBadWords": true,
   "enableMirrorHours": true,
+  "mirrorQuoteAI": true,
   "enablePrayerTimes": true,
   "maxWarnings": 3,
   "autoMuteMinutes": 60

@@ -47,6 +47,7 @@ config = {
     "blockLinks": True,
     "blockBadWords": True,
     "enableMirrorHours": True,
+    "mirrorQuoteAI": True,
     "enablePrayerTimes": True,
     "maxWarnings": 3,
     "autoMuteMinutes": 60
@@ -2377,7 +2378,13 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
 
     # 🌟 AIی سەرەکی: Gemini، بە مێژووی کورتەی گفتوگۆ
     if GEMINI_API_KEY:
-        for gem_model in [str(config.get("geminiModel", "") or "").strip(), "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+        chat_models = list(dict.fromkeys([
+            str(config.get("geminiModel", "") or "").strip(),
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+        ]))
+        for gem_model in chat_models:
             if not gem_model:
                 continue
             try:
@@ -2403,7 +2410,8 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                             remember_ai_conversation(chat_id, user_id, question, answer)
                             return answer
                 elif r.status_code == 429:
-                    continue
+                    # quota پڕە؛ هەوڵی مۆدێلی تر هەمان quota زیاتر خەرج دەکات.
+                    break
             except Exception as e:
                 print(f"Gemini Error ({gem_model}): {e}")
 
@@ -2429,6 +2437,99 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
         "گیانەکەم هەر پرسیار یان داواکارییەکت هەبێت لێرەم! 💖🌸"
     ]
     return random.choice(fallbacks)
+
+MIRROR_QUOTE_FALLBACKS = [
+    "ئەوەی بە بڕواوە دەست پێ بکات، ڕێگای سەرکەوتن خۆی بۆ دەکاتەوە 💪✨",
+    "هەر هەنگاوێکی بچووک کە بەردەوام بێت، ڕۆژێک دەبێتە گۆڕانێکی گەورە 🌱🌟",
+    "هێز لەوەدا نییە هەرگیز نەکەویت؛ هێز ئەوەیە هەر جارە هەستیتەوە 🔥🤍",
+    "ژیان چاوەڕێی کەسی دوودڵ ناکات؛ بڕیار بدە و بە دڵنیایی بڕۆ پێشەوە 🚀✨",
+    "دڵێکی پاک و مێشکێکی ئارام، زۆرترین دەرگای داخراو دەکەنەوە 🕊️💛",
+    "کات بەفیڕۆ مەدە لە ترسی شکستهێنان؛ هەر هەوڵێک وانەیەکە بۆ سەرکەوتن 🌤️💪",
+    "بەهای تۆ بە قسەی خەڵک دیاری ناکرێت؛ بە کردەوە و بڕوای خۆت دیاری دەکرێت 👑✨",
+    "ئەگەر ڕێگاکە قورسە، واتە بەرەو شوێنێکی بەهادار دەڕۆیت ⛰️🔥",
+    "هیوای ڕاستەقینە لە تاریکی نامرێت؛ خۆی دەبێتە چرای ڕێگاکەت 🌙🕯️",
+    "ئارامی خۆت مەفرۆشە بە شتێک کە سبەی هیچ بایەخێکی نامێنێت 🤍🍃",
+    "ئەمڕۆ دەرفەتێکی نوێیە بۆ ئەوەی لە دوێنێی خۆت باشتر بیت ☀️🌱",
+    "سەرکەوتن دەنگی بەرز نییە؛ کۆی ئەو هەنگاوە بچووکانەیە کە بەردەوام دەیاننێیت 🛤️✨",
+]
+
+def clean_mirror_quote(text: str) -> str:
+    """وتەی AI بۆ پەخشی کاتژمێر پاک و کورت بکەرەوە."""
+    value = clean_ai_text(text or "")
+    value = re.sub(r"(?is)^```.*?\n|```$", "", value).strip()
+    value = value.strip(' \t\r\n\"“”«»❝❞')
+    value = re.sub(r"\s+", " ", value)
+    return value[:320].strip()
+
+def generate_mirror_hour_quote(time_label: str) -> str:
+    """وتەی ماناداری نوێ بە Gemini، Groq و پشتیوانی ناوخۆ دروست بکە."""
+    history = state_data.setdefault("mirror_quote_history", [])
+    recent = history[-120:]
+    used_hint = "\n".join(f"- {quote}" for quote in recent) or "- هیچ"
+    prompt = (
+        "Write exactly one original, powerful and meaningful quote in clear natural Sorani Kurdish "
+        f"for the mirror hour {time_label}. It must be warm, memorable, 12-28 words, and contain "
+        "only 1-2 fitting emojis. Do not use quotation marks, headings, explanations, religious claims, "
+        "or copy/closely paraphrase any used quote below.\nUsed quotes:\n" + used_hint
+    )
+
+    candidates = []
+    if GEMINI_API_KEY:
+        model_names = list(dict.fromkeys([
+            str(config.get("geminiModel", "") or "").strip(),
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+        ]))
+        for model_name in [name for name in model_names if name]:
+            try:
+                response = requests.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
+                    headers={"x-goog-api-key": GEMINI_API_KEY},
+                    json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {"maxOutputTokens": 100, "temperature": 1.05},
+                    },
+                    timeout=(8, 18),
+                )
+                if response.status_code == 200:
+                    parts = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                    candidates.append(" ".join(str(part.get("text") or "") for part in parts))
+                    break
+                if response.status_code == 429:
+                    break
+                if response.status_code not in {404, 429}:
+                    print(f"Mirror quote Gemini notice: HTTP {response.status_code}")
+                    break
+            except Exception as exc:
+                print(f"Mirror quote Gemini notice: {type(exc).__name__}")
+                break
+
+    if GROQ_API_KEY and not candidates:
+        messages = [{"role": "user", "content": prompt}]
+        for model_name in groq_model_candidates():
+            raw = request_groq_text(messages, model_name, max_tokens=100, temperature=1.0)
+            if raw:
+                candidates.append(raw)
+                break
+
+    for raw in candidates:
+        quote = clean_mirror_quote(raw)
+        if len(quote) >= 18 and game_content_is_new(quote, history, similarity_limit=0.86):
+            history.append(quote)
+            save_state()
+            return quote
+
+    for fallback in MIRROR_QUOTE_FALLBACKS:
+        if game_content_is_new(fallback, history, similarity_limit=0.86):
+            history.append(fallback)
+            save_state()
+            return fallback
+
+    today = datetime.datetime.now(KURDISTAN_UTC_OFFSET).strftime("%Y-%m-%d")
+    quote = f"هەر کاتێک دەست پێ دەکەیت، هیوایەکی نوێ دروست دەکەیت؛ ئەمڕۆ {today} ڕێگاکەت بە بڕوا بگرە 🌟"
+    history.append(quote)
+    save_state()
+    return quote
 
 def contains_bad_word(text: str) -> bool:
     if not text:
@@ -3115,6 +3216,7 @@ def build_health_report(chat_id: int) -> str:
     is_group_admin = bot_status in ["administrator", "creator"]
     is_creator = bot_status == "creator"
     ai_ready = bool(GROQ_API_KEY or GEMINI_API_KEY)
+    gemini_ready = bool(live_config_secret("geminiApiKey", "GEMINI_API_KEY"))
 
     can_send_welcome = bool(BOT_ID) and bot_status not in ["left", "kicked", "unknown"]
     if bot_status == "restricted":
@@ -3124,12 +3226,12 @@ def build_health_report(chat_id: int) -> str:
     checks.append(("بۆت ئەدمینی گروپە", is_group_admin))
     checks.append(("مۆڵەتی سڕینەوەی میدیا", is_creator or bool(member_info.get("can_delete_messages"))))
     checks.append(("مۆڵەتی بێدەنگ/باند", is_creator or bool(member_info.get("can_restrict_members"))))
-    security_ai_ready = bool(live_config_secret("geminiApiKey", "GEMINI_API_KEY"))
-    checks.append(("AIی سکوریتی ستیکەر/GIF/فۆروارد", security_ai_ready))
-    checks.append(("AIی گفتوگۆ", ai_ready))
+    checks.append(("Gemini بۆ سکوریتی ستیکەر/GIF/فۆروارد", gemini_ready))
+    checks.append(("Gemini وەک AIی سەرەکی گفتوگۆ", gemini_ready))
     checks.append(("یارییەکان بە AI و بێ دووبارە", ai_ready))
     checks.append(("مەتەڵەکان بە AI و بێ دووبارە", ai_ready))
     checks.append(("کاتژمێرە یەکسانەکان", config.get("enableMirrorHours", True)))
+    checks.append(("وتەی AIی کاتژمێر و بێ دووبارە", config.get("mirrorQuoteAI", True) and ai_ready))
     checks.append(("کاتی بانگەکان", config.get("enablePrayerTimes", True)))
     scheduler_last_loop = scheduler_status.get("last_loop", 0.0)
     scheduler_age = time.time() - scheduler_last_loop if scheduler_last_loop else None
@@ -3184,6 +3286,7 @@ def background_scheduler():
     scheduler_status["started_at"] = time.time()
     last_sent_minute = ""
     delivered_schedule_groups = {}
+    schedule_message_cache = {}
 
     while True:
         try:
@@ -3200,14 +3303,21 @@ def background_scheduler():
                     
                     item = MIRROR_HOURS_CONFIG[current_time]
                     time_label = item["time_label"]
-                    quote = item["quote"]
+                    schedule_key = f"{now.date().isoformat()}:{current_time}"
+                    quote = schedule_message_cache.get(schedule_key)
+                    if not quote:
+                        quote = (
+                            generate_mirror_hour_quote(time_label)
+                            if config.get("mirrorQuoteAI", True)
+                            else item["quote"]
+                        )
+                        schedule_message_cache[schedule_key] = quote
                     msg_text = (
                         f"✨ <b>کاتژمێری یەکسان: {time_label}</b> 💫\n"
                         f"━━━━━━━━━━━━━━━━━━\n"
                         f"❝ {quote} ❞"
                     )
                     group_ids = list(dict.fromkeys(state_data.get("groups", [])))
-                    schedule_key = f"{now.date().isoformat()}:{current_time}"
                     delivered = delivered_schedule_groups.setdefault(schedule_key, set())
                     for gid in group_ids:
                         if gid in delivered:
@@ -3255,6 +3365,7 @@ def background_scheduler():
             if len(delivered_schedule_groups) > 80:
                 for old_key in list(delivered_schedule_groups)[:-40]:
                     delivered_schedule_groups.pop(old_key, None)
+                    schedule_message_cache.pop(old_key, None)
             time.sleep(10)
         except Exception as e:
             print("Scheduler Exception:", e)
