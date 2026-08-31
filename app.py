@@ -36,6 +36,10 @@ scheduler_thread = None
 keepalive_thread = None
 scheduler_lock = threading.Lock()
 
+PA_USER = os.environ.get("PYTHONANYWHERE_DOMAIN", "").replace(".pythonanywhere.com", "") or os.environ.get("USER", "") or "raman1206"
+WEBHOOK_DOMAIN = f"{PA_USER}.pythonanywhere.com" if not PA_USER.endswith(".pythonanywhere.com") else PA_USER
+WEBHOOK_URL = f"https://{WEBHOOK_DOMAIN}/webhook"
+
 def keep_alive_worker():
     """Pings the web app every 3 minutes so PythonAnywhere WSGI worker never goes to sleep."""
     import time
@@ -43,7 +47,7 @@ def keep_alive_worker():
     time.sleep(20)
     while True:
         try:
-            requests.get("https://ramanyousif2002.pythonanywhere.com/health", timeout=15)
+            requests.get(f"https://{WEBHOOK_DOMAIN}/health", timeout=15)
         except Exception:
             pass
         time.sleep(180)
@@ -115,9 +119,6 @@ def git_pull():
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Auto-setup on app load
 # ═══════════════════════════════════════════════════════════════════════════════
-
-# Exact domain for ramanyousif2002
-WEBHOOK_URL = "https://ramanyousif2002.pythonanywhere.com/webhook"
 
 # Set Telegram webhook with chat_member support
 result = main_bot.tg_call("setWebhook", {
