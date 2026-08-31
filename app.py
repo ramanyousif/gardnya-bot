@@ -35,6 +35,13 @@ DEPLOY_SECRET = os.environ.get("GARDNYA_DEPLOY_SECRET", "").strip()
 scheduler_thread = None
 keepalive_thread = None
 scheduler_lock = threading.Lock()
+telegram_setup_thread = None
+telegram_setup_lock = threading.Lock()
+telegram_setup_status = {
+    "ok": False,
+    "last_attempt": 0.0,
+    "detail": "starting",
+}
 
 PA_USER = os.environ.get("PYTHONANYWHERE_DOMAIN", "").replace(".pythonanywhere.com", "") or os.environ.get("USER", "") or "raman1206"
 WEBHOOK_DOMAIN = f"{PA_USER}.pythonanywhere.com" if not PA_USER.endswith(".pythonanywhere.com") else PA_USER
@@ -80,6 +87,9 @@ def webhook():
     """Handle incoming Telegram updates via webhook."""
     received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
     if not WEBHOOK_SECRET or not hmac.compare_digest(received_secret, WEBHOOK_SECRET):
+        # ئەگەر token گۆڕدرابێت و Telegram هێشتا webhook ـی کۆنی هەبێت،
+        # ڕێکخستنەوەکە لە پاشبنەما دووبارە بکەوە.
+        ensure_telegram_configured(force=True)
         return "Forbidden", 403
     # Scheduler must be revived before handling /health, so its status is
     # visible in the same request after a WSGI worker restart.
@@ -101,7 +111,10 @@ def webhook():
 def health():
     """Health check endpoint."""
     ensure_scheduler_running()
-    return '✅ Bot healthy, scheduler running', 200
+    ensure_telegram_configured()
+    telegram_state = "ready" if telegram_setup_status["ok"] else telegram_setup_status["detail"]
+    bot_state = "ready" if main_bot.BOT_ID else "not-authenticated"
+    return f'✅ Bot healthy, scheduler running | Telegram: {telegram_state} | Bot: {bot_state}', 200
 
 @app.route('/pull', methods=['GET', 'POST'])
 def git_pull():
@@ -124,6 +137,7 @@ def configure_telegram_worker():
     """Telegram لە پاشبنەما ڕێکبخە تا دواکەوتنی تۆڕ WSGI بە 500 نەوەستێنێت."""
     import time
     time.sleep(1)
+    telegram_setup_status["last_attempt"] = time.time()
     main_bot.refresh_bot_identity()
     result = main_bot.tg_call("setWebhook", {
         "url": WEBHOOK_URL,
@@ -131,11 +145,31 @@ def configure_telegram_worker():
         "secret_token": WEBHOOK_SECRET,
     })
     if result and result.get("ok"):
+        telegram_setup_status["ok"] = True
+        telegram_setup_status["detail"] = "ready"
         print(f"🌐 Webhook set successfully: {WEBHOOK_URL}")
     else:
+        telegram_setup_status["ok"] = False
+        telegram_setup_status["detail"] = "setup-failed"
         print(f"⚠️ Webhook setup result: {result}")
 
-threading.Thread(target=configure_telegram_worker, daemon=True).start()
+def ensure_telegram_configured(force=False):
+    """Webhook لە کاتی startup و health خۆکار چاک و نوێ بکەرەوە."""
+    global telegram_setup_thread
+    import time
+    with telegram_setup_lock:
+        if telegram_setup_thread is not None and telegram_setup_thread.is_alive():
+            return
+        age = time.time() - telegram_setup_status["last_attempt"] if telegram_setup_status["last_attempt"] else 999999
+        if force and age < 30:
+            return
+        if not force and telegram_setup_status["ok"] and age < 900:
+            return
+        telegram_setup_status["detail"] = "repairing"
+        telegram_setup_thread = threading.Thread(target=configure_telegram_worker, daemon=True)
+        telegram_setup_thread.start()
+
+ensure_telegram_configured(force=True)
 
 # Start background scheduler
 ensure_scheduler_running()
