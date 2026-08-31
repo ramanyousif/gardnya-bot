@@ -556,7 +556,8 @@ def refresh_bot_identity() -> bool:
         return True
     return False
 
-refresh_bot_identity()
+# لە WSGI ـدا پەیوەندی تۆڕ لە کاتی import دەکرێت دەستپێکردنی ماڵپەڕ
+# بوەستێنێت و هەڵەی 500 دروست بکات. app.py لە پاشبنەما ناسنامەکە نوێ دەکاتەوە.
 
 def send_message(chat_id: int, text: str, reply_to: int = 0, thread_id: int = 0, parse_mode: str = "HTML", reply_markup: dict = None):
     body = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}

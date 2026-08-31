@@ -120,16 +120,22 @@ def git_pull():
 #  Auto-setup on app load
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Set Telegram webhook with chat_member support
-result = main_bot.tg_call("setWebhook", {
-    "url": WEBHOOK_URL,
-    "allowed_updates": ["message", "my_chat_member", "chat_member"],
-    "secret_token": WEBHOOK_SECRET,
-})
-if result and result.get("ok"):
-    print(f"🌐 Webhook set successfully: {WEBHOOK_URL}")
-else:
-    print(f"⚠️ Webhook setup result: {result}")
+def configure_telegram_worker():
+    """Telegram لە پاشبنەما ڕێکبخە تا دواکەوتنی تۆڕ WSGI بە 500 نەوەستێنێت."""
+    import time
+    time.sleep(1)
+    main_bot.refresh_bot_identity()
+    result = main_bot.tg_call("setWebhook", {
+        "url": WEBHOOK_URL,
+        "allowed_updates": ["message", "my_chat_member", "chat_member"],
+        "secret_token": WEBHOOK_SECRET,
+    })
+    if result and result.get("ok"):
+        print(f"🌐 Webhook set successfully: {WEBHOOK_URL}")
+    else:
+        print(f"⚠️ Webhook setup result: {result}")
+
+threading.Thread(target=configure_telegram_worker, daemon=True).start()
 
 # Start background scheduler
 ensure_scheduler_running()
