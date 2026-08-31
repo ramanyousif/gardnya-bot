@@ -37,7 +37,7 @@ config = {
     "geminiApiKey": os.environ.get("GEMINI_API_KEY", ""),
     "googleVisionApiKey": os.environ.get("GOOGLE_VISION_API_KEY", ""),
     "groqApiKey": os.environ.get("GROQ_API_KEY", ""),
-    "groqModel": "llama-3.3-70b-versatile",
+    "groqModel": "openai/gpt-oss-120b",
     "aiEnabled": True,
     "aiInPrivateChats": True,
     "aiHistoryMessages": 10,
@@ -111,7 +111,7 @@ GOOGLE_VISION_API_KEY = config_secret_or_env(
     "visionApiKey",
 )
 GROQ_API_KEY = config_secret_or_env("groqApiKey", "GROQ_API_KEY")
-GROQ_MODEL = config.get("groqModel", "llama-3.3-70b-versatile")
+GROQ_MODEL = config.get("groqModel", "openai/gpt-oss-120b")
 MAX_WARNINGS = int(config.get("maxWarnings", 3))
 AUTO_MUTE_MINUTES = int(config.get("autoMuteMinutes", 60))
 
@@ -168,8 +168,8 @@ if GROQ_API_KEY:
         print(f"Groq Init Warning: {e}")
 
 def groq_model_candidates():
-    """مۆدێلی کوردیی ڕوون سەرەتا؛ پاشان مۆدێلی config و جێگرەوەکان."""
-    models = ["llama-3.3-70b-versatile", config.get("groqModel", GROQ_MODEL), GROQ_MODEL, "openai/gpt-oss-120b"]
+    """مۆدێلی کارای config سەرەتا؛ پاشان جێگرەوەکان."""
+    models = [config.get("groqModel", GROQ_MODEL), GROQ_MODEL, "openai/gpt-oss-120b", "llama-3.3-70b-versatile"]
     return list(dict.fromkeys(model for model in models if model))
 
 def gemini_model_candidates(include_lite: bool = False) -> list:
@@ -242,7 +242,7 @@ def request_groq_text(messages: list, model_name: str, max_tokens: int = 800,
         print(f"Groq REST Notice ({model_name}): {type(exc).__name__}")
     return None
 
-print(f"🤖 AI Engine: {'Google Gemini ' + str(config.get('geminiModel', 'Flash')) if GEMINI_API_KEY else 'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'None'}")
+print(f"🤖 Chat AI Engine: {'Groq ' + GROQ_MODEL if GROQ_API_KEY else 'Google Gemini ' + str(config.get('geminiModel', 'Flash')) if GEMINI_API_KEY else 'None'}")
 print(f"🌍 Timezone: Kurdistan (UTC+3)")
 
 STATE_FILE = BASE_DIR / "data" / "state.json"
@@ -2406,7 +2406,17 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     history = get_ai_conversation(chat_id, user_id)
     system_prompt = f"{AI_SYSTEM_PROMPT}\n\n{AI_CONVERSATION_RULES}"
 
-    # 🌟 AIی سەرەکی: Gemini، بە مێژووی کورتەی گفتوگۆ
+    # 🌟 AIی سەرەکی: Groq، بە مێژووی کورتەی گفتوگۆ
+    if GROQ_API_KEY:
+        messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}]
+        for g_model in groq_model_candidates():
+            answer = request_groq_text(messages, g_model, max_tokens=800, temperature=0.75)
+            answer = clean_ai_text(answer)
+            if answer:
+                remember_ai_conversation(chat_id, user_id, question, answer)
+                return answer
+
+    # 🌟 پشتیوانی دووەم: Gemini، تەنها ئەگەر Groq وەڵام نەدات
     if GEMINI_API_KEY:
         for gem_model in gemini_model_candidates():
             try:
@@ -2440,16 +2450,6 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
             except Exception as e:
                 print(f"Gemini Error ({gem_model}): {e}")
                 continue
-
-    # 🌟 پشتیوانی دووەم: Groq، تەنها ئەگەر Gemini وەڵام نەدات
-    if GROQ_API_KEY:
-        messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}]
-        for g_model in groq_model_candidates():
-            answer = request_groq_text(messages, g_model, max_tokens=800, temperature=0.75)
-            answer = clean_ai_text(answer)
-            if answer:
-                remember_ai_conversation(chat_id, user_id, question, answer)
-                return answer
 
     # تەنها کاتێک AI بەردەست نەبوو، وەڵامی ئامادە بەکاربهێنە
     smart = get_smart_reply(question)
@@ -3241,6 +3241,7 @@ def build_health_report(chat_id: int) -> str:
     is_creator = bot_status == "creator"
     ai_ready = bool(GROQ_API_KEY or GEMINI_API_KEY)
     gemini_ready = bool(live_config_secret("geminiApiKey", "GEMINI_API_KEY"))
+    groq_ready = bool(live_config_secret("groqApiKey", "GROQ_API_KEY"))
 
     can_send_welcome = bool(BOT_ID) and bot_status not in ["left", "kicked", "unknown"]
     if bot_status == "restricted":
@@ -3251,7 +3252,8 @@ def build_health_report(chat_id: int) -> str:
     checks.append(("مۆڵەتی سڕینەوەی میدیا", is_creator or bool(member_info.get("can_delete_messages"))))
     checks.append(("مۆڵەتی بێدەنگ/باند", is_creator or bool(member_info.get("can_restrict_members"))))
     checks.append(("Gemini بۆ سکوریتی ستیکەر/GIF/فۆروارد", gemini_ready))
-    checks.append(("Gemini وەک AIی سەرەکی گفتوگۆ", gemini_ready))
+    checks.append(("Groq وەک AIی سەرەکی گفتوگۆ", groq_ready))
+    checks.append(("Gemini وەک جێگرەوەی گفتوگۆ", gemini_ready))
     checks.append(("یارییەکان بە AI و بێ دووبارە", ai_ready))
     checks.append(("مەتەڵەکان بە AI و بێ دووبارە", ai_ready))
     checks.append(("کاتژمێرە یەکسانەکان", config.get("enableMirrorHours", True)))
