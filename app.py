@@ -48,15 +48,7 @@ update_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="gardnya-
 processed_updates = {}
 processed_updates_lock = threading.Lock()
 
-pa_site = os.environ.get("PYTHONANYWHERE_SITE", "").strip()
-user_name = os.environ.get("USER", "").strip()
-if pa_site and "pythonanywhere.com" in pa_site and pa_site != "pythonanywhere.com":
-    WEBHOOK_DOMAIN = pa_site
-elif user_name and user_name not in ["root", "runner"]:
-    WEBHOOK_DOMAIN = f"{user_name}.pythonanywhere.com"
-else:
-    WEBHOOK_DOMAIN = "raman1206.pythonanywhere.com"
-
+WEBHOOK_DOMAIN = "raman1206.pythonanywhere.com"
 WEBHOOK_URL = f"https://{WEBHOOK_DOMAIN}/webhook"
 
 def keep_alive_worker():
@@ -142,9 +134,10 @@ def process_telegram_update(data):
 def health():
     """Health check endpoint."""
     ensure_scheduler_running()
-    ensure_telegram_configured()
+    if not telegram_setup_status["ok"] or not main_bot.BOT_ID:
+        configure_telegram_worker()
     telegram_state = "ready" if telegram_setup_status["ok"] else telegram_setup_status["detail"]
-    bot_state = "ready" if main_bot.BOT_ID else "not-authenticated"
+    bot_state = f"ready(ID:{main_bot.BOT_ID})" if main_bot.BOT_ID else "not-authenticated"
     groq_state = "configured" if main_bot.GROQ_API_KEY else "missing-key"
     gemini_state = "configured" if main_bot.GEMINI_API_KEY else "missing-key"
     tok = main_bot.BOT_TOKEN or ""
@@ -172,9 +165,7 @@ def git_pull():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def configure_telegram_worker():
-    """Telegram لە پاشبنەما ڕێکبخە تا دواکەوتنی تۆڕ WSGI بە 500 نەوەستێنێت."""
-    import time
-    time.sleep(1)
+    """Telegram ڕێکبخە و ناسنامەی بۆت لە تێلێگرام نوێ بکەرەوە."""
     telegram_setup_status["last_attempt"] = time.time()
     main_bot.refresh_bot_identity()
     live_tok = main_bot.BOT_TOKEN or ""
@@ -193,7 +184,7 @@ def configure_telegram_worker():
     else:
         telegram_setup_status["ok"] = False
         telegram_setup_status["detail"] = (
-            "invalid-token" if result and result.get("error_code") == 401 else "setup-failed"
+            "invalid-token" if result and result.get("error_code") == 401 else (result.get("description", "setup-failed") if result else "no-response")
         )
         print(f"⚠️ Webhook setup result: {result}")
 
