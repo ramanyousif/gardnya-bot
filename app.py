@@ -147,9 +147,11 @@ def health():
     bot_state = "ready" if main_bot.BOT_ID else "not-authenticated"
     groq_state = "configured" if main_bot.GROQ_API_KEY else "missing-key"
     gemini_state = "configured" if main_bot.GEMINI_API_KEY else "missing-key"
+    tok = main_bot.BOT_TOKEN or ""
+    tok_preview = f"{tok[:6]}...{tok[-4:]}" if len(tok) > 10 else ("none" if not tok else "short")
     return (
-        f'✅ Bot healthy, scheduler running | Telegram: {telegram_state} | Bot: {bot_state} '
-        f'| Groq: {groq_state} | Gemini: {gemini_state}'
+        f'✅ Bot healthy, scheduler running | Telegram: {telegram_state} | Bot: {bot_state} ({tok_preview}) '
+        f'| Groq: {groq_state} | Gemini: {gemini_state} | Domain: {WEBHOOK_DOMAIN}'
     ), 200
 
 @app.route('/pull', methods=['GET', 'POST'])
@@ -175,10 +177,14 @@ def configure_telegram_worker():
     time.sleep(1)
     telegram_setup_status["last_attempt"] = time.time()
     main_bot.refresh_bot_identity()
+    live_tok = main_bot.BOT_TOKEN or ""
+    sec = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "").strip()
+    if not sec and live_tok:
+        sec = hashlib.sha256(live_tok.encode("utf-8")).hexdigest()
     result = main_bot.tg_call("setWebhook", {
         "url": WEBHOOK_URL,
         "allowed_updates": ["message", "my_chat_member", "chat_member"],
-        "secret_token": WEBHOOK_SECRET,
+        "secret_token": sec,
     })
     if result and result.get("ok"):
         telegram_setup_status["ok"] = True

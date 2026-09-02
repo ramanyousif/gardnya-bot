@@ -557,7 +557,11 @@ BOT_ID = 0
 
 def refresh_bot_identity() -> bool:
     """دوای 503 ـی دەستپێکیش ناسنامەی بۆت خۆکار دووبارە وەربگرە."""
-    global BOT_ID
+    global BOT_ID, BOT_TOKEN, API_BASE
+    fresh_token = live_config_secret("token", "TELEGRAM_BOT_TOKEN")
+    if fresh_token:
+        BOT_TOKEN = fresh_token
+        API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
     me_data = tg_call("getMe")
     if me_data and me_data.get("ok"):
         BOT_ID = me_data["result"]["id"]
