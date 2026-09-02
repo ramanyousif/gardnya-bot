@@ -3371,13 +3371,17 @@ def background_scheduler():
                     )
                     group_ids = list(dict.fromkeys(state_data.get("groups", [])))
                     delivered = delivered_schedule_groups.setdefault(schedule_key, set())
+                    persisted_delivered = state_data.setdefault("last_broadcasts", {}).setdefault(schedule_key, [])
                     for gid in group_ids:
-                        if gid in delivered:
+                        gid_str = str(gid)
+                        if gid in delivered or gid in persisted_delivered or gid_str in persisted_delivered:
                             continue
                         result = send_message(gid, msg_text)
                         if result and result.get("ok"):
                             delivered.add(gid)
-                    if not group_ids or all(gid in delivered for gid in group_ids):
+                            persisted_delivered.append(gid_str)
+                            save_state()
+                    if not group_ids or all(gid in delivered or str(gid) in persisted_delivered for gid in group_ids):
                         print(f"✨ Broadcasted mirror hour {current_time} ({time_label}) to groups")
                         scheduler_status["last_delivery"] = f"{schedule_key} mirror {len(delivered)}/{len(group_ids)}"
                         scheduler_status["last_error"] = ""
@@ -3399,13 +3403,17 @@ def background_scheduler():
                     group_ids = list(dict.fromkeys(state_data.get("groups", [])))
                     schedule_key = f"{now.date().isoformat()}:{current_time}"
                     delivered = delivered_schedule_groups.setdefault(schedule_key, set())
+                    persisted_delivered = state_data.setdefault("last_broadcasts", {}).setdefault(schedule_key, [])
                     for gid in group_ids:
-                        if gid in delivered:
+                        gid_str = str(gid)
+                        if gid in delivered or gid in persisted_delivered or gid_str in persisted_delivered:
                             continue
                         result = send_message(gid, p_msg)
                         if result and result.get("ok"):
                             delivered.add(gid)
-                    if not group_ids or all(gid in delivered for gid in group_ids):
+                            persisted_delivered.append(gid_str)
+                            save_state()
+                    if not group_ids or all(gid in delivered or str(gid) in persisted_delivered for gid in group_ids):
                         print(f"🕌 Broadcasted prayer time {current_time} ({p_info['name']}) to groups")
                         scheduler_status["last_delivery"] = f"{schedule_key} prayer {len(delivered)}/{len(group_ids)}"
                         scheduler_status["last_error"] = ""
@@ -3418,6 +3426,10 @@ def background_scheduler():
                 for old_key in list(delivered_schedule_groups)[:-40]:
                     delivered_schedule_groups.pop(old_key, None)
                     schedule_message_cache.pop(old_key, None)
+            if len(state_data.get("last_broadcasts", {})) > 60:
+                for old_k in list(state_data["last_broadcasts"].keys())[:-30]:
+                    state_data["last_broadcasts"].pop(old_k, None)
+                save_state()
             time.sleep(10)
         except Exception as e:
             print("Scheduler Exception:", e)
