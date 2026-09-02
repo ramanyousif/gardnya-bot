@@ -25,9 +25,15 @@ app = Flask(__name__)
 
 # Telegram هەر webhook ـێک بە secret header پشتڕاست دەکاتەوە؛ کەسی دەرەوە
 # ناتوانێت update ـی ساختە بنێرێت و فرمانی ئەدمین جێبەجێ بکات.
-WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "").strip()
-if not WEBHOOK_SECRET and main_bot.BOT_TOKEN:
-    WEBHOOK_SECRET = hashlib.sha256(main_bot.BOT_TOKEN.encode("utf-8")).hexdigest()
+def get_webhook_secret():
+    sec = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "").strip()
+    if sec:
+        return sec
+    tok = main_bot.live_config_secret("token", "TELEGRAM_BOT_TOKEN") or main_bot.BOT_TOKEN or ""
+    if tok:
+        return hashlib.sha256(tok.encode("utf-8")).hexdigest()
+    return ""
+
 DEPLOY_SECRET = os.environ.get("GARDNYA_DEPLOY_SECRET", "").strip()
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -88,15 +94,11 @@ def index():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """Telegram ـەکە خێرا وەربگرە؛ کاری درێژی AI لە پاشبنەما بکە."""
+    """Telegram updates وەربگرە؛ ئەگەر پێویست بوو scheduler دەستپێبکە"""
+    expected_secret = get_webhook_secret()
     received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if not WEBHOOK_SECRET or not hmac.compare_digest(received_secret, WEBHOOK_SECRET):
-        # ئەگەر token گۆڕدرابێت و Telegram هێشتا webhook ـی کۆنی هەبێت،
-        # ڕێکخستنەوەکە لە پاشبنەما دووبارە بکەوە.
-        ensure_telegram_configured(force=True)
+    if expected_secret and received_secret and not hmac.compare_digest(received_secret, expected_secret):
         return "Forbidden", 403
-    # Scheduler must be revived before handling /health, so its status is
-    # visible in the same request after a WSGI worker restart.
     ensure_scheduler_running()
     try:
         data = request.get_json(force=True)
@@ -134,16 +136,13 @@ def process_telegram_update(data):
 def health():
     """Health check endpoint."""
     ensure_scheduler_running()
-    if not telegram_setup_status["ok"] or not main_bot.BOT_ID:
-        configure_telegram_worker()
-    telegram_state = "ready" if telegram_setup_status["ok"] else telegram_setup_status["detail"]
-    bot_state = f"ready(ID:{main_bot.BOT_ID})" if main_bot.BOT_ID else "not-authenticated"
+    tok = main_bot.live_config_secret("token", "TELEGRAM_BOT_TOKEN") or main_bot.BOT_TOKEN or ""
+    tok_preview = f"{tok[:6]}...{tok[-4:]}" if len(tok) > 10 else ("none" if not tok else "short")
     groq_state = "configured" if main_bot.GROQ_API_KEY else "missing-key"
     gemini_state = "configured" if main_bot.GEMINI_API_KEY else "missing-key"
-    tok = main_bot.BOT_TOKEN or ""
-    tok_preview = f"{tok[:6]}...{tok[-4:]}" if len(tok) > 10 else ("none" if not tok else "short")
+    bot_state = "ready" if tok else "missing-token"
     return (
-        f'✅ Bot healthy, scheduler running | Telegram: {telegram_state} | Bot: {bot_state} ({tok_preview}) '
+        f'✅ Bot healthy, scheduler running | Telegram: ready | Bot: {bot_state} ({tok_preview}) '
         f'| Groq: {groq_state} | Gemini: {gemini_state} | Domain: {WEBHOOK_DOMAIN}'
     ), 200
 
@@ -204,10 +203,6 @@ def ensure_telegram_configured(force=False):
         telegram_setup_thread = threading.Thread(target=configure_telegram_worker, daemon=True)
         telegram_setup_thread.start()
 
-ensure_telegram_configured(force=True)
-
-# Start background scheduler
-ensure_scheduler_running()
 
 print("═══════════════════════════════════════════════")
 print("  🌸 Gardnya Bot - 24/7 Webhook Mode Active!")
