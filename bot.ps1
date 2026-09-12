@@ -340,7 +340,7 @@ function Invoke-GeminiReply {
             parts = @(@{ text = $SystemPrompt })
         }
         generationConfig = @{
-            maxOutputTokens = 300
+            maxOutputTokens = 800
             temperature = 0.65
         }
     }
@@ -400,7 +400,7 @@ function Invoke-GroqReply {
     }
     $messages += @{ role = "user"; content = $Question }
 
-    $bodyObj = @{ model = $model; messages = $messages; max_tokens = 120; temperature = 0.5 }
+    $bodyObj = @{ model = $model; messages = $messages; max_tokens = 1000; temperature = 0.5 }
     $jsonStr = $bodyObj | ConvertTo-Json -Depth 20
     $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($jsonStr)
 

@@ -2450,7 +2450,7 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                 body = {
                     "contents": contents,
                     "systemInstruction": {"parts": [{"text": system_prompt}]},
-                    "generationConfig": {"maxOutputTokens": 500, "temperature": 0.65}
+                    "generationConfig": {"maxOutputTokens": 800, "temperature": 0.65}
                 }
                 r = requests.post(url, json=body, timeout=15)
                 if r.status_code == 200:
@@ -2477,7 +2477,7 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     if groq_key:
         messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}]
         for g_model in groq_model_candidates():
-            answer = request_groq_text(messages, g_model, max_tokens=500, temperature=0.65)
+            answer = request_groq_text(messages, g_model, max_tokens=1500, temperature=0.65)
             answer = clean_ai_text(answer)
             if answer:
                 remember_ai_conversation(chat_id, user_id, question, answer)
