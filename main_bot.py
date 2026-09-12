@@ -178,19 +178,19 @@ def groq_model_candidates(prefer_creative: bool = False):
     return list(dict.fromkeys(model for model in models if model))
 
 def gemini_model_candidates(include_lite: bool = False) -> list:
-    """مۆدێلی سەرەکی و جێگرەوەکان؛ پڕبوونی یەک مۆدێل نابێت AI بوەستێنێت."""
+    """مۆدێلی سەرەکی و جێگرەوەکان؛ نوێترین مۆدێلە کاراکانی Google Gemini لەپێشەوەن."""
     models = [
         str(config.get("geminiModel", "") or "").strip(),
-        "gemini-3.1-flash-lite",
-        "gemini-3.7-flash",
+        "gemini-3.8-flash",
         "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-flash-lite-latest",
         "gemini-flash-latest",
-        "gemini-2.5-flash",
+        "gemini-3.7-flash",
+        "gemini-3.5-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-flash-lite-latest",
     ]
     if include_lite:
-        models.extend(["gemini-3.5-flash-lite", "gemini-2.5-flash-lite"])
+        models.extend(["gemini-3.5-flash-lite", "gemini-3.1-flash-lite-preview"])
     return list(dict.fromkeys(model for model in models if model))
 
 def gemini_retryable_response(response) -> bool:
@@ -1768,26 +1768,12 @@ def parse_ai_json(raw_text: str):
         return None
 
 def request_game_ai_json(prompt: str, max_tokens: int = 300, temperature: float = 0.9):
-    """دروستکردنی ناوەڕۆکی یاری بە Groq و، ئەگەر نەکرا، بە Gemini."""
-    if GROQ_API_KEY:
-        for model_name in groq_model_candidates():
-            # هەندێک مۆدێل response_format وەرناگرن؛ بۆیە بە هەردوو شێوەکە هەوڵ دەدرێت.
-            for use_json_mode in [True, False]:
-                raw = request_groq_text(
-                    [{"role": "user", "content": prompt}],
-                    model_name,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    json_mode=use_json_mode,
-                )
-                parsed = parse_ai_json(raw)
-                if parsed:
-                    return parsed
-
-    if GEMINI_API_KEY:
-        for model_name in ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"]:
+    """دروستکردنی ناوەڕۆکی یاری بە Gemini و، ئەگەر نەکرا، بە Groq."""
+    gemini_key = live_config_secret("geminiApiKey", "GEMINI_API_KEY") or GEMINI_API_KEY
+    if gemini_key:
+        for model_name in gemini_model_candidates():
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
                 for use_json_mode in [True, False]:
                     generation_config = {"maxOutputTokens": max_tokens, "temperature": temperature}
                     if use_json_mode:
@@ -1804,10 +1790,28 @@ def request_game_ai_json(prompt: str, max_tokens: int = 300, temperature: float 
                             parsed = parse_ai_json(raw)
                             if parsed:
                                 return parsed
-                    elif response.status_code not in [400, 429]:
+                    elif gemini_retryable_response(response):
+                        continue
+                    else:
                         break
             except Exception as e:
                 print(f"Game AI Gemini Notice ({model_name}): {e}")
+
+    groq_key = live_config_secret("groqApiKey", "GROQ_API_KEY") or GROQ_API_KEY
+    if groq_key:
+        for model_name in groq_model_candidates():
+            # هەندێک مۆدێل response_format وەرناگرن؛ بۆیە بە هەردوو شێوەکە هەوڵ دەدرێت.
+            for use_json_mode in [True, False]:
+                raw = request_groq_text(
+                    [{"role": "user", "content": prompt}],
+                    model_name,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    json_mode=use_json_mode,
+                )
+                parsed = parse_ai_json(raw)
+                if parsed:
+                    return parsed
     return None
 
 def game_history_hint(used_items, limit: int = 80) -> str:
@@ -2432,21 +2436,12 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     history = get_ai_conversation(chat_id, user_id)
     system_prompt = f"{AI_SYSTEM_PROMPT}\n\n{AI_CONVERSATION_RULES}"
 
-    # 🌟 AIی سەرەکی: Groq، بە مێژووی کورتەی گفتوگۆ
-    if GROQ_API_KEY:
-        messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}]
-        for g_model in groq_model_candidates():
-            answer = request_groq_text(messages, g_model, max_tokens=500, temperature=0.65)
-            answer = clean_ai_text(answer)
-            if answer:
-                remember_ai_conversation(chat_id, user_id, question, answer)
-                return answer
-
-    # 🌟 پشتیوانی دووەم: Gemini، تەنها ئەگەر Groq وەڵام نەدات
-    if GEMINI_API_KEY:
+    # 🌟 AIی سەرەکی: Google Gemini، بە مێژووی کورتەی گفتوگۆ
+    gemini_key = live_config_secret("geminiApiKey", "GEMINI_API_KEY") or GEMINI_API_KEY
+    if gemini_key:
         for gem_model in gemini_model_candidates():
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={GEMINI_API_KEY}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={gemini_key}"
                 contents = [
                     {"role": "model" if item["role"] == "assistant" else "user", "parts": [{"text": item["content"]}]}
                     for item in history
@@ -2472,10 +2467,21 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                     continue
                 else:
                     print(f"Gemini notice ({gem_model}): HTTP {r.status_code}")
-                    break
+                    continue
             except Exception as e:
                 print(f"Gemini Error ({gem_model}): {e}")
                 continue
+
+    # 🌟 پشتیوانی دووەم (Fallback): Groq، تەنها ئەگەر Gemini وەڵام نەدات
+    groq_key = live_config_secret("groqApiKey", "GROQ_API_KEY") or GROQ_API_KEY
+    if groq_key:
+        messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}]
+        for g_model in groq_model_candidates():
+            answer = request_groq_text(messages, g_model, max_tokens=500, temperature=0.65)
+            answer = clean_ai_text(answer)
+            if answer:
+                remember_ai_conversation(chat_id, user_id, question, answer)
+                return answer
 
     # تەنها کاتێک AI بەردەست نەبوو، وەڵامی ئامادە بەکاربهێنە
     smart = get_smart_reply(question)

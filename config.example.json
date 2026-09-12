@@ -1,9 +1,10 @@
 {
   "token": "YOUR_TELEGRAM_BOT_TOKEN",
   "botUsername": "gardny4_bot",
-  "groqApiKey": "YOUR_GROQ_API_KEY",
+  "primaryAi": "gemini",
   "geminiApiKey": "YOUR_GEMINI_API_KEY",
-  "geminiModel": "gemini-2.5-flash",
+  "geminiModel": "gemini-3.8-flash",
+  "groqApiKey": "YOUR_GROQ_API_KEY",
   "groqModel": "qwen/qwen3.8-27b",
   "aiEnabled": true,
   "aiInPrivateChats": true,

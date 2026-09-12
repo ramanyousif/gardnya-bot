@@ -1,4 +1,4 @@
-# ═══════════════════════════════════════════════════════════════════════════════
+﻿# ═══════════════════════════════════════════════════════════════════════════════
 #  بوتی گاردنیا - بەڕێوەبەر و ژیریی دەستکردی تیلیگرام (Gardnya Security & AI Bot)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -74,6 +74,9 @@ function Get-RandomItem {
 $Config = @{
     token                       = $env:TELEGRAM_BOT_TOKEN
     botUsername                  = "gardny4_bot"
+    primaryAi                   = "gemini"
+    geminiApiKey                = $env:GEMINI_API_KEY
+    geminiModel                 = "gemini-3.8-flash"
     groqApiKey                  = $env:GROQ_API_KEY
     groqModel                   = "llama-3.3-70b-versatile"
     aiEnabled                   = $true
@@ -302,6 +305,87 @@ function Invoke-CleanAIAnswer {
     return $clean.Trim()
 }
 
+function Invoke-GeminiReply {
+    param([string]$SystemPrompt, [array]$History, [string]$Question)
+    $apiKey = [string]$script:Config.geminiApiKey
+    if ([string]::IsNullOrWhiteSpace($apiKey)) { return $null }
+
+    $models = @(
+        [string]$script:Config.geminiModel,
+        "gemini-3.8-flash",
+        "gemini-3.6-flash",
+        "gemini-flash-latest",
+        "gemini-3.7-flash",
+        "gemini-3.5-flash"
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+
+    $contents = @()
+    foreach ($item in $History) {
+        if ($item -is [System.Collections.IDictionary] -and $item.Contains("role") -and $item.Contains("content")) {
+            $r = if ($item["role"] -eq "assistant") { "model" } else { "user" }
+            $contents += @{
+                role = $r
+                parts = @(@{ text = [string]$item["content"] })
+            }
+        }
+    }
+    $contents += @{
+        role = "user"
+        parts = @(@{ text = $Question })
+    }
+
+    $bodyObj = @{
+        contents = $contents
+        systemInstruction = @{
+            parts = @(@{ text = $SystemPrompt })
+        }
+        generationConfig = @{
+            maxOutputTokens = 300
+            temperature = 0.65
+        }
+    }
+
+    $jsonStr = $bodyObj | ConvertTo-Json -Depth 20
+    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($jsonStr)
+
+    foreach ($model in $models) {
+        try {
+            $uri = "https://generativelanguage.googleapis.com/v1beta/models/$($model):generateContent?key=$apiKey"
+            $req = [System.Net.HttpWebRequest]::Create($uri)
+            $req.Method = "POST"
+            $req.Timeout = 15000
+            $req.ContentType = "application/json; charset=utf-8"
+            $req.ContentLength = $bodyBytes.Length
+
+            $stream = $req.GetRequestStream()
+            $stream.Write($bodyBytes, 0, $bodyBytes.Length)
+            $stream.Close()
+
+            $resp = $req.GetResponse()
+            $reader = New-Object System.IO.StreamReader($resp.GetResponseStream(), [System.Text.Encoding]::UTF8)
+            $respStr = $reader.ReadToEnd()
+            $reader.Close()
+            $resp.Close()
+
+            if ([string]::IsNullOrWhiteSpace($respStr)) { continue }
+            $parsed = $respStr | ConvertFrom-Json
+            if ($parsed.candidates -and $parsed.candidates.Count -gt 0) {
+                $cand = $parsed.candidates[0]
+                if ($cand.content -and $cand.content.parts -and $cand.content.parts.Count -gt 0) {
+                    $ans = [string]$cand.content.parts[0].text
+                    if (-not [string]::IsNullOrWhiteSpace($ans)) {
+                        return $ans
+                    }
+                }
+            }
+        } catch {
+            Write-Warning "Gemini ($model): $($_.Exception.Message)"
+            continue
+        }
+    }
+    return $null
+}
+
 function Invoke-GroqReply {
     param([string]$SystemPrompt, [array]$History, [string]$Question)
     $apiKey = [string]$script:Config.groqApiKey
@@ -365,11 +449,6 @@ function Get-AIReply {
     param([Int64]$ChatId, [Int64]$UserId, [string]$Question)
     if (-not [bool]$script:Config.aiEnabled) { return "" }
 
-    $smart = Get-SmartReply $Question
-    if (-not [string]::IsNullOrWhiteSpace($smart)) {
-        return $smart
-    }
-
     $historyKey = "$($ChatId):$($UserId)"
     $history = @()
     if ($script:State["aiHistory"].ContainsKey($historyKey) -and $null -ne $script:State["aiHistory"][$historyKey]) {
@@ -378,13 +457,33 @@ function Get-AIReply {
     $sysPrompt = [string]$script:Config.aiSystemPrompt
     $answer = ""
 
-    if (-not [string]::IsNullOrWhiteSpace($script:Config.groqApiKey)) {
+    # 🌟 ژیریی دەستکردی سەرەکی: Google Gemini
+    if (-not [string]::IsNullOrWhiteSpace($script:Config.geminiApiKey)) {
+        try {
+            $answer = Invoke-GeminiReply $sysPrompt $history $Question
+            $answer = Invoke-CleanAIAnswer $answer
+        } catch {
+            Write-Warning "Gemini: $($_.Exception.Message)"
+            $answer = ""
+        }
+    }
+
+    # 🌟 پشتیوانی دووەم (Fallback): Groq ئەگەر Gemini لەکاربکەوێت
+    if ([string]::IsNullOrWhiteSpace($answer) -and -not [string]::IsNullOrWhiteSpace($script:Config.groqApiKey)) {
         try {
             $answer = Invoke-GroqReply $sysPrompt $history $Question
             $answer = Invoke-CleanAIAnswer $answer
         } catch {
             Write-Warning "Groq: $($_.Exception.Message)"
             $answer = ""
+        }
+    }
+
+    # تەنها ئەگەر AI وەڵامی نەبوو، سەیری جوابی ئامادەکراو بکە
+    if ([string]::IsNullOrWhiteSpace($answer)) {
+        $smart = Get-SmartReply $Question
+        if (-not [string]::IsNullOrWhiteSpace($smart)) {
+            return $smart
         }
     }
 
@@ -751,7 +850,8 @@ Save-State
 
 Write-Host "===============================================" -ForegroundColor Cyan
 Write-Host "  Gardnya Security & AI Protection Bot Started!" -ForegroundColor Green
-Write-Host "  AI Model: $($Config.groqModel)" -ForegroundColor Yellow
+Write-Host "  Primary AI: Google Gemini ($($Config.geminiModel))" -ForegroundColor Yellow
+Write-Host "  Fallback AI: Groq ($($Config.groqModel))" -ForegroundColor DarkYellow
 Write-Host "  All Security & Anti-Spam Protections Active" -ForegroundColor Yellow
 Write-Host "===============================================" -ForegroundColor Cyan
 Write-Host "  Ctrl+C to stop" -ForegroundColor DarkGray
