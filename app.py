@@ -54,7 +54,20 @@ update_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="gardnya-
 processed_updates = {}
 processed_updates_lock = threading.Lock()
 
-WEBHOOK_DOMAIN = "raman1206.pythonanywhere.com"
+def resolve_webhook_domain():
+    site = os.environ.get("PYTHONANYWHERE_SITE", "").strip()
+    if site:
+        return site
+    user = os.environ.get("USER", "").strip()
+    if not user:
+        home = os.environ.get("HOME", "").strip()
+        if "/home/" in home:
+            user = home.split("/home/")[-1].split("/")[0].strip()
+    if user:
+        return f"{user}.pythonanywhere.com"
+    return "ramanyousif2002.pythonanywhere.com"
+
+WEBHOOK_DOMAIN = resolve_webhook_domain()
 WEBHOOK_URL = f"https://{WEBHOOK_DOMAIN}/webhook"
 
 def keep_alive_worker():
