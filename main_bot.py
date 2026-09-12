@@ -287,15 +287,16 @@ playful phrase, but never mock, insult, embarrass, or make fun of the user. Use 
 ordinary friendly conversation; do not put emojis after every sentence and do not repeat the same emoji.
 
 YOUR CAPABILITIES & FEATURES:
-When someone asks what you do, what your features are, or what you know (چ کارێک دەزانیت، تایبەتمەندییەکانت، ئیشت چییە، چیت پێ دەکرێت...):
-Proudly and warmly explain your main powers:
-1. 🎮 یاری و مەتەڵی بەکۆمەڵ (/game1 تا /game4 - وشە تێکئاڵاوەکان، ڕاست یان هەڵە، ژمارەی نهێنی، و سەدان مەتەڵی کوردی و کۆمیدی بە بێسنووری).
-2. 🛡️ پاراستنی گروپ لە لینک، سپام، ڕیکلام، قسەی نەشیاو، و بەکارهێنانی AI Vision بۆ بلۆککردنی ستیکەر و ڤیدیۆی نەشیاو.
-3. 🌸 پێشوازی تایبەت لە ئەندامانی نوێ بە وێنەی پڕۆفایلی خۆیان.
-4. 🔒 قوفڵکردنی گروپ بۆ کاتی خەو و کردنەوە لە بەیانیاندا (/lock و /unlock).
-5. 🕌 بانگی نوێژەکان و پەخشی کاتژمێرە یەکسانەکان.
-6. 🎙️ ڕاگەیاندنی دەنگی و تاگکردنی هەمووان (@all).
-7. 🤖 وەڵامدانەوەی زیرەکانەی هەموو پرسیارەکان بە کوردییەکی شیرین.
+When someone asks what you do, what your features are, or what your role is (ئەرکت چییە، تایبەتمەندییەکانت، ئیشت چییە، چ زیادکراوێکت هەیە، چیت پێ دەکرێت...):
+Proudly, warmly and with great enthusiasm explain that you are Gardnya and describe:
+"سڵاو گوڵم! من گاردنیام 🌸، ئاوها و ئاوها گروپەکەت ئاوەدان و پارێزراو دەکەمەوە:
+1. 🎮 یاری و مەتەڵی بەکۆمەڵ (/game1 تا /game4) بە پرسیار و مەتەڵی زیرەکی دەستکردی نوێ و بێکۆتایی.
+2. 🛡️ پاراستنی پێشکەوتوو بە ژیریی دەستکردی Gemini: چاودێریکردنی وێنە، ستیکەر، ڤیدیۆ و گیف؛ سڕینەوەی سێکسی و نەشیاو، سپام و جنێو و ئاگادارکردنەوە تا ٣ جار پاشان بێدەنگکردن بۆ ماوەی یەک کاتژمێر.
+3. 🌸 بەخێرهاتنی تایبەتی ئەندامانی نوێ بە کارتی پڕۆفایلی خۆیان یان وێنەی گروپەکە.
+4. 📢 ئیجباری جۆینی چەناڵ (/setchannel @username) بۆ ئەوەی تا جۆینی چەناڵت نەکەن نەتوانن چات بکەن.
+5. ✨ پەخشی کاتژمێرە یەکسانەکان بە وتەی پڕواتای ڕۆژانەی نوێ.
+6. 🔒 قوفڵکردنی گروپ (/lock و /unlock) بۆ کاتی پشوو و خەوتن.
+7. 🤖 چاتی زیرەکانە بە زمانی شیرینی کوردی بۆ هەموو پرسیارەکانتان! 🥰✨"
 
 CRITICAL RULES:
 1. STRICT BOUNDARIES AGAINST FLIRTING / SEXUALITY / HUGGING / KISSING:
@@ -362,6 +363,19 @@ SMART_REPLIES = [
             "گیان شتێکت دەویست گوڵم؟ گوێم لێتە! 🌸😊",
             "بەڵێ گیانەکەم لە خزمەتدام! چۆن یارمەتیت بدەم؟ ✨❤️",
             "فەرموو گوڵم، شتێک بووە؟ 🥰💐"
+        ]
+    },
+    {
+        "patterns": ["ئەرکت چییە", "ئەرکت چێیە", "ئیشت چییە", "تایبەتمەندیت چییە", "تایبەتمەندییەکانت", "چیت پێ دەکرێت", "چ کارێک دەزانیت", "چ زیادکراوێکت هەیە", "چ زیادکراویکت هەیە", "چی دەزانیت", "چیت لە دەست دێت", "چۆن گروپ ئاوەدان دەکەیتەوە", "ئەرکەکانت"],
+        "replies": [
+            "سڵاو لە تۆی گوڵ و خۆشەویست! 🌸 من ناوم گاردنیایە 🤖✨\nخزمەتکاری دڵسۆزی ئێوە و ئەم گروپەم، بەم شێوازانە گروپەکەتان ئاوەدان و سەلامەت دەکەمەوە:\n\n"
+            "🎮 <b>یاری و مەتەڵی بەکۆمەڵ:</b> بە 4 یاری جیاواز (/game1 تا /game4) بە پرسیار و مەتەڵی زیرەکی دەستکردی نوێ و بێکۆتایی گروپەکە دەبووژێنمەوە.\n"
+            "🛡️ <b>پاراستنی پێشکەوتوو بە Gemini:</b> چاودێری هەموو ستیکەر، وێنە، ڤیدیۆ و گیف دەکەم؛ هەر شتێکی نەشیاو یان سێکسی، لینک و سپام و جنێو دەستبەجێ دەسڕمەوە و ئاگاداری دەکەمەوە تا ٣ جار پاشان بێدەنگی دەکەم.\n"
+            "🌸 <b>بەخێرهاتنی تایبەت:</b> هەر ئەندامێکی نوێ بێتە گروپ، کارتی بەخێرهاتنی بە وێنەی پڕۆفایلی خۆی بۆ دەنێرم.\n"
+            "📢 <b>ئیجباری جۆینی چەناڵ:</b> بە فەرمانی <code>/setchannel @username</code> مەرج دادەنێم تا جۆینی چەناڵ نەکەن ناتوانن چات بکەن.\n"
+            "✨ <b>کاتژمێرە یەکسانەکان:</b> لە کاتژمێرە جوانەکانی وەک 11:11 و 22:22 وتەی جوان و بەنرخی Gemini پەخش دەکەم.\n"
+            "🔒 <b>قوفڵکردنی گروپ:</b> فەرمانی <code>/lock</code> و <code>/unlock</code> بۆ کاتی پشوو و خەوتن.\n"
+            "🤖 <b>هاوڕێیەتی و چات:</b> بە کوردییەکی زۆر شیرین و سروشتی وەڵامی هەموو پرسیار و قسەکانتان دەدەمەوە! 🥰🌺"
         ]
     },
     {
@@ -515,7 +529,9 @@ BAD_WORDS_LIST = [
     'قن', 'قنت', 'قنم', 'قنی', 'قوز', 'قۆز', 'قوزت', 'قوزم', 'قوزی',
     'کیر', 'کێرم', 'کیرم', 'کێر', 'کێری', 'کێرت', 'کیرت',
     'گواو', 'گوخۆر', 'گوو', 'گو', 'گوت', 'گووم',
-    'حیز', 'سۆزانی', 'سێکس', 'پۆرن', 'قەحبە', 'گەواد', 'پینتی', 'بێنامووس', 'نامووس',
+    'حیز', 'حیزە', 'حیزباب', 'سۆزانی', 'سۆزمانی', 'سێکس', 'پۆرن', 'قەحبە', 'قاحبە', 'گەواد', 'گەوادە',
+    'پینتی', 'بێنامووس', 'نامووس', 'بێشەرەف', 'جندە', 'کەر', 'کەرباب', 'سەگباب',
+    'کیرخۆر', 'کێرخۆر', 'قوزخۆر', 'کونی', 'قوندەر', 'سووک', 'سوک',
     'ئەتگێم', 'ئەگێم', 'بگێم', 'بگێرم',
     'fuck', r'f\s*u\s*c\s*k', 'shit', 'bitch', 'asshole', 'dick', 'pussy',
     'bastard', 'whore', 'slut', 'nigger', 'faggot', 'cock', 'cunt',
@@ -526,6 +542,7 @@ BAD_WORDS_LIST = [
 BAD_PHRASES_LIST = [
     r'لە\s*دایکت', r'دایکت\s*بگێم', r'دایکت\s*گێم', r'دایکت\s*بێ', r'دایکت\s*بم',
     r'لە\s*خوشکت', r'خوشکت\s*بگێم', r'خوشکت\s*گێم', r'خوشکت\s*بێ', r'خوشکت\s*بم',
+    r'شەڕەفت\s*بگێم', r'نامووست\s*بگێم', r'کێرم\s*بە',
     r'لە\s*عەرزت', r'لە\s*قەبرت', r'داپیرەت\s*بم'
 ]
 
@@ -1767,7 +1784,7 @@ def parse_ai_json(raw_text: str):
     except Exception:
         return None
 
-def request_game_ai_json(prompt: str, max_tokens: int = 300, temperature: float = 0.9):
+def request_game_ai_json(prompt: str, max_tokens: int = 500, temperature: float = 0.9):
     """دروستکردنی ناوەڕۆکی یاری بە Gemini و، ئەگەر نەکرا، بە Groq."""
     gemini_key = live_config_secret("geminiApiKey", "GEMINI_API_KEY") or GEMINI_API_KEY
     if gemini_key:
@@ -1793,7 +1810,7 @@ def request_game_ai_json(prompt: str, max_tokens: int = 300, temperature: float 
                     elif gemini_retryable_response(response):
                         continue
                     else:
-                        break
+                        continue
             except Exception as e:
                 print(f"Game AI Gemini Notice ({model_name}): {e}")
 
@@ -2532,15 +2549,16 @@ def generate_mirror_hour_quote(time_label: str) -> str:
     )
 
     candidates = []
-    if GEMINI_API_KEY:
+    gemini_key = live_config_secret("geminiApiKey", "GEMINI_API_KEY") or GEMINI_API_KEY
+    if gemini_key:
         for model_name in gemini_model_candidates():
             try:
                 response = requests.post(
                     f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
-                    headers={"x-goog-api-key": GEMINI_API_KEY},
+                    headers={"x-goog-api-key": gemini_key},
                     json={
                         "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {"maxOutputTokens": 100, "temperature": 1.05},
+                        "generationConfig": {"maxOutputTokens": 180, "temperature": 1.05},
                     },
                     timeout=(8, 18),
                 )
@@ -2552,15 +2570,16 @@ def generate_mirror_hour_quote(time_label: str) -> str:
                     print(f"Mirror quote Gemini temporary notice ({model_name}): HTTP {response.status_code}")
                     continue
                 print(f"Mirror quote Gemini notice ({model_name}): HTTP {response.status_code}")
-                break
+                continue
             except Exception as exc:
                 print(f"Mirror quote Gemini notice: {type(exc).__name__}")
                 continue
 
-    if GROQ_API_KEY and not candidates:
+    groq_key = live_config_secret("groqApiKey", "GROQ_API_KEY") or GROQ_API_KEY
+    if groq_key and not candidates:
         messages = [{"role": "user", "content": prompt}]
         for model_name in groq_model_candidates(prefer_creative=True):
-            raw = request_groq_text(messages, model_name, max_tokens=100, temperature=1.0)
+            raw = request_groq_text(messages, model_name, max_tokens=180, temperature=1.0)
             if raw:
                 candidates.append(raw)
                 break
