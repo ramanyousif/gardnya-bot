@@ -3561,9 +3561,29 @@ def handle_command(msg: dict, text: str):
         send_message(chat_id, test_text, msg_id, thread_id)
         return
     elif cmd in ["/setowner", "/owner"]:
-        state_data["owner_id"] = user_id
+        target_uid = user_id
+        if arg and arg.strip().isdigit():
+            target_uid = int(arg.strip())
+        state_data["owner_id"] = target_uid
         save_state()
-        send_message(chat_id, f"👑 <b>{display_name} گیان!</b> تۆ بە سەرکەوتوویی وەک ئۆنەری فەرمی بۆت دیاریکرایت.\n\nلە ئێستاوە هەر کەسێک لە شەخسی (PV) نامە بنێرێت، دەستبەجێ ڕاپۆرت و کۆپییەکی نامەکەت بۆ فۆروارد دەکرێت! 🌸✨🥰", msg_id, thread_id)
+        send_message(chat_id, f"👑 <b>{display_name} گیان!</b> ئایدی <code>{target_uid}</code> بە سەرکەوتوویی وەک ئۆنەری فەرمی بۆت دیاریکرا.\n\nلە ئێستاوە هەر کەسێک لە شەخسی (PV) نامە بنێرێت، دەستبەجێ خودی پەیامەکە و ڕاپۆرتەکەی بۆ ئەو ئایدییە فۆروارد دەکرێت! 🌸✨🥰", msg_id, thread_id)
+        return
+    elif cmd in ["/reply", "/send", "/answer", "/dm"]:
+        owner_id = state_data.get("owner_id") or config.get("ownerId")
+        if not is_admin(chat_id, user_id) and user_id != owner_id:
+            send_message(chat_id, "⚠️ ئەم فەرمانە تەنها بۆ بەڕێوەبەری بۆتە! 🌸", msg_id, thread_id)
+            return
+        parts = arg.strip().split(maxsplit=1)
+        if len(parts) < 2 or not parts[0].isdigit():
+            send_message(chat_id, "⚠️ شێوازی بەکارهێنان: <code>/reply &lt;user_id&gt; &lt;پەیام&gt;</code>\nنموونە: <code>/reply 123456789 سڵاو بەڕێزم فەرموو</code> 🌸", msg_id, thread_id)
+            return
+        target_uid = int(parts[0])
+        reply_txt = parts[1]
+        deliv = send_message(target_uid, f"📩 <b>پەیامێک لەلایەن بەڕێوەبەری بۆتەوە:</b>\n\n{html.escape(reply_txt)}")
+        if deliv and deliv.get("ok"):
+            send_message(chat_id, f"✅ پەیامەکەت بە سەرکەوتوویی بۆ بەکارهێنەر (<code>{target_uid}</code>) نێردرا! 🌸", msg_id, thread_id)
+        else:
+            send_message(chat_id, "❌ نەتوانرا پەیامەکە بنێردرێت؛ ڕەنگە بەکارهێنەر بۆتی بلۆک کردبێت یان چاتی دەستپێنەکردبێت.", msg_id, thread_id)
         return
     elif cmd in ["/tagall", "/calltag", "/tag", "/all", "@all"]:
         tag_all_members_batches(chat_id, arg, thread_id)
@@ -4015,13 +4035,14 @@ def handle_chat_member_update(data: dict):
 #  چاودێری و پاراستنی نامەکان (Message Handling & Security Engine)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def forward_pv_to_owner(sender_user: dict, user_text: str, bot_reply: str = ""):
+def forward_pv_to_owner(sender_user: dict, user_text: str, bot_reply: str = "", msg_id: int = 0, from_chat_id: int = 0):
     """ناردنی کۆپییەکی چاتی شەخسی بۆ ئۆنەری بۆت بە شێوازێکی جوان"""
     owner_id = state_data.get("owner_id") or config.get("ownerId")
     
     # ئەگەر owner_id دیاری نەکرابوو، لە ئەدمینی سەرەکی (creator)ی گروپەکان دەیهێنێت
     if not owner_id and state_data.get("groups"):
-        for gid in state_data["groups"]:
+        g_list = state_data["groups"] if isinstance(state_data["groups"], list) else [state_data["groups"]]
+        for gid in g_list:
             admins_res = tg_call("getChatAdministrators", {"chat_id": gid})
             if admins_res and admins_res.get("ok"):
                 for a in admins_res.get("result", []):
@@ -4041,20 +4062,39 @@ def forward_pv_to_owner(sender_user: dict, user_text: str, bot_reply: str = ""):
     s_id = sender_user.get("id", 0)
     s_username = sender_user.get("username")
     s_user_txt = f"@{html.escape(s_username)}" if s_username else "یوزەری نییە"
+    user_mention = f'<a href="tg://user?id={s_id}">{s_name}</a>'
     
     # ئەگەر خودی ئۆنەر قسە لەگەڵ بۆت بکات، پەیامەکەی بۆ خۆی نانێرێتەوە
     if s_id == owner_id:
         return
+
+    # ۱. فۆرواردکردنی خودی پەیامەکە (تێکست، وێنە، دەنگ، ستیکەر، ڤیدیۆ) بۆ ئۆنەر
+    if msg_id and from_chat_id:
+        try:
+            tg_call("forwardMessage", {
+                "chat_id": owner_id,
+                "from_chat_id": from_chat_id,
+                "message_id": msg_id
+            })
+        except Exception as fwd_err:
+            print(f"Forward message error: {fwd_err}")
         
+    # ۲. ناردنی کارتی زانیاریی بەکارهێنەر لەگەڵ دەق و وەڵامی AI
     report = (
-        "📩 <b>پەیامێکی نوێ لە چاتی شەخسی (PV):</b>\n"
+        "📩 <b>پەیامێکی نوێ لە چاتی شەخسی (PV) گەیشت:</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        f"👤 <b>نێرەر:</b> {s_name}\n"
+        f"👤 <b>نێرەر:</b> {user_mention}\n"
         f"🆔 <b>ئایدی:</b> <code>{s_id}</code>\n"
-        f"🏷️ <b>یوزەر:</b> {s_user_txt}\n\n"
-        f"💬 <b>دەقی پەیام:</b>\n{html.escape(user_text)}\n\n"
-        f"🤖 <b>وەڵامی بۆت:</b>\n{html.escape(bot_reply)}"
+        f"🏷️ <b>یوزەر:</b> {s_user_txt}\n"
     )
+    if user_text:
+        report += f"\n💬 <b>دەقی پەیام:</b>\n{html.escape(user_text)}\n"
+    if bot_reply:
+        report += f"\n🤖 <b>وەڵامی دراوە لەلایەن بۆت:</b>\n{html.escape(bot_reply)}\n"
+    
+    report += "\n💡 <i>بۆ وەڵامدانەوەی ئەم بەکارهێنەرە، ڕیپڵای (Reply)ی ئەم پەیامە بکە یان بنووسە:</i>\n"
+    report += f"<code>/reply {s_id} پەیامەکەت</code>"
+    
     send_message(owner_id, report)
     print(f"📬 Forwarded PV chat from {s_name} to owner ({owner_id})")
 
@@ -4232,12 +4272,30 @@ def handle_message(msg: dict):
 
     # چاتی تایبەت (Private Chat AI & Forward to Owner)
     if chat_type == "private":
+        owner_id = state_data.get("owner_id") or config.get("ownerId")
+        # ئەگەر خودی ئۆنەر وەڵامی ڕاپۆرتێکی فۆرواردکراوی دابێتەوە (Reply)
+        if owner_id and user_id == owner_id and "reply_to_message" in msg and text:
+            replied_msg = msg.get("reply_to_message", {})
+            rep_text = replied_msg.get("text", "")
+            id_match = re.search(r"🆔\s*<b>ئایدی:</b>\s*<code>(\d+)</code>", rep_text)
+            if id_match:
+                target_uid = int(id_match.group(1))
+                deliv = send_message(target_uid, f"📩 <b>پەیامێک لەلایەن بەڕێوەبەری بۆتەوە:</b>\n\n{html.escape(text)}")
+                if deliv and deliv.get("ok"):
+                    send_message(chat_id, f"✅ پەیامەکەت بە سەرکەوتوویی بۆ بەکارهێنەر (<code>{target_uid}</code>) نێردرا! 🌸", msg_id)
+                else:
+                    send_message(chat_id, "❌ نەتوانرا پەیامەکە بنێردرێت؛ ڕەنگە بەکارهێنەر بۆتی بلۆک کردبێت یان چاتی دەستپێنەکردبێت.", msg_id)
+                return
+
+        reply = ""
         if config.get("aiInPrivateChats", True) and text:
             reply = get_ai_reply(chat_id, user_id, text)
             if reply:
                 send_message(chat_id, reply, msg_id)
                 print(f"🤖 [PV] Replied to {display_name}: {reply}")
-                forward_pv_to_owner(from_user, text, reply)
+
+        # ناردنی کۆپیی تەواوی پەیامەکە (چ دەق بێت، چ وێنە، دەنگ، ستیکەر، ڤیدیۆ) بۆ ئۆنەری بۆت
+        forward_pv_to_owner(from_user, text, reply, msg_id, chat_id)
         return
 
     # 🛡️ پشکنینی سکوریتی توند بۆ هەموو نامەکان (ستیکەر، گیف، وێنە، ڤیدیۆ)
