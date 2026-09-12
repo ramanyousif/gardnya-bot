@@ -33,7 +33,7 @@ CONFIG_FILE = BASE_DIR / "config.json"
 CONFIG_SOURCES = []
 config = {
     "token": os.environ.get("TELEGRAM_BOT_TOKEN", ""),
-    "botUsername": os.environ.get("BOT_USERNAME", "gardny4_bot"),
+    "botUsername": os.environ.get("BOT_USERNAME", "g4rdnya_bot"),
     "geminiApiKey": os.environ.get("GEMINI_API_KEY", ""),
     "googleVisionApiKey": os.environ.get("GOOGLE_VISION_API_KEY", ""),
     "groqApiKey": os.environ.get("GROQ_API_KEY", ""),
@@ -4480,7 +4480,7 @@ def main():
     tg_call("deleteWebhook", {"drop_pending_updates": True})
     print("===============================================")
     print("  Gardnya Security & AI Protection Bot Started!")
-    print(f"  Bot: @{config.get('botUsername', 'gardny4_bot')}")
+    print(f"  Bot: @{config.get('botUsername', 'g4rdnya_bot')}")
     print(f"  AI Model: {GROQ_MODEL} (Joyful & Kurdish Persona)")
     print("  Equal Hours & Prayer Broadcasts: Active")
     print("  Smart NSFW Sticker & GIF Protection: Active")

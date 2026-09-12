@@ -37,7 +37,7 @@
 ```json
 {
   "token": "YOUR_TELEGRAM_BOT_TOKEN",
-  "botUsername": "gardny4_bot",
+  "botUsername": "g4rdnya_bot",
   "primaryAi": "gemini",
   "geminiApiKey": "YOUR_GEMINI_API_KEY",
   "geminiModel": "gemini-3.8-flash",
