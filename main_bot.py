@@ -355,6 +355,12 @@ CRITICAL RULES:
 4. Use 1-3 suitable emojis in casual chat, and fewer or none in serious answers.
 5. Avoid repeatedly calling people گیانەکەم، قوربانت or گوڵم; sound friendly without overdoing it.
 6. Be respectful, practical, accurate, and easy to understand.
+7. BOT DEVELOPER & CREATOR (@raman_yousif):
+   - You were created and programmed by Raman Yousif (@raman_yousif).
+   - If anyone asks who made you, who created this bot, who is the owner, or asks "کێ تۆی دروست کردووە", "ئۆنەری بۆت کێیە", "خاوەنی بۆت کێیە", "گەشەپێدەرت کێیە":
+     You MUST explicitly state:
+     "من لەلایەن کاک ڕەحمان (@raman_yousif) دروستکراوم و گەشەم پێدراوە! 👨‍💻🌸✨ ئەگەر هەر پرسیار یان پێشنیارێکت هەیە دەتوانیت ڕاستەوخۆ نامەی بۆ بنێریت! 🥰"
+   - NEVER tell users to look at your bio, and NEVER say you don't know who created you. Always give @raman_yousif!
 """
 
 WELCOME_MESSAGES = [
@@ -3394,34 +3400,104 @@ def format_bot_owner_info() -> str:
         f"ئەگەر هەر پرسیار، پێشنیار یان داواکارییەکت هەیە دەتوانیت ڕاستەوخۆ پەیوەندی پێوە بکەیت! 🥰"
     )
 
+def clean_query_text(text: str) -> str:
+    if not text:
+        return ""
+    t = text.strip().lower()
+    t = re.sub(r'[\u200b\u200c\u200d\u200e\u200f\ufeffـ]', '', t)
+    t = re.sub(r'[\u064b-\u065f\u0670]', '', t)
+    t = t.replace("ك", "ک").replace("ي", "ی").replace("ى", "ی").replace("ھ", "ه").replace("ة", "ه")
+    t = t.replace("ۆ", "و").replace("وو", "و").replace("ێ", "ی")
+    t = re.sub(r'[؟?.,!_/:;\-\"\'()]+', ' ', t)
+    return re.sub(r'\s+', ' ', t).strip()
+
+def is_bot_owner_question(text: str) -> bool:
+    if not text:
+        return False
+    norm = clean_query_text(text)
+    raw = text.lower()
+
+    # وشەکانی پەیوەست بە دروستکردن، گەشەپێدان یان دانان
+    creator_tokens = ["دروست", "گەشەپێدەر", "گەشەپیدەر", "سازکەر", "دانەر", "میکەر", "creator", "dev", "developer", "maker"]
+    # وشەکانی پەیوەست بە بۆت
+    bot_tokens = ["بۆت", "بوت", "bot"]
+    # وشەکانی پەیوەست بە خاوەن یان ئۆنەر
+    owner_tokens = ["اونەر", "ئۆنەر", "خاوەن", "owner"]
+
+    has_creator = any(c in norm for c in creator_tokens)
+    has_bot = any(b in norm for b in bot_tokens)
+    has_owner = any(o in norm for o in owner_tokens)
+
+    # ١. ئۆنەر/خاوەن + بۆت (وەک: ئۆنەری بۆت کێیە؟ / خاوەنی بۆت کێیە؟)
+    if has_owner and has_bot:
+        return True
+
+    # ۲. دروستکردن + بۆت (وەک: کێ ئەم بۆتەی دروست کردووە؟ / ئەی کێ ئەم بۆتەی دروست کردووە؟)
+    if has_creator and has_bot:
+        return True
+
+    # ۳. پرسیاری ڕاستەوخۆ دەربارەی دروستکردن (وەک: کێ دروستی کردووی؟ / کێ دروستت کردووە؟ / کێ تۆی دروست کردووە؟)
+    if "دروست" in norm and any(k in norm for k in ["کردوی", "کردووی", "کردوە", "کردووە", "کردیت", "توی", "تۆ"]):
+        return True
+
+    # ٤. لیستێکی تەواو لە دەستەواژە باوەکان
+    phrases = [
+        "خاوەنی بۆت", "ئۆنەری بۆت", "کێ دروستی کردووی", "کێ تۆی دروست کردووە",
+        "کێ ئەم بۆتەی دروست کردووە", "ئەی کێ ئەم بۆتەی دروست کردووە", "کێ دروستکەری بۆتە",
+        "گەشەپێدەری بۆت", "دروستکەری بۆت", "خاوەن بۆت", "ئۆنەر بۆت", "دروستکەرت کێیە",
+        "خاوەنت کێیە", "ئۆنەرت کێیە", "کێ بۆتەکەی دروست کردووە", "کێ دروستی کردویت",
+        "خاوەنی ئەم بۆتە", "ئۆنەری ئەم بۆتە", "bot owner", "owner bot", "who made you"
+    ]
+    for p in phrases:
+        if clean_query_text(p) in norm or p in raw:
+            return True
+
+    return False
+
+def is_group_owner_question(text: str) -> bool:
+    if not text:
+        return False
+    norm = clean_query_text(text)
+    raw = text.lower()
+
+    # وشەکانی پەیوەست بە خاوەن یان سەرۆک
+    owner_tokens = ["اونەر", "ئۆنەر", "خاوەن", "سەروک", "سەرۆک", "بەرپرس", "owner"]
+    # وشەکانی پەیوەست بە گروپ
+    group_tokens = ["گروپ", "گروب", "ئیره", "ئێرە", "group"]
+
+    has_owner = any(o in norm for o in owner_tokens)
+    has_group = any(g in norm for g in group_tokens)
+
+    # ١. هەبوونی وشەی خاوەن/ئۆنەر + وشەی گروپ/ئێرە (وەک: ئۆنەری گروپ کێیە؟ / خاوەنی ئەم گروپە کێیە؟)
+    if has_owner and has_group:
+        return True
+
+    # ۲. دەستەواژە دیاریکراوەکان
+    phrases = [
+        "خاوەنی گروپ", "ئۆنەری گروپ", "خاوەنی ئەم گروپە", "ئۆنەری ئەم گروپە",
+        "سەرۆکی گروپ", "سەرۆکی ئەم گروپە", "کێ خاوەنی گروپە", "کێ خاوەنی ئەم گروپەیە",
+        "کێ ئۆنەری گروپە", "کێ ئۆنەری ئەم گروپەیە", "خاوەن گروپ", "ئۆنەر گروپ",
+        "کێ دروستکەری ئەم گروپەیە", "دروستکەری گروپ", "ئۆنەری ئێرە کێیە", "خاوەنی ئێرە کێیە",
+        "خاوەنی گروب", "ئۆنەری گروب", "سەرۆکی گروب", "سەرۆکی ئێرە"
+    ]
+    for p in phrases:
+        if clean_query_text(p) in norm or p in raw:
+            return True
+
+    return False
+
 def check_owner_query(chat_type: str, chat_id: int, text: str) -> str:
     """پشکنینی پرسیار دەربارەی خاوەنی گروپ یان خاوەنی بۆت لە ناو دەقی نامەدا"""
     if not text:
         return ""
-    lower = text.lower().strip()
 
-    # ١. پرسیار دەربارەی دروستکەر و خاوەنی بۆت
-    bot_owner_patterns = [
-        "خاوەنی بۆت", "ئۆنەری بۆت", "کێ دروستی کردووی", "کێ تۆی دروست کردووە",
-        "کێ دروستکەری بۆتە", "کێ دروستکەری ئەم بۆتەیە", "گەشەپێدەری بۆت",
-        "دروستکەری ئەم بۆتە", "کێ ئەم بۆتەی دروست کردووە", "خاوەن بۆت", "ئۆنەر بۆت",
-        "کێ تۆی دروستکردوە", "کێ دروستی کردویت", "خاوەنی ئەم بۆتە", "ئۆنەری ئەم بۆتە",
-        "کێ بۆتەکەی دروست کردووە", "کێ دروستت کردووە", "دروستکەرت کێیە", "دروست کەرت کێیە",
-        "خاوەنت کێیە", "ئۆنەرت کێیە"
-    ]
-    if any(p in lower for p in bot_owner_patterns):
+    # ١. پێش هەموو شتێک: پشکنین بۆ دروستکەر و خاوەنی بۆت (@raman_yousif)
+    if is_bot_owner_question(text):
         return format_bot_owner_info()
 
     # ۲. پرسیار دەربارەی خاوەنی گروپ (تەنها لە گروپەکاندا)
     if chat_type in ["group", "supergroup"]:
-        group_owner_patterns = [
-            "خاوەنی گروپ", "ئۆنەری گروپ", "خاوەنی ئەم گروپە", "ئۆنەری ئەم گروپە",
-            "سەرۆکی گروپ", "سەرۆکی ئەم گروپە", "کێ خاوەنی گروپە", "کێ خاوەنی ئەم گروپەیە",
-            "کێ ئۆنەری گروپە", "کێ ئۆنەری ئەم گروپەیە", "خاوەن گروپ", "ئۆنەر گروپ",
-            "کێ دروستکەری ئەم گروپەیە", "دروستکەری گروپ", "ئۆنەری ئێرە کێیە", "خاوەنی ئێرە کێیە",
-            "خاوەنی گروب", "ئۆنەری گروب", "سەرۆکی گروب"
-        ]
-        if any(p in lower for p in group_owner_patterns):
+        if is_group_owner_question(text):
             return format_group_owner_info(chat_id)
 
     return ""
@@ -4852,6 +4928,14 @@ def handle_message(msg: dict):
                     send_message(chat_id, f"❌ <b>وەڵامەکەت هەڵەیە {display_name} گیان!</b> کەمێکی تر بیری لێ بکەرەوە یان کێ دەتوانێت وەڵامی دروست بداتەوە؟ 🤔🌸", msg_id, thread_id)
                     return
 
+    # 👑 پشکنینی دەستبەجێ بۆ پرسیار دەربارەی خاوەنی بۆت (@raman_yousif) یان خاوەنی گروپ
+    if text:
+        owner_answer = check_owner_query(chat_type, chat_id, text)
+        if owner_answer:
+            send_message(chat_id, owner_answer, msg_id, thread_id)
+            print(f"👑 Answered owner query from {display_name} in {chat_id}")
+            return
+
     # 💬 وەڵامدانەوەی AI بە کوردییەکی زۆر ڕوخۆش و پڕ ئیمۆجی
     # مەرجی بنەڕەتی: کاتێک دوو کەس ڕیپڵای یەک دەکەن، بۆتەکە بە هیچ شێوەیەک تەداخول ناکات
     if config.get("aiEnabled", True) and text:
@@ -4877,12 +4961,6 @@ def handle_message(msg: dict):
                     print(f"🤐 Two users replying to each other in {chat_id}; Gardnya bot staying silent.")
 
         if should_ai_reply:
-            owner_answer = check_owner_query(chat_type, chat_id, text)
-            if owner_answer:
-                send_message(chat_id, owner_answer, msg_id, thread_id)
-                print(f"👑 Answered owner query from {display_name}")
-                return
-
             reply = get_ai_reply(chat_id, user_id, text)
             if reply:
                 send_message(chat_id, reply, msg_id)
