@@ -691,7 +691,15 @@ def tg_call(method: str, payload: dict = None):
             telegram_error_state["last_log"] = now
         return None
 
-BOT_ID = 0
+def _extract_bot_id_from_token(tok: str) -> int:
+    if tok and ":" in tok:
+        try:
+            return int(tok.split(":")[0])
+        except (ValueError, IndexError):
+            pass
+    return 0
+
+BOT_ID = _extract_bot_id_from_token(BOT_TOKEN)
 
 def refresh_bot_identity() -> bool:
     """دوای 503 ـی دەستپێکیش ناسنامەی بۆت خۆکار دووبارە وەربگرە."""
@@ -700,6 +708,8 @@ def refresh_bot_identity() -> bool:
     if fresh_token:
         BOT_TOKEN = fresh_token
         API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
+        if not BOT_ID:
+            BOT_ID = _extract_bot_id_from_token(BOT_TOKEN)
     me_data = tg_call("getMe")
     if me_data and me_data.get("ok"):
         BOT_ID = me_data["result"]["id"]
@@ -4585,12 +4595,13 @@ def handle_message(msg: dict):
         is_reply_to_game = False
         if "reply_to_message" in msg and msg["reply_to_message"]:
             replied_msg = msg["reply_to_message"]
-            replied_from = replied_msg.get("from", {})
+            replied_from = replied_msg.get("from") or replied_msg.get("sender_chat") or {}
             replied_id = replied_from.get("id", 0)
             replied_mid = replied_msg.get("message_id", 0)
             game_mid = curr_game.get("msg_id", 0)
             
-            if replied_id == BOT_ID or replied_from.get("is_bot") or (game_mid > 0 and replied_mid == game_mid):
+            # تەنها کاتێک وەک وەڵامی یاری دادەنرێت کە بە ڕاستی ڕیپڵای خودی پەیامی مەتەڵەکە بێت یان ڕیپڵای ئەم بۆتە بێت
+            if (game_mid > 0 and replied_mid == game_mid) or (BOT_ID and replied_id == BOT_ID):
                 is_reply_to_game = True
 
         # ئەگەر بەکارهێنەر ڕیپڵای یارییەکەی کردبێت ➔ پشکنین بۆ وەڵامەکە دەکات
@@ -4742,16 +4753,28 @@ def handle_message(msg: dict):
                     return
 
     # 💬 وەڵامدانەوەی AI بە کوردییەکی زۆر ڕوخۆش و پڕ ئیمۆجی
-    # مەرج: ئەگەر مرۆڤێک ڕیپڵای مرۆڤێکی تر بکات، بوتەکە بێدەنگ دەبێت و تەداخول ناکات
+    # مەرجی بنەڕەتی: کاتێک دوو کەس ڕیپڵای یەک دەکەن، بۆتەکە بە هیچ شێوەیەک تەداخول ناکات
     if config.get("aiEnabled", True) and text:
         should_ai_reply = True
-        if "reply_to_message" in msg and msg["reply_to_message"]:
-            target_user = msg["reply_to_message"].get("from", {})
-            target_id = target_user.get("id", 0)
-            is_target_bot = target_user.get("is_bot", False)
-            # ئەگەر ڕیپڵای کەسێکی مرۆڤ بێت (نەک بووتەکە) ➔ تەداخول ناکات
-            if target_id != BOT_ID and not is_target_bot:
-                should_ai_reply = False
+
+        if chat_type in ["group", "supergroup"]:
+            if "reply_to_message" in msg and msg["reply_to_message"]:
+                replied_msg = msg["reply_to_message"]
+                replied_from = replied_msg.get("from") or replied_msg.get("sender_chat") or {}
+                replied_id = replied_from.get("id", 0)
+                replied_username = (replied_from.get("username") or "").lower().replace("@", "")
+                my_username = config.get("botUsername", "g4rdnya_bot").lower().replace("@", "")
+
+                # پشکنین: ئایا ئەم پەیامە ڕیپڵای خودی ئەم بۆتەیە؟
+                is_reply_to_me = (
+                    (BOT_ID and replied_id == BOT_ID)
+                    or (my_username and replied_username == my_username)
+                )
+
+                if not is_reply_to_me:
+                    # ئەگەر ڕیپڵای کەسێکی تر، ئەدمین، هاوڕێ یان هەر نامەیەکی تر بێت ➔ بێدەنگ دەبێت و تەداخول ناکات
+                    should_ai_reply = False
+                    print(f"🤐 Two users replying to each other in {chat_id}; Gardnya bot staying silent.")
 
         if should_ai_reply:
             reply = get_ai_reply(chat_id, user_id, text)
