@@ -502,13 +502,13 @@ MIRROR_HOURS_CONFIG = {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 PRAYER_SCHEDULE = {
-    "04:30": {"name": "بانگی بەیانی (الفجر)", "type": "fajr"},
+    "04:17": {"name": "بانگی بەیانی (الفجر)", "type": "fajr"},
     "08:30": {"name": "زیکری بەیانیان و دەرگای بەرەکەت ☀️", "type": "morning"},
-    "12:20": {"name": "بانگی نیوەڕۆ (الظهر)", "type": "dhuhr"},
-    "16:05": {"name": "بانگی عەسر (العصر)", "type": "asr"},
+    "12:03": {"name": "بانگی نیوەڕۆ (الظهر)", "type": "dhuhr"},
+    "15:34": {"name": "بانگی عەسر (العصر)", "type": "asr"},
     "17:30": {"name": "زیکری ئێواران و پاراستن 🌇", "type": "evening"},
-    "19:10": {"name": "بانگی مەغریب (المغرب)", "type": "maghrib"},
-    "20:45": {"name": "بانگی عیشا (العشاء)", "type": "isha"},
+    "18:18": {"name": "بانگی مەغریب (المغرب)", "type": "maghrib"},
+    "19:33": {"name": "بانگی عیشا (العشاء)", "type": "isha"},
     "23:30": {"name": "زیکری پێش خەوتن و ئارامیی شەو 🌙", "type": "sleep"}
 }
 
@@ -2474,7 +2474,6 @@ def clean_ai_text(text: str) -> str:
     if not text:
         return ""
     # لابردنی تاگی بیرکردنەوە لە مۆدێلە ڕیزنینگەکان
-    # هەندێک مۆدێل تەنها </think> دەنێرێت یان opening tag ـەکە ناتەواو دەهێڵێت.
     if re.search(r'(?is)</think>', text):
         text = re.split(r'(?is)</think>', text)[-1]
     text = re.sub(r'(?is)<think>.*$', '', text)
@@ -2483,6 +2482,12 @@ def clean_ai_text(text: str) -> str:
     clean = re.sub(r'(?im)^\s*(system note|translation note|note|translation)\s*[::-].*$', '', clean)
     if re.search(r'[\u0900-\u097F]', clean):
         return ""
+    clean = clean.strip()
+    
+    # چاککردنی ناتەواوی کۆتایی پەیام ئەگەر بە پیتێکی تەنیا یان وشەیەکی ناتەواو پچڕابوو
+    words = clean.split()
+    if words and len(words[-1]) == 1 and words[-1].isalpha() and words[-1] not in ["و"]:
+        clean = " ".join(words[:-1])
     return clean.strip()
 
 ai_conversation_memory = {}
@@ -2495,6 +2500,10 @@ real question. If the question is unclear, ask one short clarifying question. Pr
 words and short sentences; never translate word-for-word from English or Arabic. In casual conversation,
 you may add a small tasteful joke and 1-3 fitting emojis. Do not force jokes into serious subjects.
 Be accurate, warm and respectful. Never invent facts.
+
+CRITICAL COMPLETENESS RULES:
+- Always finish your sentences and thoughts completely. Never leave half-written words, unfinished sentences or trailing single letters at the end.
+- All answers must be 100% in natural Sorani Kurdish.
 
 Natural Sorani style examples:
 - User: سڵاو چۆنی؟  Assistant: سڵاو، باشم سوپاس 😊 تۆ چۆنی؟
@@ -2544,9 +2553,9 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                 body = {
                     "contents": contents,
                     "systemInstruction": {"parts": [{"text": system_prompt}]},
-                    "generationConfig": {"maxOutputTokens": 800, "temperature": 0.65}
+                    "generationConfig": {"maxOutputTokens": 2048, "temperature": 0.65}
                 }
-                r = requests.post(url, json=body, timeout=15)
+                r = requests.post(url, json=body, timeout=25)
                 if r.status_code == 200:
                     data = r.json()
                     candidates = data.get("candidates", [])
@@ -2571,7 +2580,7 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     if groq_key:
         messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": question}]
         for g_model in groq_model_candidates():
-            answer = request_groq_text(messages, g_model, max_tokens=1500, temperature=0.65)
+            answer = request_groq_text(messages, g_model, max_tokens=2048, temperature=0.65)
             answer = clean_ai_text(answer)
             if answer:
                 remember_ai_conversation(chat_id, user_id, question, answer)
@@ -2603,6 +2612,19 @@ MIRROR_QUOTE_FALLBACKS = [
     "ئارامی خۆت مەفرۆشە بە شتێک کە سبەی هیچ بایەخێکی نامێنێت 🤍🍃",
     "ئەمڕۆ دەرفەتێکی نوێیە بۆ ئەوەی لە دوێنێی خۆت باشتر بیت ☀️🌱",
     "سەرکەوتن دەنگی بەرز نییە؛ کۆی ئەو هەنگاوە بچووکانەیە کە بەردەوام دەیاننێیت 🛤️✨",
+    "هەمیشە دەستپێکەکان سەختن، بەڵام خۆڕاگری دەتباتە سەر لوتکەی ئامانجەکانت 🏔️🌟",
+    "لە هەموو ساتێکی ناخۆشدا، دەرگایەکی ڕەحمەت و ئاسوودەیی چاوەڕێت دەکات 🌸🤲",
+    "مرۆڤی مەزن ئەو کەسەیە لە کاتی تەنگانەدا خەندە دەکات و دەبەخشێت 🌼💖",
+    "ڕاستگۆیی قەڵغانی شکۆ و سەرکەوتنی مرۆڤە لە هەموو قۆناغەکانی ژیاندا 🛡️💎",
+    "هەرگیز هیوا مەدۆڕێنە، چونکە خودا لە سەرووی هەموو تواناکانەوەیە 🌌✨",
+    "دڵخۆشی بە کڕینی شتە گرانبەهاکان نییە، بە دڵێکی قەناعەتپێکراوە 🌸🥰",
+    "ساتی بیرکردنەوەی قووڵ، سەرەتای گەیشتنە بە ئامانجە مەزنەکان 🧠🕊️",
+    "ڕێزگرتن لە خۆت بەوە دەست پێ دەکات کە سنوور بۆ ژیانت دابنێیت 🌿✨",
+    "هەر تاریکییەک لە ژیانتدا، ڕووناکییەکی درەوشاوەتری بەدوادا دێت 🌅💖",
+    "هەوڵ بدە جێپەنجەت چاکە بێت لە هەر کوێیەک هەنگاو دەنێیت 👣🌸",
+    "ڕۆژەکان تێدەپەڕن، تەنها یادگاری جوان و کردەوەی چاک دەمێننەوە 📜💫",
+    "ژیان وەک ئاوێنەیە، کاتێک پێبکەنیت ئەویش خەندەت پێشکەش دەکاتەوە 🪞😊",
+    "ئەو کەسەی ئارام بگرێت، شیرینترین بەرهەمی سەبر دەچێژێت 🍯🕊️"
 ]
 
 def clean_mirror_quote(text: str) -> str:
@@ -2613,16 +2635,41 @@ def clean_mirror_quote(text: str) -> str:
     value = re.sub(r"\s+", " ", value)
     return value[:320].strip()
 
+def is_strictly_valid_kurdish_quote(text: str) -> bool:
+    """پشکنینی ئەوەی کە دەقەکە بە تەواوی کوردییە، ناتەواو نییە و ئینگلیزی تێدا نییە"""
+    if not text or len(text) < 18:
+        return False
+    # پشکنینی پیت یان وشەی ئینگلیزی (نابێت زیاتر لە ٢ پیتی ئینگلیزی تێدابێت)
+    eng_letters = len(re.findall(r'[a-zA-Z]', text))
+    if eng_letters > 2:
+        return False
+    # پشکنینی پیتە کوردییەکان (دەبێت زۆربەی پیتەکانی کوردی بن)
+    kurdish_letters = len(re.findall(r'[\u0600-\u06FF]', text))
+    total_chars = len(re.sub(r'\s+', '', text))
+    if total_chars == 0 or (kurdish_letters / total_chars) < 0.65:
+        return False
+    # نابێت وشەی سیستەمی یان مێتا تێدابێت
+    bad_terms = ["constraints", "strictly", "adhered", "here is", "quote", "sure", "sorry", "cannot", "translation"]
+    low = text.lower()
+    if any(t in low for t in bad_terms):
+        return False
+    # نابێت بە وشەی بەستەر یان ناتەواو بپچڕێت
+    trimmed = text.strip()
+    if trimmed.endswith(("ی", "دا", "لە", "بە", "بۆ", "کە", "و", "یان")):
+        return False
+    return True
+
 def generate_mirror_hour_quote(time_label: str) -> str:
-    """وتەی ماناداری نوێ بە Gemini، Groq و پشتیوانی ناوخۆ دروست بکە."""
+    """وتەی ماناداری نوێ بە زمانی کوردیی سۆرانی بە Gemini و Groq دروست بکە."""
     history = state_data.setdefault("mirror_quote_history", [])
     recent = history[-120:]
     used_hint = "\n".join(f"- {quote}" for quote in recent) or "- هیچ"
     prompt = (
-        "Write exactly one original, powerful and meaningful quote in clear natural Sorani Kurdish "
-        f"for the mirror hour {time_label}. It must be warm, memorable, 12-28 words, and contain "
-        "only 1-2 fitting emojis. Do not use quotation marks, headings, explanations, religious claims, "
-        "or copy/closely paraphrase any used quote below.\nUsed quotes:\n" + used_hint
+        f"تەنها یەک وتەی قووڵ، مانادار و بەهێز بە زمانی کوردیی سۆرانی بۆ کاتژمێری {time_label} بنووسە. "
+        "مەرجەکان: دەبێت بە تەواوی بە زمانی کوردی بێت، لە ١٢ تا ٢٢ وشە پێك بێت لەگەڵ ١-٢ ئیمۆجی گونجاو. "
+        "یاسای زۆر توند: بە هیچ شێوەیەک ئینگلیزی مەنوسە! هیچ پێشەکی، کەوانە و ڕوونکردنەوەی سیستەم مەنوسە. "
+        "وتەکە دەبێت تەواو بێت و لە نیوەدا نەپچڕێت.\n"
+        "وتە بەکارهاتووەکان کە نابێت دووبارەیان بکەیتەوە:\n" + used_hint
     )
 
     candidates = []
@@ -2635,14 +2682,16 @@ def generate_mirror_hour_quote(time_label: str) -> str:
                     headers={"x-goog-api-key": gemini_key},
                     json={
                         "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {"maxOutputTokens": 180, "temperature": 1.05},
+                        "generationConfig": {"maxOutputTokens": 400, "temperature": 0.9},
                     },
-                    timeout=(8, 18),
+                    timeout=(8, 20),
                 )
                 if response.status_code == 200:
                     parts = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
-                    candidates.append(" ".join(str(part.get("text") or "") for part in parts))
-                    break
+                    raw_text = " ".join(str(part.get("text") or "") for part in parts)
+                    if is_strictly_valid_kurdish_quote(clean_mirror_quote(raw_text)):
+                        candidates.append(raw_text)
+                        break
                 if gemini_retryable_response(response):
                     print(f"Mirror quote Gemini temporary notice ({model_name}): HTTP {response.status_code}")
                     continue
@@ -2656,14 +2705,14 @@ def generate_mirror_hour_quote(time_label: str) -> str:
     if groq_key and not candidates:
         messages = [{"role": "user", "content": prompt}]
         for model_name in groq_model_candidates(prefer_creative=True):
-            raw = request_groq_text(messages, model_name, max_tokens=180, temperature=1.0)
-            if raw:
+            raw = request_groq_text(messages, model_name, max_tokens=400, temperature=0.9)
+            if raw and is_strictly_valid_kurdish_quote(clean_mirror_quote(raw)):
                 candidates.append(raw)
                 break
 
     for raw in candidates:
         quote = clean_mirror_quote(raw)
-        if len(quote) >= 18 and game_content_is_new(quote, history, similarity_limit=0.86):
+        if is_strictly_valid_kurdish_quote(quote) and game_content_is_new(quote, history, similarity_limit=0.86):
             history.append(quote)
             save_state()
             return quote
@@ -2674,11 +2723,7 @@ def generate_mirror_hour_quote(time_label: str) -> str:
             save_state()
             return fallback
 
-    today = datetime.datetime.now(KURDISTAN_UTC_OFFSET).strftime("%Y-%m-%d")
-    quote = f"هەر کاتێک دەست پێ دەکەیت، هیوایەکی نوێ دروست دەکەیت؛ ئەمڕۆ {today} ڕێگاکەت بە بڕوا بگرە 🌟"
-    history.append(quote)
-    save_state()
-    return quote
+    return random.choice(MIRROR_QUOTE_FALLBACKS)
 
 def contains_bad_word(text: str) -> bool:
     if not text:
@@ -3681,13 +3726,13 @@ def handle_command(msg: dict, text: str):
         bang_txt = (
             "🕌 <b>کاتی بانگەکان و زیکری ڕۆژانە بە کاتی کوردستان:</b> 🕋\n"
             "━━━━━━━━━━━━━━━━━━\n"
-            "🌅 <b>بانگی بەیانی (الفجر):</b> <code>04:30</code>\n"
+            "🌅 <b>بانگی بەیانی (الفجر):</b> <code>04:17</code>\n"
             "☀️ <b>زیکری بەیانیان:</b> <code>08:30</code>\n"
-            "🌞 <b>بانگی نیوەڕۆ (الظهر):</b> <code>12:20</code>\n"
-            "🌤️ <b>بانگی عەسر (العصر):</b> <code>16:05</code>\n"
+            "🌞 <b>بانگی نیوەڕۆ (الظهر):</b> <code>12:03</code>\n"
+            "🌤️ <b>بانگی عەسر (العصر):</b> <code>15:34</code>\n"
             "🌇 <b>زیکری ئێواران:</b> <code>17:30</code>\n"
-            "🌆 <b>بانگی مەغریب (المغرب):</b> <code>19:10</code>\n"
-            "🌙 <b>بانگی عیشا (العشاء):</b> <code>20:45</code>\n"
+            "🌆 <b>بانگی مەغریب (المغرب):</b> <code>18:18</code>\n"
+            "🌙 <b>بانگی عیشا (العشاء):</b> <code>19:33</code>\n"
             "😴 <b>زیکری پێش خەوتن:</b> <code>23:30</code>\n\n"
             "🌸 <i>لە هەموو ئەم کاتانەدا، بۆتەکە زیکرێکی نوێ و جیاواز لە گروپ پەخش دەکات.</i>"
         )
