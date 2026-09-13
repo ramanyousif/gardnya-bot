@@ -217,6 +217,12 @@ def ensure_telegram_configured(force=False):
         telegram_setup_thread.start()
 
 
+try:
+    ensure_scheduler_running()
+    ensure_telegram_configured()
+except Exception as e:
+    print(f"Startup initialization error: {e}")
+
 print("═══════════════════════════════════════════════")
 print("  🌸 Gardnya Bot - 24/7 Webhook Mode Active!")
 print(f"  📡 Webhook: {WEBHOOK_URL}")

@@ -273,6 +273,52 @@ def save_state():
     except Exception as e:
         print(f"Failed to save state: {e}")
 
+def get_registered_groups() -> list:
+    """گێڕانەوەی لیستی ناسێنەری گرووپەکان بە شێوازێکی بێ هەڵە و هەمیشە وەک list[int]"""
+    global state_data
+    if not isinstance(state_data, dict):
+        state_data = {"warnings": {}, "rules": {}, "groups": [], "last_broadcasts": {}}
+
+    raw_groups = state_data.get("groups", [])
+    group_set = set()
+
+    if isinstance(raw_groups, list):
+        for g in raw_groups:
+            try:
+                g_int = int(g)
+                if g_int < 0:
+                    group_set.add(g_int)
+            except (ValueError, TypeError):
+                continue
+    elif isinstance(raw_groups, (int, str)):
+        try:
+            g_int = int(raw_groups)
+            if g_int < 0:
+                group_set.add(g_int)
+        except (ValueError, TypeError):
+            pass
+
+    # پشکنینی هۆشیارانە لە بەشەکانی دیکەی ستەیت ئەگەر گرووپێک لەبیرکرابێت
+    for section in ["warnings", "rules", "game_session_scores", "active_game"]:
+        sec_data = state_data.get(section, {})
+        if isinstance(sec_data, dict):
+            for gid_str in sec_data.keys():
+                try:
+                    gid_int = int(gid_str)
+                    if gid_int < 0:
+                        group_set.add(gid_int)
+                except (ValueError, TypeError):
+                    continue
+
+    result = sorted(list(group_set))
+    if state_data.get("groups") != result:
+        state_data["groups"] = result
+        save_state()
+    return result
+
+# پاککردنەوە و ڕێکخستنی ستەیت ڕاستەوخۆ لە کاتی دەستپێکردن
+get_registered_groups()
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  سیستەمی ژیریی دەستکردی کوردیی زۆر ڕوخۆش و پڕ لە ئیمۆجی
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2462,11 +2508,18 @@ def send_next_game_round(chat_id: int, game_type: int, thread_id: int = 0):
         save_state()
 
 def register_group(chat_id: int):
-    if "groups" not in state_data:
-        state_data["groups"] = []
-    if chat_id not in state_data["groups"]:
-        state_data["groups"].append(chat_id)
+    try:
+        cid = int(chat_id)
+    except (ValueError, TypeError):
+        return
+    if cid >= 0:
+        return
+    groups = get_registered_groups()
+    if cid not in groups:
+        groups.append(cid)
+        state_data["groups"] = sorted(list(set(groups)))
         save_state()
+        print(f"✅ New group registered for broadcasts: {cid}")
 
 def clean_ai_text(text: str) -> str:
     if not text:
@@ -3434,7 +3487,7 @@ def build_health_report(chat_id: int) -> str:
     scheduler_age = time.time() - scheduler_last_loop if scheduler_last_loop else None
     scheduler_ok = scheduler_age is not None and scheduler_age < 90
     checks.append(("چاودێری کاتژمێر", scheduler_ok))
-    checks.append(("گروپەکانی پەخشی کات", bool(state_data.get("groups", []))))
+    checks.append(("گروپەکانی پەخشی کات", bool(get_registered_groups())))
 
     channel_identifier = state_data.get("force_channel", {}).get(str(chat_id))
     if channel_identifier:
@@ -3514,7 +3567,7 @@ def background_scheduler():
                         f"━━━━━━━━━━━━━━━━━━\n"
                         f"❝ {quote} ❞"
                     )
-                    group_ids = list(dict.fromkeys(state_data.get("groups", [])))
+                    group_ids = get_registered_groups()
                     delivered = delivered_schedule_groups.setdefault(schedule_key, set())
                     persisted_delivered = state_data.setdefault("last_broadcasts", {}).setdefault(schedule_key, [])
                     for gid in group_ids:
@@ -3526,8 +3579,10 @@ def background_scheduler():
                             delivered.add(gid)
                             persisted_delivered.append(gid_str)
                             save_state()
+                        else:
+                            print(f"⚠️ Failed to send mirror hour to group {gid}: {result}")
                     if not group_ids or all(gid in delivered or str(gid) in persisted_delivered for gid in group_ids):
-                        print(f"✨ Broadcasted mirror hour {current_time} ({time_label}) to groups")
+                        print(f"✨ Broadcasted mirror hour {current_time} ({time_label}) to groups: {group_ids}")
                         scheduler_status["last_delivery"] = f"{schedule_key} mirror {len(delivered)}/{len(group_ids)}"
                         scheduler_status["last_error"] = ""
                         last_sent_minute = current_time
@@ -3550,7 +3605,7 @@ def background_scheduler():
                         f"{chosen_zikr}\n\n"
                         f"«اللَّهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ وَعَلَىٰ آلِ مُحَمَّدٍ» 🌸✨"
                     )
-                    group_ids = list(dict.fromkeys(state_data.get("groups", [])))
+                    group_ids = get_registered_groups()
                     schedule_key = f"{now.date().isoformat()}:{current_time}"
                     delivered = delivered_schedule_groups.setdefault(schedule_key, set())
                     persisted_delivered = state_data.setdefault("last_broadcasts", {}).setdefault(schedule_key, [])
@@ -3563,8 +3618,10 @@ def background_scheduler():
                             delivered.add(gid)
                             persisted_delivered.append(gid_str)
                             save_state()
+                        else:
+                            print(f"⚠️ Failed to send prayer time to group {gid}: {result}")
                     if not group_ids or all(gid in delivered or str(gid) in persisted_delivered for gid in group_ids):
-                        print(f"🕌 Broadcasted prayer time {current_time} ({p_info['name']}) to groups")
+                        print(f"🕌 Broadcasted prayer time {current_time} ({p_info['name']}) to groups: {group_ids}")
                         scheduler_status["last_delivery"] = f"{schedule_key} prayer {len(delivered)}/{len(group_ids)}"
                         scheduler_status["last_error"] = ""
                         last_sent_minute = current_time
@@ -3582,8 +3639,10 @@ def background_scheduler():
                 save_state()
             time.sleep(10)
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print("Scheduler Exception:", e)
-            scheduler_status["last_error"] = type(e).__name__
+            scheduler_status["last_error"] = f"{type(e).__name__}: {e}"
             time.sleep(15)
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -4188,8 +4247,8 @@ def forward_pv_to_owner(sender_user: dict, user_text: str, bot_reply: str = "", 
     owner_id = state_data.get("owner_id") or config.get("ownerId")
     
     # ئەگەر owner_id دیاری نەکرابوو، لە ئەدمینی سەرەکی (creator)ی گروپەکان دەیهێنێت
-    if not owner_id and state_data.get("groups"):
-        g_list = state_data["groups"] if isinstance(state_data["groups"], list) else [state_data["groups"]]
+    if not owner_id:
+        g_list = get_registered_groups()
         for gid in g_list:
             admins_res = tg_call("getChatAdministrators", {"chat_id": gid})
             if admins_res and admins_res.get("ok"):
