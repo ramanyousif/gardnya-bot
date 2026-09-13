@@ -2599,6 +2599,15 @@ def get_smart_reply(text: str):
 def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     history = get_ai_conversation(chat_id, user_id)
     system_prompt = f"{AI_SYSTEM_PROMPT}\n\n{AI_CONVERSATION_RULES}"
+    
+    # زانیاری تەواو بۆ AI دەربارەی دروستکەری بۆت و خاوەنی ئەم گروپە
+    extra_context = "\n\nCRITICAL CONTEXT:\n- BOT DEVELOPER & OWNER: You were created and developed by @raman_yousif. When asked who made you, who created this bot, or who the bot owner is, always proudly state you were created by @raman_yousif."
+    creator = get_group_creator(chat_id)
+    if creator:
+        c_name = creator.get("first_name") or "Owner"
+        c_user = f"@{creator.get('username')}" if creator.get("username") else c_name
+        extra_context += f"\n- THIS GROUP OWNER: The owner/creator of this Telegram group is {c_name} ({c_user}). When asked who the owner of this group is (خاوەنی گروپ / ئۆنەری گروپ), clearly state that the group owner is {c_user}."
+    system_prompt += extra_context
 
     # 🌟 AIی سەرەکی: Google Gemini، بە مێژووی کورتەی گفتوگۆ
     gemini_key = live_config_secret("geminiApiKey", "GEMINI_API_KEY") or GEMINI_API_KEY
@@ -3345,6 +3354,78 @@ def tag_all_members_batches(chat_id: int, custom_text: str = "", thread_id: int 
         threading.Thread(target=auto_delete_tags, args=(chat_id, sent_msg_ids), daemon=True).start()
         print(f"🎙️ Auto-tagged {len(non_admin_members)} members in 5-user batches in {chat_id}. Auto-delete in 30m.")
 
+BOT_CREATOR_USERNAME = "@raman_yousif"
+
+def get_group_creator(chat_id: int) -> dict:
+    """دۆزینەوەی خاوەن / دروستکەری سەرەکی گروپ (Creator) لە ڕێگەی getChatAdministrators"""
+    try:
+        if int(chat_id) >= 0:
+            return {}
+        admins_res = tg_call("getChatAdministrators", {"chat_id": chat_id})
+        if admins_res and admins_res.get("ok"):
+            for admin in admins_res.get("result", []):
+                if admin.get("status") == "creator":
+                    return admin.get("user", {})
+    except Exception as e:
+        print(f"Error finding group creator for {chat_id}: {e}")
+    return {}
+
+def format_group_owner_info(chat_id: int) -> str:
+    """داڕشتنی پەیامی ناساندنی خاوەنی گروپ"""
+    creator = get_group_creator(chat_id)
+    if creator:
+        c_name = html.escape(creator.get("first_name") or "خاوەنی گروپ")
+        c_user = creator.get("username")
+        c_id = creator.get("id")
+        if c_user:
+            mention = f"@{c_user} (<code>{c_name}</code>)"
+        elif c_id:
+            mention = f'<a href="tg://user?id={c_id}">{c_name}</a>'
+        else:
+            mention = c_name
+        return f"👑 <b>خاوەن و بەڕێوەبەری سەرەکی ئەم گروپە (Group Owner):</b>\n👤 {mention} 🌸✨"
+    return "👑 <b>خاوەنی ئەم گروپە:</b> بەڕێوەبەری سەرەکی (Creator)ی گروپەکە دیاری کراوە لە بەشی ئەدمینەکان 🌸"
+
+def format_bot_owner_info() -> str:
+    """داڕشتنی پەیامی ناساندنی دروستکەر و خاوەنی بۆت"""
+    return (
+        f"🤖 <b>گەشەپێدەر و خاوەنی بوتی گاردنیا (Bot Developer & Owner):</b>\n"
+        f"👨‍💻 {BOT_CREATOR_USERNAME} 🌸✨\n\n"
+        f"ئەگەر هەر پرسیار، پێشنیار یان داواکارییەکت هەیە دەتوانیت ڕاستەوخۆ پەیوەندی پێوە بکەیت! 🥰"
+    )
+
+def check_owner_query(chat_type: str, chat_id: int, text: str) -> str:
+    """پشکنینی پرسیار دەربارەی خاوەنی گروپ یان خاوەنی بۆت لە ناو دەقی نامەدا"""
+    if not text:
+        return ""
+    lower = text.lower().strip()
+
+    # ١. پرسیار دەربارەی دروستکەر و خاوەنی بۆت
+    bot_owner_patterns = [
+        "خاوەنی بۆت", "ئۆنەری بۆت", "کێ دروستی کردووی", "کێ تۆی دروست کردووە",
+        "کێ دروستکەری بۆتە", "کێ دروستکەری ئەم بۆتەیە", "گەشەپێدەری بۆت",
+        "دروستکەری ئەم بۆتە", "کێ ئەم بۆتەی دروست کردووە", "خاوەن بۆت", "ئۆنەر بۆت",
+        "کێ تۆی دروستکردوە", "کێ دروستی کردویت", "خاوەنی ئەم بۆتە", "ئۆنەری ئەم بۆتە",
+        "کێ بۆتەکەی دروست کردووە", "کێ دروستت کردووە", "دروستکەرت کێیە", "دروست کەرت کێیە",
+        "خاوەنت کێیە", "ئۆنەرت کێیە"
+    ]
+    if any(p in lower for p in bot_owner_patterns):
+        return format_bot_owner_info()
+
+    # ۲. پرسیار دەربارەی خاوەنی گروپ (تەنها لە گروپەکاندا)
+    if chat_type in ["group", "supergroup"]:
+        group_owner_patterns = [
+            "خاوەنی گروپ", "ئۆنەری گروپ", "خاوەنی ئەم گروپە", "ئۆنەری ئەم گروپە",
+            "سەرۆکی گروپ", "سەرۆکی ئەم گروپە", "کێ خاوەنی گروپە", "کێ خاوەنی ئەم گروپەیە",
+            "کێ ئۆنەری گروپە", "کێ ئۆنەری ئەم گروپەیە", "خاوەن گروپ", "ئۆنەر گروپ",
+            "کێ دروستکەری ئەم گروپەیە", "دروستکەری گروپ", "ئۆنەری ئێرە کێیە", "خاوەنی ئێرە کێیە",
+            "خاوەنی گروب", "ئۆنەری گروب", "سەرۆکی گروب"
+        ]
+        if any(p in lower for p in group_owner_patterns):
+            return format_group_owner_info(chat_id)
+
+    return ""
+
 def get_sticker_comment(sticker_obj: dict) -> str:
     if not sticker_obj:
         return ""
@@ -3673,9 +3754,10 @@ def handle_command(msg: dict, text: str):
     cmd = parts[0].split("@")[0].lower()
     arg = parts[1].strip() if len(parts) > 1 else ""
 
-    # 🛡️ لە گروپەکاندا: تەواوی فرمانەکان (یاری، مەتەڵ، ئاسایش، ڕێکخستن) تەنها لە ئەدمین وەردەگیرێن.
+    # 🛡️ لە گروپەکاندا: تەواوی فرمانەکان تەنها لە ئەدمین وەردەگیرێن، جگە لە فەرمانە گشتییەکان
+    public_cmds = ["/owner", "/groupowner", "/botowner", "/creator", "/dev", "/points", "/help"]
     if chat.get("type") in ["group", "supergroup"]:
-        if not is_user_admin:
+        if not is_user_admin and cmd not in public_cmds:
             print(f"🚫 Ignored command '{cmd}' from non-admin member: {display_name} ({user_id})")
             return
 
@@ -3751,7 +3833,21 @@ def handle_command(msg: dict, text: str):
                 test_text += "\n\n💡 کلیلی Gemini تەنها لە <code>~/gardnya-bot/config.json</code> بە ناوی <code>geminiApiKey</code> دابنێ."
         send_message(chat_id, test_text, msg_id, thread_id)
         return
-    elif cmd in ["/setowner", "/owner"]:
+    elif cmd in ["/owner", "/groupowner"]:
+        if chat.get("type") in ["group", "supergroup"]:
+            g_owner_text = format_group_owner_info(chat_id)
+            full_msg = f"{g_owner_text}\n\n🤖 <b>دروستکەر و گەشەپێدەری بوتی گاردنیا:</b>\n👨‍💻 {BOT_CREATOR_USERNAME} 🌸"
+            send_message(chat_id, full_msg, msg_id, thread_id)
+        else:
+            send_message(chat_id, format_bot_owner_info(), msg_id, thread_id)
+        return
+    elif cmd in ["/botowner", "/creator", "/dev"]:
+        send_message(chat_id, format_bot_owner_info(), msg_id, thread_id)
+        return
+    elif cmd == "/setowner":
+        if not is_user_admin:
+            send_message(chat_id, "⚠️ ئەم فەرمانە تەنها بۆ ئەدمینی گروپە.", msg_id, thread_id)
+            return
         target_uid = user_id
         if arg and arg.strip().isdigit():
             target_uid = int(arg.strip())
@@ -4506,7 +4602,11 @@ def handle_message(msg: dict):
 
         reply = ""
         if config.get("aiInPrivateChats", True) and text:
-            reply = get_ai_reply(chat_id, user_id, text)
+            owner_reply = check_owner_query(chat_type, chat_id, text)
+            if owner_reply:
+                reply = owner_reply
+            else:
+                reply = get_ai_reply(chat_id, user_id, text)
             if reply:
                 send_message(chat_id, reply, msg_id)
                 print(f"🤖 [PV] Replied to {display_name}: {reply}")
@@ -4777,6 +4877,12 @@ def handle_message(msg: dict):
                     print(f"🤐 Two users replying to each other in {chat_id}; Gardnya bot staying silent.")
 
         if should_ai_reply:
+            owner_answer = check_owner_query(chat_type, chat_id, text)
+            if owner_answer:
+                send_message(chat_id, owner_answer, msg_id, thread_id)
+                print(f"👑 Answered owner query from {display_name}")
+                return
+
             reply = get_ai_reply(chat_id, user_id, text)
             if reply:
                 send_message(chat_id, reply, msg_id)
