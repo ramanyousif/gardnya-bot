@@ -361,6 +361,12 @@ CRITICAL RULES:
      You MUST explicitly state:
      "من لەلایەن کاک ڕەحمان (@raman_yousif) دروستکراوم و گەشەم پێدراوە! 👨‍💻🌸✨ ئەگەر هەر پرسیار یان پێشنیارێکت هەیە دەتوانیت ڕاستەوخۆ نامەی بۆ بنێریت! 🥰"
    - NEVER tell users to look at your bio, and NEVER say you don't know who created you. Always give @raman_yousif!
+8. LATIN SCRIPT & KURDISH LATIN (زمانی لاتینی):
+   - If someone speaks, asks, or writes to you in Latin script (English letters or Kurdish written in Latin like 'choni', 'to key', 'bochi', 'mn hazm leya', etc.):
+   - If you do not completely, clearly, and effortlessly understand what they mean, OR if they ask to converse in Latin:
+     You MUST warmly and politely tell them in Sorani Kurdish:
+     "تکایە بە کوردیی سۆرانی قسە بکە گیان، من لاتینییەکەم باش نییە و بە جوانی تێناگەم 🌸😊"
+   - NEVER answer in Latin script or English! Always respond in 100% Sorani Kurdish.
 """
 
 WELCOME_MESSAGES = [
@@ -382,6 +388,13 @@ SMART_REPLIES = [
             "تکایە سنووری خۆت بزانە گوڵم! من تەنها هاوڕێ و خزمەتکاری گروپم، قسەی وا لەگەڵ من ناکرێت 🙅‍♀️✨",
             "ئێمە تەنها هاوڕێی چاتین براکەم! تکایە باسی باوەش و ماچ مەکە و ڕێزی خۆت بپارێزە 🌸✋",
             "کەمێک شەرم بکە ئازیزم! لێرە تەنها ڕێز و برایەتی و هاوڕێیەتی هەیە، قسەی لەم شێوەیە قەدەغەیە ⛔🌸"
+        ]
+    },
+    {
+        "patterns": ["ba latini", "latini", "لاتینی", "بە لاتینی", "قسە بە لاتینی", "qsa ba latini", "qsa bka ba latini", "ba latini qsa", "kurdish latin", "kurdi latini"],
+        "replies": [
+            "تکایە بە کوردیی سۆرانی قسە بکە گیان، من لاتینییەکەم باش نییە و بە جوانی تێناگەم 🌸😊",
+            "بمبەخشە گوڵم! من لاتینییەکەم زۆر باش نییە، تکایە بە کوردیی سۆرانی بۆم بنووسە تا تێبگەم 🥰✨"
         ]
     },
     {
@@ -2571,6 +2584,8 @@ Be accurate, warm and respectful. Never invent facts.
 CRITICAL COMPLETENESS RULES:
 - Always finish your sentences and thoughts completely. Never leave half-written words, unfinished sentences or trailing single letters at the end.
 - All answers must be 100% in natural Sorani Kurdish.
+- If the user writes in Latin script (Kurdish in Latin letters or English like 'choni', 'to key', 'bochi', etc.) and you do not understand it well or if they ask to converse in Latin:
+  Always politely reply: "تکایە بە کوردیی سۆرانی قسە بکە گیان، من لاتینییەکەم باش نییە و بە جوانی تێناگەم 🌸😊".
 
 Natural Sorani style examples:
 - User: سڵاو چۆنی؟  Assistant: سڵاو، باشم سوپاس 😊 تۆ چۆنی؟
@@ -2581,6 +2596,17 @@ Use examples only for style; never copy an unrelated example into the answer. Ne
 translated phrases, repeated greetings, or customer-service wording. Ordinary answers should usually
 be 2-5 short sentences unless the user asks for detail.
 """
+
+def is_latin_dominant_text(text: str) -> bool:
+    """پشکنینی ئەوەی کە دەقی پەیامەکە بە پیتی لاتینی (ئینگلیزی) نووسراوە بەبێ کوردی."""
+    if not text:
+        return False
+    clean = re.sub(r'https?://\S+|@\w+|[0-9]+|[^\w\s]', '', text).strip()
+    if not clean:
+        return False
+    eng_letters = len(re.findall(r'[a-zA-Z]', clean))
+    kurdish_letters = len(re.findall(r'[\u0600-\u06FF]', clean))
+    return eng_letters >= 4 and (kurdish_letters == 0 or (eng_letters / (eng_letters + kurdish_letters)) > 0.70)
 
 def get_ai_conversation(chat_id: int, user_id: int):
     return list(ai_conversation_memory.get(f"{chat_id}_{user_id}", []))[-8:]
@@ -2639,6 +2665,11 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
                         answer = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
                         answer = clean_ai_text(answer)
                         if answer:
+                            if is_latin_dominant_text(question):
+                                eng_cnt = len(re.findall(r'[a-zA-Z]', answer))
+                                kurd_cnt = len(re.findall(r'[\u0600-\u06FF]', answer))
+                                if eng_cnt > kurd_cnt or kurd_cnt < 6:
+                                    answer = "تکایە بە کوردیی سۆرانی قسە بکە گیان، من لاتینییەکەم باش نییە و بە جوانی تێناگەم 🌸😊"
                             remember_ai_conversation(chat_id, user_id, question, answer)
                             return answer
                 elif gemini_retryable_response(r):
@@ -2659,6 +2690,11 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
             answer = request_groq_text(messages, g_model, max_tokens=2048, temperature=0.65)
             answer = clean_ai_text(answer)
             if answer:
+                if is_latin_dominant_text(question):
+                    eng_cnt = len(re.findall(r'[a-zA-Z]', answer))
+                    kurd_cnt = len(re.findall(r'[\u0600-\u06FF]', answer))
+                    if eng_cnt > kurd_cnt or kurd_cnt < 6:
+                        answer = "تکایە بە کوردیی سۆرانی قسە بکە گیان، من لاتینییەکەم باش نییە و بە جوانی تێناگەم 🌸😊"
                 remember_ai_conversation(chat_id, user_id, question, answer)
                 return answer
 
@@ -2666,6 +2702,9 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     smart = get_smart_reply(question)
     if smart:
         return smart
+
+    if is_latin_dominant_text(question):
+        return "تکایە بە کوردیی سۆرانی قسە بکە گیان، من لاتینییەکەم باش نییە و بە جوانی تێناگەم 🌸😊"
 
     fallbacks = [
         "گیان لە خزمەتتدام! چۆن یارمەتیت بدەم؟ 🌸😊",
