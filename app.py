@@ -55,16 +55,30 @@ processed_updates = {}
 processed_updates_lock = threading.Lock()
 
 def resolve_webhook_domain():
+    explicit = os.environ.get("GARDNYA_WEBHOOK_DOMAIN", "").strip()
+    if explicit:
+        return explicit
+
     site = os.environ.get("PYTHONANYWHERE_SITE", "").strip()
-    if site:
+    # PYTHONANYWHERE_SITE is usually "www.pythonanywhere.com" or "eu.pythonanywhere.com",
+    # which is the PythonAnywhere platform domain, NOT the user's custom web app domain!
+    if site and not site.startswith("www.") and not site.startswith("eu."):
         return site
+
     user = os.environ.get("USER", "").strip()
     if not user:
         home = os.environ.get("HOME", "").strip()
         if "/home/" in home:
             user = home.split("/home/")[-1].split("/")[0].strip()
-    if user:
-        return f"{user}.pythonanywhere.com"
+    if not user:
+        file_path = os.path.abspath(__file__)
+        if "/home/" in file_path:
+            user = file_path.split("/home/")[-1].split("/")[0].strip()
+
+    if user and user not in ["www", "root", "ubuntu"]:
+        cluster = "eu.pythonanywhere.com" if (site and "eu." in site) else "pythonanywhere.com"
+        return f"{user}.{cluster}"
+
     return "ramanyousif2002.pythonanywhere.com"
 
 WEBHOOK_DOMAIN = resolve_webhook_domain()
@@ -100,6 +114,18 @@ def ensure_scheduler_running():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 import subprocess
+
+@app.before_request
+def detect_domain_from_request():
+    global WEBHOOK_DOMAIN, WEBHOOK_URL
+    try:
+        host = (request.host or "").split(":")[0].strip()
+        if host and not host.startswith("www.") and not host.startswith("eu.") and host not in ["127.0.0.1", "localhost"]:
+            if WEBHOOK_DOMAIN != host:
+                WEBHOOK_DOMAIN = host
+                WEBHOOK_URL = f"https://{WEBHOOK_DOMAIN}/webhook"
+    except Exception:
+        pass
 
 @app.route('/')
 def index():
@@ -159,6 +185,12 @@ def health():
         f'| Groq: {groq_state} | Gemini: {gemini_state} | Domain: {WEBHOOK_DOMAIN}'
     ), 200
 
+@app.route('/set_webhook')
+def trigger_set_webhook():
+    """بە شێوەی دەستی ڕێکخستنی webhook نوێ بکەرەوە"""
+    ensure_telegram_configured(force=True)
+    return f"Webhook setup initiated for https://{WEBHOOK_DOMAIN}/webhook", 200
+
 @app.route('/pull', methods=['GET', 'POST'])
 def git_pull():
     """Trigger automatic git pull on PythonAnywhere via URL."""
@@ -184,15 +216,16 @@ def configure_telegram_worker():
     sec = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "").strip()
     if not sec and live_tok:
         sec = hashlib.sha256(live_tok.encode("utf-8")).hexdigest()
+    target_url = f"https://{WEBHOOK_DOMAIN}/webhook"
     result = main_bot.tg_call("setWebhook", {
-        "url": WEBHOOK_URL,
+        "url": target_url,
         "allowed_updates": ["message", "my_chat_member", "chat_member"],
         "secret_token": sec,
     })
     if result and result.get("ok"):
         telegram_setup_status["ok"] = True
         telegram_setup_status["detail"] = "ready"
-        print(f"🌐 Webhook set successfully: {WEBHOOK_URL}")
+        print(f"🌐 Webhook set successfully: {target_url}")
     else:
         telegram_setup_status["ok"] = False
         telegram_setup_status["detail"] = (
