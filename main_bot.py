@@ -530,7 +530,7 @@ MIRROR_HOURS_CONFIG = {
     "08:08": {"time_label": "08:08 (بەیانی ☀️)", "quote": "هەرگیز کۆڵ مەدە لە ئامانجەکانت، ڕۆژێکی پڕ سەرکەوتن 🚀🌟💪"},
     "09:09": {"time_label": "09:09 (بەیانی ☀️)", "quote": "هەمیشە میهرەبان و گەشاوە بن، ڕۆژتان پڕ لە شادی 🌸👑💖"},
     "10:10": {"time_label": "10:10 (بەیانی ☀️)", "quote": "دڵتان پڕ بێت لە وزەی ئەرێنی و خۆشەویستی، کاتێکی بەجۆش 💖☕✨"},
-    "11:11": {"time_label": "11:11 (بەیانی 🌟)", "quote": "کاتژمێری ئاواتەکان! بە هیوای هاتنەدی هەموو خەونەکانتان ✨🌈🌸"},
+    "11:11": {"time_label": "11:11 (بەیانی 🌟)", "quote": "هەمیشە باوەڕت بە ئاواتەکانت هەبێت، بە هیوای هاتنەدی هەموو خەونەکانتان ✨🌈🌸"},
     "12:12": {"time_label": "12:12 (نیوەڕۆ 🌞)", "quote": "نیوەڕۆتان باش! ڕۆژێکی پڕ لە خێر و لەشساغی بۆ هەمووان 🌞🍀❤️"},
 
     # 🌞 خولی دووەم: ١ی نیوەڕۆ تا ١٢ی شەو دووبارە (سیستەمی ۱۲ کاتژمێری)
@@ -543,7 +543,7 @@ MIRROR_HOURS_CONFIG = {
     "19:07": {"time_label": "07:07 (ئێوارە 🌇)", "quote": "سوپاسگوزاری خودا بە بۆ هەموو نیعمەتەکان، شەوتان شاد 🌙🤲❤️"},
     "20:08": {"time_label": "08:08 (شەو 🌙)", "quote": "کاتێکی خۆش و بەجۆش لەگەڵ هاوڕێ و خێزانە ئازیزەکانتان 🌟🎉🥰"},
     "21:09": {"time_label": "09:09 (شەو 🌙)", "quote": "مێشکت ئارام بکەرەوە، شەوتان شاد و چاتتان پڕ لە گەرمی 🫖🌙🌸"},
-    "22:10": {"time_label": "10:10 (شەو 🌙)", "quote": "کاتژمێری ئارامی! هیوای خەوێکی پڕ لە ئاسوودەیی بۆ هەمووان ✨😴💖"},
+    "22:10": {"time_label": "10:10 (شەو 🌙)", "quote": "ساتی ئارامی و حەسانەوە، هیوای خەوێکی پڕ لە ئاسوودەیی بۆ هەمووان ✨😴💖"},
     "23:11": {"time_label": "11:11 (شەو 🌙)", "quote": "بێدەنگیی شەو باشترین دەرفەتە بۆ نزا، شەوتان پڕ لە بەرەکەت 🤲🌌🌸"}
 }
 
@@ -2700,7 +2700,32 @@ MIRROR_QUOTE_FALLBACKS = [
     "هەوڵ بدە جێپەنجەت چاکە بێت لە هەر کوێیەک هەنگاو دەنێیت 👣🌸",
     "ڕۆژەکان تێدەپەڕن، تەنها یادگاری جوان و کردەوەی چاک دەمێننەوە 📜💫",
     "ژیان وەک ئاوێنەیە، کاتێک پێبکەنیت ئەویش خەندەت پێشکەش دەکاتەوە 🪞😊",
-    "ئەو کەسەی ئارام بگرێت، شیرینترین بەرهەمی سەبر دەچێژێت 🍯🕊️"
+    "ئەو کەسەی ئارام بگرێت، شیرینترین بەرهەمی سەبر دەچێژێت 🍯🕊️",
+    "هەرگیز خەونەکانت بچووک مەکەرەوە، بەڵکو هەوڵ و باوەڕت گەورەتر بکە 🌟🚀",
+    "ئەگەر دەتەوێت ئارام بژیت، فێرببە چۆن چاوپۆشی لە هەندێک هەڵە بکەیت 🕊️🤍",
+    "جوانی ناخی مرۆڤ لەوەدایە کە بێ بەرامبەر میهرەبان و دڵفراوان بێت 🌸✨",
+    "هیچ ڕێگایەکی ئاسان بەرەو لوتکە ناڕوات؛ ماندووبوونی ئەمڕۆ سەربەرزی سبەینێیە 🏔️💪",
+    "سەبر گرنگترین کلیلە بۆ کردنەوەی هەر دەرگایەکی داخراوی چارەنووس 🗝️🌿",
+    "بەخشندەیی لە سامانەوە نییە، لە پاکیی و دەوڵەمەندی دڵەوە سەرچاوە دەگرێت 💎💖",
+    "لە هەموو ساتێکی سەختدا بزانە کە هەموو شەوێکی تاریک ڕۆژێکی گەشی لەدوایە 🌅✨",
+    "ژیان بەو چاوە ببینە کە شایەنی بینینە، هەمیشە شوێن هیوای چاک بکەوە 🌻🌼",
+    "گەورەیی مرۆڤ لە ئەخلاق و ڕەفتاریدایە، نەک لە دەنگە دەنگ و ڕواڵەتیدا 👑🌸",
+    "ئەو کەسەی بە کەمی قایل بێت و شوکر بکات، دەوڵەمەندترین کەسی سەر زەوییە 🤲💛",
+    "هەر کاتێک هەستت بە بێهیوایی کرد، سەیری ئەو ڕێگا درێژە بکە کە تا ئێرە بڕیوتە 🛤️🔥",
+    "ڕێگای سەرکەوتن پڕە لە بەربەست، بەڵام بڕوای پۆڵایین هەموویان تێکدەشکێنێت 🛡️🌟",
+    "دڵێکی شاد و ویژدانێکی ئاسوودە، گەورەترین سەرمایەی ژیانی مرۆڤن 🌿🤍",
+    "چاکە بکە و لەبیری بکە، ڕۆژێک دێت لە چاوەڕواننەکراوترین شوێن دەگەڕێتەوە بۆت 🌸💫",
+    "هەرگیز ڕابردوو ناتوانێت پێناسەی دواڕۆژت بکات ئەگەر ئەمڕۆ هەڵبستیتەوە 🌅💪",
+    "میهرەبانی زمانێکە کە کڕەکان دەتوانن بیبیسن و نابیناکان دەتوانن بیبینن 🕊️💖",
+    "خۆت بە کەس بەراورد مەکە، تۆ تەنها لەگەڵ وەشانی دوێنێی خۆت لە ڕکابەریدایت 💎🚀",
+    "ئاشتی لە ناوخۆی مرۆڤەوە سەرچاوە دەگرێت؛ دڵت پڕ بکە لە لێبوردەیی و خۆشەویستی 🕊️✨",
+    "بڕیاری دروست لە ساتی گونجاودا دەتوانێت ئاراستەی ژیانت بۆ هەمیشە بگۆڕێت 🧭🌟",
+    "خەندەیەکی ڕاستەقینە دەتوانێت ڕووناکی ببەخشێتە تاریکترین ڕۆژەکانی کەسێک 😊🌸",
+    "هیوا وەک هەناسە وایە بۆ ڕۆح؛ هەرگیز مەهێڵە لە ناختدا بکوژێتەوە 🕯️✨",
+    "کاتێک باوەڕت بە خودا و توانا پەنهانەکانی خۆت هەبێت، هیچ مەحاڵێک نامێنێت 🤲🌟",
+    "زیرەکی ئەوەیە چۆن ڕووبەڕووی گرفتەکان بیتەوە، دانایی ئەوەیە چۆن لێیان دوور بکەویتەوە 🧠🌿",
+    "قسەی چاک و ڕووخۆشی، دیارییەکی بێبەرامبەرە کە نرخی لە زێڕ بەنرخترە 💎🌸",
+    "ئارامگرتن تاڵە، بەڵام بەرهەمەکەی لە هەموو شیرینییەک خۆشتر و بەتامترە 🍯🕊️"
 ]
 
 def clean_mirror_quote(text: str) -> str:
@@ -2708,43 +2733,78 @@ def clean_mirror_quote(text: str) -> str:
     value = clean_ai_text(text or "")
     value = re.sub(r"(?is)^```.*?\n|```$", "", value).strip()
     value = value.strip(' \t\r\n\"“”«»❝❞')
+    value = re.sub(r"^['\"]+|['\"]+$", "", value).strip()
     value = re.sub(r"\s+", " ", value)
     return value[:320].strip()
 
 def is_strictly_valid_kurdish_quote(text: str) -> bool:
-    """پشکنینی ئەوەی کە دەقەکە بە تەواوی کوردییە، ناتەواو نییە و ئینگلیزی تێدا نییە"""
-    if not text or len(text) < 18:
+    """پشکنینی ئەوەی کە دەقەکە بە تەواوی وتەیەکی ماناداری کوردییە، نەک ژماردن یان باسی کاتژمێر."""
+    if not text:
         return False
-    # پشکنینی پیت یان وشەی ئینگلیزی (نابێت زیاتر لە ٢ پیتی ئینگلیزی تێدابێت)
-    eng_letters = len(re.findall(r'[a-zA-Z]', text))
-    if eng_letters > 2:
+    
+    clean = text.strip()
+    # دەبێت لانیکەم لە ٥ وشە و ٢٥ پیت پێک بێت بۆ ئەوەی وتەی ڕاستەقینە بێت
+    words = [w for w in re.split(r'\s+', clean) if len(w) > 1]
+    if len(words) < 5 or len(clean) < 25 or len(clean) > 280:
         return False
+
+    # نابێت هیچ وشە یان ناوی کاتژمێر و خولەک و سەعات لەناو وتەکەدا هەبێت (وەک: کاتژمێری دە و دە خولەک)
+    banned_time_words = [
+        "کاتژمێر", "کاتژمێری", "کاتژمێرە", "سەعات", "سەعاتی", "خولەک", "خولەکی", "خولەکە",
+        "چرکە", "چرکەی", "کاتی یەکسان", "دە و دە", "سێ و سێ", "چوار و چوار", "پێنج و پێنج",
+        "شەش و شەش", "حەوت و حەوت", "هەشت و هەشت", "نۆ و نۆ", "یازدە و یازدە", "دوانزە و دوانزە",
+        "یەک و یەک", "دوو و دوو"
+    ]
+    for btw in banned_time_words:
+        if btw in clean:
+            return False
+
+    # پشکنینی پیت یان وشەی ئینگلیزی (نابێت هیچ پیتی ئینگلیزی تێدابێت)
+    eng_letters = len(re.findall(r'[a-zA-Z]', clean))
+    if eng_letters > 0:
+        return False
+
     # پشکنینی پیتە کوردییەکان (دەبێت زۆربەی پیتەکانی کوردی بن)
-    kurdish_letters = len(re.findall(r'[\u0600-\u06FF]', text))
-    total_chars = len(re.sub(r'\s+', '', text))
+    kurdish_letters = len(re.findall(r'[\u0600-\u06FF]', clean))
+    total_chars = len(re.sub(r'\s+', '', clean))
     if total_chars == 0 or (kurdish_letters / total_chars) < 0.65:
         return False
+
     # نابێت وشەی سیستەمی یان مێتا تێدابێت
-    bad_terms = ["constraints", "strictly", "adhered", "here is", "quote", "sure", "sorry", "cannot", "translation"]
-    low = text.lower()
+    bad_terms = ["constraints", "strictly", "adhered", "here is", "quote", "sure", "sorry", "cannot", "translation", "prompt", "model", "language", "ai"]
+    low = clean.lower()
     if any(t in low for t in bad_terms):
         return False
+
     # نابێت بە وشەی بەستەر یان ناتەواو بپچڕێت
-    trimmed = text.strip()
-    if trimmed.endswith(("ی", "دا", "لە", "بە", "بۆ", "کە", "و", "یان")):
+    if clean.endswith(("ی", "دا", "لە", "بە", "بۆ", "کە", "و", "یان", "لەگەڵ", "وەک", "بەڵام", "ئەگەر", "،", ",", ":", "؛", "-")):
         return False
+
     return True
 
-def generate_mirror_hour_quote(time_label: str) -> str:
-    """وتەی ماناداری نوێ بە زمانی کوردیی سۆرانی بە Gemini و Groq دروست بکە."""
+def generate_mirror_hour_quote(time_label: str = "", default_quote: str = "") -> str:
+    """وتەی ماناداری نوێ بە زمانی کوردیی سۆرانی بە Gemini و Groq دروست بکە بەبێ باسی کاتژمێر."""
     history = state_data.setdefault("mirror_quote_history", [])
-    recent = history[-120:]
-    used_hint = "\n".join(f"- {quote}" for quote in recent) or "- هیچ"
+    recent = history[-150:]
+    used_hint = "\n".join(f"- {quote}" for quote in recent[-40:]) or "- هیچ"
+
+    themes = [
+        "سەرکەوتن، هاندان، کۆڵنەدان و خۆڕاگری لە ژیاندا",
+        "ئارامی دڵ، دڵخۆشی، ئاسوودەیی دەروونی و لێبوردەیی",
+        "هیوای گەش، ئومێد بە خودا و گەشبینی بۆ داهاتوو",
+        "حیکمەت، تێگەیشتن و فەلسەفەی قووڵی مرۆڤایەتی",
+        "میهرەبانی، مرۆڤدۆستی، ڕێز و بەخشندەیی",
+        "بڕوابەخۆبوون، بەردەوامی و پاراستنی شکۆ"
+    ]
+    selected_theme = random.choice(themes)
+
     prompt = (
-        f"تەنها یەک وتەی قووڵ، مانادار و بەهێز بە زمانی کوردیی سۆرانی بۆ کاتژمێری {time_label} بنووسە. "
-        "مەرجەکان: دەبێت بە تەواوی بە زمانی کوردی بێت، لە ١٢ تا ٢٢ وشە پێك بێت لەگەڵ ١-٢ ئیمۆجی گونجاو. "
-        "یاسای زۆر توند: بە هیچ شێوەیەک ئینگلیزی مەنوسە! هیچ پێشەکی، کەوانە و ڕوونکردنەوەی سیستەم مەنوسە. "
-        "وتەکە دەبێت تەواو بێت و لە نیوەدا نەپچڕێت.\n"
+        f"تەنها یەک وتەی زێڕین، زۆر قووڵ، کاریگەر و مانادار بە زمانی کوردیی سۆرانی لەسەر ({selected_theme}) بنووسە.\n"
+        "یاساکان بە توندی و بێبەزەییانە:\n"
+        "١. بە هیچ جۆرێک باسی کاتژمێر، سەعات، خولەک یان ژمارەی کات مەکە! (هەرگیز مەنوسە 'کاتژمێری دە و دە' یان هیچ دەقێکی لەم شێوەیە).\n"
+        "٢. تەنها یەک ڕستەی پەند و حیکمەتی پڕمانای ژیان بنووسە لە نێوان ٧ تا ١٨ وشە، لەگەڵ یەک یان دوو ئیمۆجی زۆر جوان لە کۆتاییدا.\n"
+        "٣. بە تەواوی بە زمانی کوردیی سۆرانی پاراو بێت، بەبێ هیچ پیتێکی ئینگلیزی، بەبێ کەوانە و بەبێ هیچ پێشەکی و ڕوونکردنەوەیەک.\n"
+        "٤. دەبێت وتەکە واتایەکی تەواوی هەبێت و لە نیوەدا نەپچڕابێت.\n"
         "وتە بەکارهاتووەکان کە نابێت دووبارەیان بکەیتەوە:\n" + used_hint
     )
 
@@ -2758,15 +2818,16 @@ def generate_mirror_hour_quote(time_label: str) -> str:
                     headers={"x-goog-api-key": gemini_key},
                     json={
                         "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {"maxOutputTokens": 400, "temperature": 0.9},
+                        "generationConfig": {"maxOutputTokens": 300, "temperature": 0.85},
                     },
                     timeout=(8, 20),
                 )
                 if response.status_code == 200:
                     parts = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
                     raw_text = " ".join(str(part.get("text") or "") for part in parts)
-                    if is_strictly_valid_kurdish_quote(clean_mirror_quote(raw_text)):
-                        candidates.append(raw_text)
+                    cleaned = clean_mirror_quote(raw_text)
+                    if is_strictly_valid_kurdish_quote(cleaned):
+                        candidates.append(cleaned)
                         break
                 if gemini_retryable_response(response):
                     print(f"Mirror quote Gemini temporary notice ({model_name}): HTTP {response.status_code}")
@@ -2781,25 +2842,35 @@ def generate_mirror_hour_quote(time_label: str) -> str:
     if groq_key and not candidates:
         messages = [{"role": "user", "content": prompt}]
         for model_name in groq_model_candidates(prefer_creative=True):
-            raw = request_groq_text(messages, model_name, max_tokens=400, temperature=0.9)
-            if raw and is_strictly_valid_kurdish_quote(clean_mirror_quote(raw)):
-                candidates.append(raw)
-                break
+            raw = request_groq_text(messages, model_name, max_tokens=300, temperature=0.85)
+            if raw:
+                cleaned = clean_mirror_quote(raw)
+                if is_strictly_valid_kurdish_quote(cleaned):
+                    candidates.append(cleaned)
+                    break
 
-    for raw in candidates:
-        quote = clean_mirror_quote(raw)
-        if is_strictly_valid_kurdish_quote(quote) and game_content_is_new(quote, history, similarity_limit=0.86):
+    for quote in candidates:
+        if is_strictly_valid_kurdish_quote(quote) and game_content_is_new(quote, history, similarity_limit=0.82):
             history.append(quote)
             save_state()
             return quote
 
-    for fallback in MIRROR_QUOTE_FALLBACKS:
-        if game_content_is_new(fallback, history, similarity_limit=0.86):
+    # پشتیوانی بە وتەی دیاریکراوی خشتەکە ئەگەر بەردەست بێت
+    if default_quote and is_strictly_valid_kurdish_quote(default_quote) and game_content_is_new(default_quote, history, similarity_limit=0.82):
+        history.append(default_quote)
+        save_state()
+        return default_quote
+
+    # پشتیوانی بە وتە ئامادەکراوە زێڕینەکان
+    shuffled_fallbacks = list(MIRROR_QUOTE_FALLBACKS)
+    random.shuffle(shuffled_fallbacks)
+    for fallback in shuffled_fallbacks:
+        if game_content_is_new(fallback, history, similarity_limit=0.82):
             history.append(fallback)
             save_state()
             return fallback
 
-    return random.choice(MIRROR_QUOTE_FALLBACKS)
+    return default_quote if (default_quote and is_strictly_valid_kurdish_quote(default_quote)) else random.choice(MIRROR_QUOTE_FALLBACKS)
 
 def contains_bad_word(text: str) -> bool:
     if not text:
@@ -3724,7 +3795,7 @@ def background_scheduler():
                     quote = schedule_message_cache.get(schedule_key)
                     if not quote:
                         quote = (
-                            generate_mirror_hour_quote(time_label)
+                            generate_mirror_hour_quote(time_label, item.get("quote", ""))
                             if config.get("mirrorQuoteAI", True)
                             else item["quote"]
                         )
