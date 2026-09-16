@@ -84,30 +84,16 @@ def resolve_webhook_domain():
 WEBHOOK_DOMAIN = resolve_webhook_domain()
 WEBHOOK_URL = f"https://{WEBHOOK_DOMAIN}/webhook"
 
-def keep_alive_worker():
-    """Pings the web app every 3 minutes so PythonAnywhere WSGI worker never goes to sleep."""
-    import time
-    import requests
-    time.sleep(20)
-    while True:
-        try:
-            requests.get(f"https://{WEBHOOK_DOMAIN}/health", timeout=15)
-        except Exception:
-            pass
-        time.sleep(180)
-
 def ensure_scheduler_running():
-    """Make sure the background scheduler (mirror hours & prayer times) and keep-alive are running."""
-    global scheduler_thread, keepalive_thread
+    """Make sure the background scheduler (mirror hours & prayer times) is running."""
+    global scheduler_thread
+    if scheduler_thread is not None and scheduler_thread.is_alive():
+        return
     with scheduler_lock:
         if scheduler_thread is None or not scheduler_thread.is_alive():
             scheduler_thread = threading.Thread(target=main_bot.background_scheduler, daemon=True)
             scheduler_thread.start()
             print("⏰ Background scheduler (re)started!")
-        if keepalive_thread is None or not keepalive_thread.is_alive():
-            keepalive_thread = threading.Thread(target=keep_alive_worker, daemon=True)
-            keepalive_thread.start()
-            print("🔄 Keep-alive 24/7 pinger started!")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Flask Routes
@@ -138,25 +124,25 @@ def webhook():
     received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
     if expected_secret and received_secret and not hmac.compare_digest(received_secret, expected_secret):
         return "Forbidden", 403
-    ensure_scheduler_running()
     try:
-        data = request.get_json(force=True)
+        data = request.get_json(force=True, silent=True)
         if not data:
             return 'OK', 200
         update_id = data.get("update_id")
         if update_id is not None:
             now = time.time()
             with processed_updates_lock:
-                # Telegram لە کاتی دواکەوتن هەمان update دووبارە دەنێرێت.
-                for old_id, seen_at in list(processed_updates.items()):
-                    if now - seen_at > 1800:
-                        processed_updates.pop(old_id, None)
+                if len(processed_updates) > 200:
+                    for old_id, seen_at in list(processed_updates.items()):
+                        if now - seen_at > 1800:
+                            processed_updates.pop(old_id, None)
                 if update_id in processed_updates:
                     return 'OK', 200
                 processed_updates[update_id] = now
         update_executor.submit(process_telegram_update, data)
     except Exception as e:
         print(f"Webhook receive error: {e}")
+    ensure_scheduler_running()
     return 'OK', 200
 
 def process_telegram_update(data):
