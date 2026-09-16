@@ -356,10 +356,11 @@ CRITICAL RULES:
 5. Avoid repeatedly calling people گیانەکەم، قوربانت or گوڵم; sound friendly without overdoing it.
 6. Be respectful, practical, accurate, and easy to understand.
 7. BOT DEVELOPER & CREATOR (@raman_yousif):
-   - You were created and programmed by Raman Yousif (@raman_yousif).
+   - You were created and programmed by Raman Yousif (@raman_yousif). His name in Kurdish is Kak Raman (کاک رامان).
    - If anyone asks who made you, who created this bot, who is the owner, or asks "کێ تۆی دروست کردووە", "ئۆنەری بۆت کێیە", "خاوەنی بۆت کێیە", "گەشەپێدەرت کێیە":
      You MUST explicitly state:
-     "من لەلایەن کاک ڕەحمان (@raman_yousif) دروستکراوم و گەشەم پێدراوە! 👨‍💻🌸✨ ئەگەر هەر پرسیار یان پێشنیارێکت هەیە دەتوانیت ڕاستەوخۆ نامەی بۆ بنێریت! 🥰"
+     "من لەلایەن کاک رامان (@raman_yousif) دروستکراوم و گەشەم پێدراوە! 👨‍💻🌸✨ ئەگەر هەر پرسیار یان پێشنیارێکت هەیە دەتوانیت ڕاستەوخۆ نامەی بۆ بنێریت! 🥰"
+   - CRITICAL: His name is RAMAN (رامان / کاک رامان), NEVER write Rahman or ڕەحمان!
    - NEVER tell users to look at your bio, and NEVER say you don't know who created you. Always give @raman_yousif!
 8. LATIN SCRIPT & KURDISH LATIN (تێگەیشتن لە کوردیی لاتینی):
    - If someone speaks, asks, or writes to you in Latin script (Kurdish written in Latin alphabet like 'choni', 'to key', 'bochi', 'swpas', 'dastxosh', etc., or English):
@@ -2612,7 +2613,7 @@ def get_ai_reply(chat_id: int, user_id: int, question: str) -> str:
     system_prompt = f"{AI_SYSTEM_PROMPT}\n\n{AI_CONVERSATION_RULES}"
     
     # زانیاری تەواو بۆ AI دەربارەی دروستکەری بۆت و خاوەنی ئەم گروپە
-    extra_context = "\n\nCRITICAL CONTEXT:\n- BOT DEVELOPER & OWNER: You were created and developed by @raman_yousif. When asked who made you, who created this bot, or who the bot owner is, always proudly state you were created by @raman_yousif."
+    extra_context = "\n\nCRITICAL CONTEXT:\n- BOT DEVELOPER & OWNER: You were created and developed by Raman Yousif (@raman_yousif). His name in Kurdish is Kak Raman (کاک رامان). NEVER call him Rahman or ڕەحمان! When asked who made you, who created this bot, or who the bot owner is, always proudly state you were created by Kak Raman (@raman_yousif)."
     creator = get_group_creator(chat_id)
     if creator:
         c_name = creator.get("first_name") or "Owner"
@@ -3460,7 +3461,10 @@ def format_group_owner_info(chat_id: int) -> str:
         c_user = creator.get("username")
         c_id = creator.get("id")
         if c_user:
-            mention = f"@{c_user} (<code>{c_name}</code>)"
+            if c_user.lower() == "raman_yousif":
+                mention = f"@{c_user} (کاک رامان 🌸)"
+            else:
+                mention = f"@{c_user} (<code>{c_name}</code>)"
         elif c_id:
             mention = f'<a href="tg://user?id={c_id}">{c_name}</a>'
         else:
@@ -3472,7 +3476,7 @@ def format_bot_owner_info() -> str:
     """داڕشتنی پەیامی ناساندنی دروستکەر و خاوەنی بۆت"""
     return (
         f"🤖 <b>گەشەپێدەر و خاوەنی بوتی گاردنیا (Bot Developer & Owner):</b>\n"
-        f"👨‍💻 {BOT_CREATOR_USERNAME} 🌸✨\n\n"
+        f"👨‍💻 کاک رامان ({BOT_CREATOR_USERNAME}) 🌸✨\n\n"
         f"ئەگەر هەر پرسیار، پێشنیار یان داواکارییەکت هەیە دەتوانیت ڕاستەوخۆ پەیوەندی پێوە بکەیت! 🥰"
     )
 
@@ -3494,11 +3498,11 @@ def is_bot_owner_question(text: str) -> bool:
     raw = text.lower()
 
     # وشەکانی پەیوەست بە دروستکردن، گەشەپێدان یان دانان
-    creator_tokens = ["دروست", "گەشەپێدەر", "گەشەپیدەر", "سازکەر", "دانەر", "میکەر", "creator", "dev", "developer", "maker"]
+    creator_tokens = ["دروست", "گەشەپێدەر", "گەشەپیدەر", "سازکەر", "دانەر", "میکەر", "creator", "dev", "developer", "maker", "drwst", "drust"]
     # وشەکانی پەیوەست بە بۆت
     bot_tokens = ["بۆت", "بوت", "bot"]
     # وشەکانی پەیوەست بە خاوەن یان ئۆنەر
-    owner_tokens = ["اونەر", "ئۆنەر", "خاوەن", "owner"]
+    owner_tokens = ["اونەر", "ئۆنەر", "خاوەن", "owner", "awner"]
 
     has_creator = any(c in norm for c in creator_tokens)
     has_bot = any(b in norm for b in bot_tokens)
@@ -3537,9 +3541,9 @@ def is_group_owner_question(text: str) -> bool:
     raw = text.lower()
 
     # وشەکانی پەیوەست بە خاوەن یان سەرۆک
-    owner_tokens = ["اونەر", "ئۆنەر", "خاوەن", "سەروک", "سەرۆک", "بەرپرس", "owner"]
+    owner_tokens = ["اونەر", "ئۆنەر", "خاوەن", "سەروک", "سەرۆک", "بەرپرس", "owner", "awner", "ownar"]
     # وشەکانی پەیوەست بە گروپ
-    group_tokens = ["گروپ", "گروب", "ئیره", "ئێرە", "group"]
+    group_tokens = ["گروپ", "گروب", "ئیره", "ئێرە", "group", "era", "lera", "am grupe", "grp"]
 
     has_owner = any(o in norm for o in owner_tokens)
     has_group = any(g in norm for g in group_tokens)
@@ -3554,7 +3558,9 @@ def is_group_owner_question(text: str) -> bool:
         "سەرۆکی گروپ", "سەرۆکی ئەم گروپە", "کێ خاوەنی گروپە", "کێ خاوەنی ئەم گروپەیە",
         "کێ ئۆنەری گروپە", "کێ ئۆنەری ئەم گروپەیە", "خاوەن گروپ", "ئۆنەر گروپ",
         "کێ دروستکەری ئەم گروپەیە", "دروستکەری گروپ", "ئۆنەری ئێرە کێیە", "خاوەنی ئێرە کێیە",
-        "خاوەنی گروب", "ئۆنەری گروب", "سەرۆکی گروب", "سەرۆکی ئێرە"
+        "خاوەنی گروب", "ئۆنەری گروب", "سەرۆکی گروب", "سەرۆکی ئێرە",
+        "owner era", "owner era cheya", "owner era chya", "awner era", "owner lera", "owner group",
+        "group owner", "who is the owner", "owner kye", "owner kya", "owner keya"
     ]
     for p in phrases:
         if clean_query_text(p) in norm or p in raw:
