@@ -148,6 +148,10 @@ def webhook():
 def process_telegram_update(data):
     """یەک update لە پاشبنەما جێبەجێ بکە تا Telegram timeout نەکات."""
     try:
+        try:
+            main_bot.tick_scheduler(wait_for_second=False)
+        except Exception:
+            pass
         if 'message' in data:
             main_bot.handle_message(data['message'])
         elif 'chat_member' in data:
@@ -161,6 +165,10 @@ def process_telegram_update(data):
 def health():
     """Health check endpoint."""
     ensure_scheduler_running()
+    try:
+        main_bot.tick_scheduler(wait_for_second=False)
+    except Exception:
+        pass
     tok = main_bot.live_config_secret("token", "TELEGRAM_BOT_TOKEN") or main_bot.BOT_TOKEN or ""
     tok_preview = f"{tok[:6]}...{tok[-4:]}" if len(tok) > 10 else ("none" if not tok else "short")
     groq_state = "configured" if main_bot.GROQ_API_KEY else "missing-key"

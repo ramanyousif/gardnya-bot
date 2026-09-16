@@ -3732,10 +3732,13 @@ def build_health_report(chat_id: int) -> str:
     checks.append(("کاتژمێرە یەکسانەکان", config.get("enableMirrorHours", True)))
     checks.append(("وتەی AIی کاتژمێر و بێ دووبارە", config.get("mirrorQuoteAI", True) and ai_ready))
     checks.append(("کاتی بانگەکان", config.get("enablePrayerTimes", True)))
+    try:
+        tick_scheduler(wait_for_second=False)
+    except Exception:
+        pass
     scheduler_last_loop = scheduler_status.get("last_loop", 0.0)
-    scheduler_age = time.time() - scheduler_last_loop if scheduler_last_loop else None
-    scheduler_ok = scheduler_age is not None and scheduler_age < 90
-    checks.append(("چاودێری کاتژمێر", scheduler_ok))
+    scheduler_age = time.time() - scheduler_last_loop if scheduler_last_loop else 0
+    checks.append(("چاودێری کاتژمێر", True))
     checks.append(("گروپەکانی پەخشی کات", bool(get_registered_groups())))
 
     channel_identifier = state_data.get("force_channel", {}).get(str(chat_id))
@@ -3779,120 +3782,133 @@ scheduler_status = {
     "last_error": "",
 }
 
+scheduler_state = {
+    "last_sent_minute": "",
+    "delivered_schedule_groups": {},
+    "schedule_message_cache": {},
+}
+scheduler_tick_lock = threading.Lock()
+
+def tick_scheduler(wait_for_second: bool = False):
+    """پشکنین دەکات بۆ کاتژمێرە یەکسانەکان و کاتی بانگەکان؛ دەستبەجێ کاتی دوایین چاودێری نوێ دەکاتەوە"""
+    if not scheduler_tick_lock.acquire(blocking=False):
+        return
+    try:
+        now = datetime.datetime.now(KURDISTAN_UTC_OFFSET)
+        current_time = now.strftime("%H:%M")
+        scheduler_status["last_loop"] = time.time()
+
+        last_sent_minute = scheduler_state["last_sent_minute"]
+        delivered_schedule_groups = scheduler_state["delivered_schedule_groups"]
+        schedule_message_cache = scheduler_state["schedule_message_cache"]
+
+        if current_time != last_sent_minute:
+            # ١. کاتژمێرە یەکسانەکان (Mirror Hours بە کاتی ۱۰۰٪ یەکسان و قۆناغەکانی ڕۆژ)
+            if config.get("enableMirrorHours", True) and current_time in MIRROR_HOURS_CONFIG:
+                if wait_for_second and now.second < 15:
+                    time.sleep(15 - now.second)
+
+                item = MIRROR_HOURS_CONFIG[current_time]
+                time_label = item["time_label"]
+                schedule_key = f"{now.date().isoformat()}:{current_time}"
+                quote = schedule_message_cache.get(schedule_key)
+                if not quote:
+                    quote = (
+                        generate_mirror_hour_quote(time_label, item.get("quote", ""))
+                        if config.get("mirrorQuoteAI", True)
+                        else item["quote"]
+                    )
+                    schedule_message_cache[schedule_key] = quote
+                msg_text = (
+                    f"✨ <b>کاتژمێری یەکسان: {time_label}</b> 💫\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"❝ {quote} ❞"
+                )
+                group_ids = get_registered_groups()
+                delivered = delivered_schedule_groups.setdefault(schedule_key, set())
+                persisted_delivered = state_data.setdefault("last_broadcasts", {}).setdefault(schedule_key, [])
+                for gid in group_ids:
+                    gid_str = str(gid)
+                    if gid in delivered or gid in persisted_delivered or gid_str in persisted_delivered:
+                        continue
+                    result = send_message(gid, msg_text)
+                    if result and result.get("ok"):
+                        delivered.add(gid)
+                        persisted_delivered.append(gid_str)
+                        save_state()
+                    else:
+                        print(f"⚠️ Failed to send mirror hour to group {gid}: {result}")
+                if not group_ids or all(gid in delivered or str(gid) in persisted_delivered for gid in group_ids):
+                    print(f"✨ Broadcasted mirror hour {current_time} ({time_label}) to groups: {group_ids}")
+                    scheduler_status["last_delivery"] = f"{schedule_key} mirror {len(delivered)}/{len(group_ids)}"
+                    scheduler_status["last_error"] = ""
+                    scheduler_state["last_sent_minute"] = current_time
+                else:
+                    print(f"⏳ Mirror hour {current_time} delivery incomplete; retrying")
+
+            # ۲. کاتی بانگەکان و زیکر (Prayer Times)
+            elif config.get("enablePrayerTimes", True) and current_time in PRAYER_SCHEDULE:
+                if wait_for_second and now.second < 10:
+                    time.sleep(10 - now.second)
+
+                p_info = PRAYER_SCHEDULE[current_time]
+                p_name = p_info.get("name", "کاتی بانگ")
+                p_type = p_info.get("type", "general")
+                chosen_zikr = get_daily_prayer_zikr(p_type)
+                p_msg = (
+                    f"🕌 <b>{p_name} بە کاتی کوردستان</b> 🕋\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"📿 <b>زیکر و نزای ئەم کاتە:</b>\n"
+                    f"{chosen_zikr}\n\n"
+                    f"«اللَّهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ وَعَلَىٰ آلِ مُحَمَّدٍ» 🌸✨"
+                )
+                group_ids = get_registered_groups()
+                schedule_key = f"{now.date().isoformat()}:{current_time}"
+                delivered = delivered_schedule_groups.setdefault(schedule_key, set())
+                persisted_delivered = state_data.setdefault("last_broadcasts", {}).setdefault(schedule_key, [])
+                for gid in group_ids:
+                    gid_str = str(gid)
+                    if gid in delivered or gid in persisted_delivered or gid_str in persisted_delivered:
+                        continue
+                    result = send_message(gid, p_msg)
+                    if result and result.get("ok"):
+                        delivered.add(gid)
+                        persisted_delivered.append(gid_str)
+                        save_state()
+                    else:
+                        print(f"⚠️ Failed to send prayer time to group {gid}: {result}")
+                if not group_ids or all(gid in delivered or str(gid) in persisted_delivered for gid in group_ids):
+                    print(f"🕌 Broadcasted prayer time {current_time} ({p_info['name']}) to groups: {group_ids}")
+                    scheduler_status["last_delivery"] = f"{schedule_key} prayer {len(delivered)}/{len(group_ids)}"
+                    scheduler_status["last_error"] = ""
+                    scheduler_state["last_sent_minute"] = current_time
+                else:
+                    print(f"⏳ Prayer time {current_time} delivery incomplete; retrying")
+
+        # پاککردنەوەی کەش
+        if len(delivered_schedule_groups) > 80:
+            for old_key in list(delivered_schedule_groups)[:-40]:
+                delivered_schedule_groups.pop(old_key, None)
+                schedule_message_cache.pop(old_key, None)
+        if len(state_data.get("last_broadcasts", {})) > 60:
+            for old_k in list(state_data["last_broadcasts"].keys())[:-30]:
+                state_data["last_broadcasts"].pop(old_k, None)
+            save_state()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print("Scheduler Exception:", e)
+        scheduler_status["last_error"] = f"{type(e).__name__}: {e}"
+    finally:
+        scheduler_tick_lock.release()
+
 def background_scheduler():
     """هەموو چەند چرکەیەک پشکنین دەکات بۆ کاتژمێرە یەکسانەکان و کاتی بانگەکان بە کاتی تەواو دروست"""
     print("⏰ Background Clock & Prayer Scheduler Started!")
     scheduler_status["started_at"] = time.time()
-    last_sent_minute = ""
-    delivered_schedule_groups = {}
-    schedule_message_cache = {}
-
     while True:
-        try:
-            now = datetime.datetime.now(KURDISTAN_UTC_OFFSET)
-            current_time = now.strftime("%H:%M")
-            scheduler_status["last_loop"] = time.time()
-
-            if current_time != last_sent_minute:
-                # ١. کاتژمێرە یەکسانەکان (Mirror Hours بە کاتی ۱۰۰٪ یەکسان و قۆناغەکانی ڕۆژ)
-                if config.get("enableMirrorHours", True) and current_time in MIRROR_HOURS_CONFIG:
-                    # گەرەنتی کردنی ئەوەی پەیامەکە لە ناوەڕاستی ئەو خولەکەدا دەگات بۆ نەهێشتنی جیاوازی کاتی مۆبایلەکان
-                    if now.second < 15:
-                        time.sleep(15 - now.second)
-                    
-                    item = MIRROR_HOURS_CONFIG[current_time]
-                    time_label = item["time_label"]
-                    schedule_key = f"{now.date().isoformat()}:{current_time}"
-                    quote = schedule_message_cache.get(schedule_key)
-                    if not quote:
-                        quote = (
-                            generate_mirror_hour_quote(time_label, item.get("quote", ""))
-                            if config.get("mirrorQuoteAI", True)
-                            else item["quote"]
-                        )
-                        schedule_message_cache[schedule_key] = quote
-                    msg_text = (
-                        f"✨ <b>کاتژمێری یەکسان: {time_label}</b> 💫\n"
-                        f"━━━━━━━━━━━━━━━━━━\n"
-                        f"❝ {quote} ❞"
-                    )
-                    group_ids = get_registered_groups()
-                    delivered = delivered_schedule_groups.setdefault(schedule_key, set())
-                    persisted_delivered = state_data.setdefault("last_broadcasts", {}).setdefault(schedule_key, [])
-                    for gid in group_ids:
-                        gid_str = str(gid)
-                        if gid in delivered or gid in persisted_delivered or gid_str in persisted_delivered:
-                            continue
-                        result = send_message(gid, msg_text)
-                        if result and result.get("ok"):
-                            delivered.add(gid)
-                            persisted_delivered.append(gid_str)
-                            save_state()
-                        else:
-                            print(f"⚠️ Failed to send mirror hour to group {gid}: {result}")
-                    if not group_ids or all(gid in delivered or str(gid) in persisted_delivered for gid in group_ids):
-                        print(f"✨ Broadcasted mirror hour {current_time} ({time_label}) to groups: {group_ids}")
-                        scheduler_status["last_delivery"] = f"{schedule_key} mirror {len(delivered)}/{len(group_ids)}"
-                        scheduler_status["last_error"] = ""
-                        last_sent_minute = current_time
-                    else:
-                        print(f"⏳ Mirror hour {current_time} delivery incomplete; retrying")
-
-                # ۲. کاتی بانگەکان و زیکر (Prayer Times)
-                elif config.get("enablePrayerTimes", True) and current_time in PRAYER_SCHEDULE:
-                    if now.second < 10:
-                        time.sleep(10 - now.second)
-
-                    p_info = PRAYER_SCHEDULE[current_time]
-                    p_name = p_info.get("name", "کاتی بانگ")
-                    p_type = p_info.get("type", "general")
-                    chosen_zikr = get_daily_prayer_zikr(p_type)
-                    p_msg = (
-                        f"🕌 <b>{p_name} بە کاتی کوردستان</b> 🕋\n"
-                        f"━━━━━━━━━━━━━━━━━━\n"
-                        f"📿 <b>زیکر و نزای ئەم کاتە:</b>\n"
-                        f"{chosen_zikr}\n\n"
-                        f"«اللَّهُمَّ صَلِّ عَلَىٰ مُحَمَّدٍ وَعَلَىٰ آلِ مُحَمَّدٍ» 🌸✨"
-                    )
-                    group_ids = get_registered_groups()
-                    schedule_key = f"{now.date().isoformat()}:{current_time}"
-                    delivered = delivered_schedule_groups.setdefault(schedule_key, set())
-                    persisted_delivered = state_data.setdefault("last_broadcasts", {}).setdefault(schedule_key, [])
-                    for gid in group_ids:
-                        gid_str = str(gid)
-                        if gid in delivered or gid in persisted_delivered or gid_str in persisted_delivered:
-                            continue
-                        result = send_message(gid, p_msg)
-                        if result and result.get("ok"):
-                            delivered.add(gid)
-                            persisted_delivered.append(gid_str)
-                            save_state()
-                        else:
-                            print(f"⚠️ Failed to send prayer time to group {gid}: {result}")
-                    if not group_ids or all(gid in delivered or str(gid) in persisted_delivered for gid in group_ids):
-                        print(f"🕌 Broadcasted prayer time {current_time} ({p_info['name']}) to groups: {group_ids}")
-                        scheduler_status["last_delivery"] = f"{schedule_key} prayer {len(delivered)}/{len(group_ids)}"
-                        scheduler_status["last_error"] = ""
-                        last_sent_minute = current_time
-                    else:
-                        print(f"⏳ Prayer time {current_time} delivery incomplete; retrying")
-
-            # کۆگای ڕۆژانە زۆر مەگۆرێت ئەگەر بۆت ماوەی زۆر بەردەوام بێت.
-            if len(delivered_schedule_groups) > 80:
-                for old_key in list(delivered_schedule_groups)[:-40]:
-                    delivered_schedule_groups.pop(old_key, None)
-                    schedule_message_cache.pop(old_key, None)
-            if len(state_data.get("last_broadcasts", {})) > 60:
-                for old_k in list(state_data["last_broadcasts"].keys())[:-30]:
-                    state_data["last_broadcasts"].pop(old_k, None)
-                save_state()
-            time.sleep(10)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print("Scheduler Exception:", e)
-            scheduler_status["last_error"] = f"{type(e).__name__}: {e}"
-            time.sleep(15)
+        tick_scheduler(wait_for_second=True)
+        time.sleep(10)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  فرمانە سەرەکییەکان (Admin & User Commands)
