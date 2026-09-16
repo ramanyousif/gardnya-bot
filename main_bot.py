@@ -273,6 +273,19 @@ def save_state():
     except Exception as e:
         print(f"Failed to save state: {e}")
 
+def reload_persisted_broadcasts() -> dict:
+    """خوێندنەوەی دوایین پەخشەکان لە دیسکەوە بۆ ڕێگری لە ناردنی دووبارە لە نێوان چەند وۆرکەر یان پرۆسێس"""
+    try:
+        if STATE_FILE.exists():
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                disk_data = json.load(f)
+                disk_broadcasts = disk_data.get("last_broadcasts", {})
+                state_data["last_broadcasts"] = disk_broadcasts
+                return disk_broadcasts
+    except Exception:
+        pass
+    return state_data.setdefault("last_broadcasts", {})
+
 def get_registered_groups() -> list:
     """گێڕانەوەی لیستی ناسێنەری گرووپەکان بە شێوازێکی بێ هەڵە و هەمیشە وەک list[int]"""
     global state_data
@@ -3826,7 +3839,7 @@ def tick_scheduler(wait_for_second: bool = False):
                 )
                 group_ids = get_registered_groups()
                 delivered = delivered_schedule_groups.setdefault(schedule_key, set())
-                persisted_delivered = state_data.setdefault("last_broadcasts", {}).setdefault(schedule_key, [])
+                persisted_delivered = reload_persisted_broadcasts().setdefault(schedule_key, [])
                 for gid in group_ids:
                     gid_str = str(gid)
                     if gid in delivered or gid in persisted_delivered or gid_str in persisted_delivered:
@@ -3834,7 +3847,8 @@ def tick_scheduler(wait_for_second: bool = False):
                     result = send_message(gid, msg_text)
                     if result and result.get("ok"):
                         delivered.add(gid)
-                        persisted_delivered.append(gid_str)
+                        if gid_str not in persisted_delivered:
+                            persisted_delivered.append(gid_str)
                         save_state()
                     else:
                         print(f"⚠️ Failed to send mirror hour to group {gid}: {result}")
@@ -3865,7 +3879,7 @@ def tick_scheduler(wait_for_second: bool = False):
                 group_ids = get_registered_groups()
                 schedule_key = f"{now.date().isoformat()}:{current_time}"
                 delivered = delivered_schedule_groups.setdefault(schedule_key, set())
-                persisted_delivered = state_data.setdefault("last_broadcasts", {}).setdefault(schedule_key, [])
+                persisted_delivered = reload_persisted_broadcasts().setdefault(schedule_key, [])
                 for gid in group_ids:
                     gid_str = str(gid)
                     if gid in delivered or gid in persisted_delivered or gid_str in persisted_delivered:
@@ -3873,7 +3887,8 @@ def tick_scheduler(wait_for_second: bool = False):
                     result = send_message(gid, p_msg)
                     if result and result.get("ok"):
                         delivered.add(gid)
-                        persisted_delivered.append(gid_str)
+                        if gid_str not in persisted_delivered:
+                            persisted_delivered.append(gid_str)
                         save_state()
                     else:
                         print(f"⚠️ Failed to send prayer time to group {gid}: {result}")
